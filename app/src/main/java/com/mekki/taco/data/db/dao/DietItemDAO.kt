@@ -3,9 +3,8 @@ package com.mekki.taco.data.db.dao
 import androidx.room.*
 import com.mekki.taco.data.db.entity.ItemDieta
 import kotlinx.coroutines.flow.Flow
-import com.mekki.taco.data.model.ItemDietaComAlimento
+import com.mekki.taco.data.model.DietItemWithFood
 
-// Responsável pelas tarefas de DB dos componentes de uma dieta
 @Dao
 interface ItemDietaDao {
 
@@ -70,9 +69,8 @@ interface ItemDietaDao {
      */
     @Transaction
     @Query("SELECT * FROM itens_dieta WHERE dietaId = :idDieta")
-    fun buscarItensComAlimentoPorDietaId(idDieta: Int): Flow<List<ItemDietaComAlimento>>
+    fun buscarItensComAlimentoPorDietaId(idDieta: Int): Flow<List<DietItemWithFood>>
 
-    // Metodo para atualizar a quantidade (para a funcionalidade de edição)
     @Query("UPDATE itens_dieta SET quantidadeGramas = :novaQuantidade WHERE id = :itemId")
     suspend fun atualizarQuantidadeItem(itemId: Int, novaQuantidade: Double)
 

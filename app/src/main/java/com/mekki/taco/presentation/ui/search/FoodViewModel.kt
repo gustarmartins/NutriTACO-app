@@ -3,8 +3,8 @@ package com.mekki.taco.presentation.ui.search // Ou o pacote que você preferir
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mekki.taco.data.db.entity.Alimento
-import com.mekki.taco.data.db.dao.AlimentoDao
+import com.mekki.taco.data.db.entity.Food
+import com.mekki.taco.data.db.dao.FoodDao
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.stateIn
 // mas viewModelScope.launch é usado internamente por stateIn se necessário.
 
 @OptIn(FlowPreview::class)
-class AlimentoViewModel(private val alimentoDao: AlimentoDao) : ViewModel() {
+class AlimentoViewModel(private val foodDao: FoodDao) : ViewModel() {
 
     companion object {
         private const val TAG = "AlimentoViewModel"
@@ -35,17 +35,17 @@ class AlimentoViewModel(private val alimentoDao: AlimentoDao) : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    val resultadosBusca: StateFlow<List<Alimento>> = _termoBusca
+    val resultadosBusca: StateFlow<List<Food>> = _termoBusca
         .debounce(300L) // Adiciona um 'L' para indicar Long, boa prática
         .distinctUntilChanged()
         .flatMapLatest { termo -> // Executado quando 'termo' muda (após debounce e distinctUntilChanged)
             Log.d(TAG, "flatMapLatest: Processando termoBusca: '$termo'")
             if (termo.isBlank() || termo.length < 2) {
                 _isLoading.value = false // Garante que isLoading seja false se não houver busca
-                flowOf(emptyList<Alimento>()) // Retorna um fluxo com lista vazia
+                flowOf(emptyList<Food>()) // Retorna um fluxo com lista vazia
             } else {
                 // O DAO retorna um Flow. Usamos operadores de Flow para gerenciar o estado.
-                alimentoDao.buscarAlimentosPorNome(termo)
+                foodDao.buscarAlimentosPorNome(termo)
                     .onStart {
                         // Chamado quando a coleta deste Flow (do DAO) começa
                         Log.d(TAG, "Busca no DAO iniciada para o termo: '$termo'")
@@ -60,7 +60,7 @@ class AlimentoViewModel(private val alimentoDao: AlimentoDao) : ViewModel() {
                         // Chamado se houver um erro na coleta do Flow do DAO
                         Log.e(TAG, "Erro ao buscar alimentos para o termo '$termo'", e)
                         _isLoading.value = false // Desativa o loading em caso de erro
-                        emit(emptyList<Alimento>()) // Emite uma lista vazia em caso de erro para não travar a UI
+                        emit(emptyList<Food>()) // Emite uma lista vazia em caso de erro para não travar a UI
                     }
             }
         }

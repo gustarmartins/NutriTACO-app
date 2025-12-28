@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -21,8 +20,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.mekki.taco.data.db.dao.AlimentoDao
-import com.mekki.taco.data.db.entity.Alimento
+import com.mekki.taco.data.db.dao.FoodDao
+import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.db.entity.Lipidios
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -57,7 +56,7 @@ private fun AlimentoSearchScreenContent(
     modifier: Modifier = Modifier,
     termoBusca: String,
     onTermoBuscaChange: (String) -> Unit,
-    resultados: List<Alimento>,
+    resultados: List<Food>,
     isLoading: Boolean,
     onAlimentoClick: (alimentoId: Int) -> Unit,
     onPerformSearch: () -> Unit
@@ -117,7 +116,7 @@ private fun AlimentoSearchScreenContent(
                         items = resultados,
                         key = { alimento -> alimento.id }
                     ) { alimento ->
-                        AlimentoListItem(alimento = alimento) {
+                        AlimentoListItem(food = alimento) {
                             onAlimentoClick(alimento.id)
                         }
                     }
@@ -128,54 +127,15 @@ private fun AlimentoSearchScreenContent(
 }
 
 @Composable
-fun AlimentoListItem(alimento: Alimento, onClick: () -> Unit) {
+fun AlimentoListItem(food: Food, onClick: () -> Unit) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = alimento.nome, style = MaterialTheme.typography.titleMedium)
-            Text(text = "Categoria: ${alimento.categoria}", style = MaterialTheme.typography.bodySmall)
+            Text(text = food.nome, style = MaterialTheme.typography.titleMedium)
+            Text(text = "Categoria: ${food.categoria}", style = MaterialTheme.typography.bodySmall)
         }
-    }
-}
-
-
-// --- PREVIEW CODE (No changes needed here) ---
-class FakeAlimentoDaoPreview : AlimentoDao {
-    val previewAlimentos = listOf(
-        Alimento(id=1, codigoOriginal="PREVIEW001", nome="Maçã Fuji (Preview)", categoria="Frutas", energiaKcal=56.0, energiaKj=232.0, proteina=0.3, colesterol=0.0, carboidratos=15.2, fibraAlimentar=1.3, cinzas=0.2, calcio=2.0, magnesio=2.0, manganes=0.03, fosforo=9.0, ferro=0.1, sodio=0.0, potassio=75.0, cobre=0.06, zinco=0.0, retinol=null, RE=4.0, RAE=2.0, tiamina=0.0, riboflavina=0.0, piridoxina=0.03, niacina=0.0, vitaminaC=2.4, umidade=84.3, lipidios=Lipidios(total=0.0,saturados=0.0,monoinsaturados=0.0,poliinsaturados=0.0), aminoacidos=null),
-        Alimento(id=2, codigoOriginal="PREVIEW002", nome="Arroz Cozido (Preview)", categoria="Cereais", energiaKcal=124.0, energiaKj=517.0, proteina=2.6, colesterol=null, carboidratos=25.8, fibraAlimentar=2.7, cinzas=0.5, calcio=5.0, magnesio=59.0, manganes=0.63, fosforo=106.0, ferro=0.3, sodio=1.0, potassio=75.0, cobre=0.02, zinco=0.7, retinol=null, RE=null, RAE=null, tiamina=0.08, riboflavina=0.0, piridoxina=0.08, niacina=0.0, vitaminaC=null, umidade=70.1, lipidios=Lipidios(total=1.0,saturados=0.3,monoinsaturados=0.4,poliinsaturados=0.3), aminoacidos=null)
-    )
-    override suspend fun inserirAlimento(alimento: Alimento): Long = 0L
-    override suspend fun inserirAlimentos(alimentos: List<Alimento>) {}
-    override suspend fun atualizarAlimento(alimento: Alimento): Int = 0
-    override suspend fun deletarAlimento(alimento: Alimento) {}
-    override suspend fun deletarTodosAlimentos() {}
-    override fun buscarAlimentoPorId(id: Int): Flow<Alimento?> = flowOf(previewAlimentos.find { it.id == id })
-    override fun buscarAlimentoPorCodigoOriginal(codigoOriginal: String): Flow<Alimento?> = flowOf(previewAlimentos.find { it.codigoOriginal == codigoOriginal })
-    override fun buscarTodosAlimentos(): Flow<List<Alimento>> = flowOf(previewAlimentos)
-    override fun buscarAlimentosPorNome(termoBusca: String): Flow<List<Alimento>> = flowOf(
-        if (termoBusca.isBlank() || termoBusca.length < 2) emptyList()
-        else previewAlimentos.filter { it.nome.contains(termoBusca, ignoreCase = true) }
-    )
-    override fun buscarAlimentosPorCategoria(categoria: String): Flow<List<Alimento>> = flowOf(previewAlimentos.filter { it.categoria.equals(categoria, ignoreCase = true) })
-    override fun buscarTodasCategorias(): Flow<List<String>> = flowOf(previewAlimentos.map { it.categoria }.distinct().sorted())
-    override suspend fun contarAlimentos(): Int = previewAlimentos.size
-}
-
-@Preview(showBackground = true, widthDp = 380, name = "Tela de Busca (Resultados)")
-@Composable
-fun AlimentoSearchScreenContentPreview_ComResultados() {
-    MaterialTheme {
-        AlimentoSearchScreenContent(
-            termoBusca = "arr",
-            onTermoBuscaChange = { Log.d("Preview", "Busca: $it") },
-            resultados = FakeAlimentoDaoPreview().previewAlimentos.filter { it.nome.contains("arr",ignoreCase = true) },
-            isLoading = false,
-            onAlimentoClick = { id -> Log.d("Preview", "Clicou no alimento ID: $id") },
-            onPerformSearch = { Log.d("Preview", "Perform Search Clicado") }
-        )
     }
 }

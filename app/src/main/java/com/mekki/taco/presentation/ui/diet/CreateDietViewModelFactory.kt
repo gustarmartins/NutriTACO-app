@@ -1,4 +1,4 @@
-package com.mekki.taco.presentation.ui.addfood
+package com.mekki.taco.presentation.ui.diet
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -6,25 +6,23 @@ import com.mekki.taco.data.db.dao.AlimentoDao
 import com.mekki.taco.data.db.dao.DietaDao
 import com.mekki.taco.data.db.dao.ItemDietaDao
 
-class AddFoodViewModelFactory(
-    private val foodId: Int,
-    private val alimentoDao: AlimentoDao,
+class CreateDietViewModelFactory(
     private val dietaDao: DietaDao,
     private val itemDietaDao: ItemDietaDao,
-    private val initialDietId: Int? = null
+    private val alimentoDao: AlimentoDao,
+    private val dietIdToEdit: Int? = null
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(AddFoodViewModel::class.java)) {
-            return AddFoodViewModel(
-                foodId = foodId,
-                alimentoDao = alimentoDao,
+        if (modelClass.isAssignableFrom(CreateDietViewModel::class.java)) {
+            return CreateDietViewModel(
                 dietaDao = dietaDao,
                 itemDietaDao = itemDietaDao,
-                initialDietId = initialDietId
+                alimentoDao = alimentoDao,
+                dietIdToEdit = dietIdToEdit
             ) as T
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
+        throw IllegalArgumentException("Unknown ViewModel class for CreateDiet")
     }
 }

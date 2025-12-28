@@ -2,24 +2,23 @@ package com.mekki.taco.presentation.ui.fooddetail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mekki.taco.data.db.dao.AlimentoDao
-import com.mekki.taco.data.db.entity.Alimento
+import com.mekki.taco.data.db.dao.FoodDao
+import com.mekki.taco.data.db.entity.Food
 import kotlinx.coroutines.flow.*
 
-// State holder for our UI
 data class AlimentoDetailUiState(
     val isLoading: Boolean = true,
     val portion: String = "100",
-    val displayAlimento: Alimento? = null // The recalculated Alimento
+    val displayFood: Food? = null
 )
 
 class AlimentoDetailViewModel(
     alimentoId: Int,
-    alimentoDao: AlimentoDao
+    foodDao: FoodDao
 ) : ViewModel() {
 
     private val _portion = MutableStateFlow("100")
-    private val _baseAlimento: StateFlow<Alimento?> = alimentoDao.buscarAlimentoPorId(alimentoId)
+    private val _baseFood: StateFlow<Food?> = foodDao.buscarAlimentoPorId(alimentoId)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -27,14 +26,14 @@ class AlimentoDetailViewModel(
         )
 
     val uiState: StateFlow<AlimentoDetailUiState> =
-        combine(_baseAlimento, _portion) { base, portion ->
+        combine(_baseFood, _portion) { base, portion ->
             if (base == null) {
                 AlimentoDetailUiState(isLoading = true)
             } else {
                 val newPortion = portion.toDoubleOrNull() ?: 100.0
                 val ratio = newPortion / 100.0
                 val recalculatedAlimento = base.copy(
-                    // General
+
                     energiaKcal = base.energiaKcal?.times(ratio),
                     energiaKj = base.energiaKj?.times(ratio),
                     umidade = base.umidade?.times(ratio),
@@ -50,7 +49,7 @@ class AlimentoDetailViewModel(
                         monoinsaturados = base.lipidios.monoinsaturados?.times(ratio),
                         poliinsaturados = base.lipidios.poliinsaturados?.times(ratio)
                     ),
-                    // Minerals
+                    // Minerais
                     calcio = base.calcio?.times(ratio),
                     magnesio = base.magnesio?.times(ratio),
                     manganes = base.manganes?.times(ratio),
@@ -60,7 +59,7 @@ class AlimentoDetailViewModel(
                     potassio = base.potassio?.times(ratio),
                     cobre = base.cobre?.times(ratio),
                     zinco = base.zinco?.times(ratio),
-                    // Vitamins
+                    // Vitaminas
                     retinol = base.retinol?.times(ratio),
                     RE = base.RE?.times(ratio),
                     RAE = base.RAE?.times(ratio),
@@ -69,7 +68,7 @@ class AlimentoDetailViewModel(
                     piridoxina = base.piridoxina?.times(ratio),
                     niacina = base.niacina?.times(ratio),
                     vitaminaC = base.vitaminaC?.times(ratio),
-                    // Amino Acids
+                    // Amino Ácidos
                     aminoacidos = base.aminoacidos?.copy(
                         triptofano = base.aminoacidos.triptofano?.times(ratio),
                         treonina = base.aminoacidos.treonina?.times(ratio),
@@ -94,7 +93,7 @@ class AlimentoDetailViewModel(
                 AlimentoDetailUiState(
                     isLoading = false,
                     portion = portion,
-                    displayAlimento = recalculatedAlimento
+                    displayFood = recalculatedAlimento
                 )
             }
         }.stateIn(

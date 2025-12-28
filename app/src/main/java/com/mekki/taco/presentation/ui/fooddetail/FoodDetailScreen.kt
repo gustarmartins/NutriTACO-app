@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.mekki.taco.data.db.entity.Alimento
+import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.db.entity.Aminoacidos
 import com.mekki.taco.data.db.entity.Lipidios
 
@@ -31,8 +32,8 @@ fun AlimentoDetailScreen(
     onNavigateBack: () -> Unit,
     onTitleChange: (String) -> Unit
 ) {
-    LaunchedEffect(uiState.displayAlimento) {
-        uiState.displayAlimento?.let {
+    LaunchedEffect(uiState.displayFood) {
+        uiState.displayFood?.let {
             onTitleChange(it.nome)
         }
     }
@@ -41,7 +42,7 @@ fun AlimentoDetailScreen(
         if (uiState.isLoading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         } else {
-            uiState.displayAlimento?.let { alimento ->
+            uiState.displayFood?.let { alimento ->
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -119,7 +120,7 @@ fun MacronutrientsCard(proteinas: Double?, carboidratos: Double?, lipidios: Lipi
             // Animated visibility for fat details only
             AnimatedVisibility(visible = isFatDetailExpanded) {
                 Column(modifier = Modifier.padding(top = 16.dp)) {
-                    Divider()
+                    HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
                     DetailRow("Saturadas", lipidios?.saturados, "g")
                     DetailRow("Monoinsaturadas", lipidios?.monoinsaturados, "g")
                     DetailRow("Poliinsaturadas", lipidios?.poliinsaturados, "g")
@@ -143,31 +144,31 @@ fun GeneralInfoCard(fibra: Double?, colesterol: Double?, cinzas: Double?, umidad
 }
 
 @Composable
-fun MineralsCard(alimento: Alimento) {
+fun MineralsCard(food: Food) {
     ExpandableCard(title = "Minerais") {
-        DetailRow("Cálcio", alimento.calcio, "mg")
-        DetailRow("Magnésio", alimento.magnesio, "mg")
-        DetailRow("Manganês", alimento.manganes, "mg")
-        DetailRow("Fósforo", alimento.fosforo, "mg")
-        DetailRow("Ferro", alimento.ferro, "mg")
-        DetailRow("Sódio", alimento.sodio, "mg")
-        DetailRow("Potássio", alimento.potassio, "mg")
-        DetailRow("Cobre", alimento.cobre, "mg")
-        DetailRow("Zinco", alimento.zinco, "mg")
+        DetailRow("Cálcio", food.calcio, "mg")
+        DetailRow("Magnésio", food.magnesio, "mg")
+        DetailRow("Manganês", food.manganes, "mg")
+        DetailRow("Fósforo", food.fosforo, "mg")
+        DetailRow("Ferro", food.ferro, "mg")
+        DetailRow("Sódio", food.sodio, "mg")
+        DetailRow("Potássio", food.potassio, "mg")
+        DetailRow("Cobre", food.cobre, "mg")
+        DetailRow("Zinco", food.zinco, "mg")
     }
 }
 
 @Composable
-fun VitaminsCard(alimento: Alimento) {
+fun VitaminsCard(food: Food) {
     ExpandableCard(title = "Vitaminas") {
-        DetailRow("Retinol", alimento.retinol, "µg")
-        DetailRow("RE", alimento.RE, "µg")
-        DetailRow("RAE", alimento.RAE, "µg")
-        DetailRow("Tiamina (B1)", alimento.tiamina, "mg")
-        DetailRow("Riboflavina (B2)", alimento.riboflavina, "mg")
-        DetailRow("Piridoxina (B6)", alimento.piridoxina, "mg")
-        DetailRow("Niacina (B3)", alimento.niacina, "mg")
-        DetailRow("Vitamina C", alimento.vitaminaC, "mg")
+        DetailRow("Retinol", food.retinol, "µg")
+        DetailRow("RE", food.RE, "µg")
+        DetailRow("RAE", food.RAE, "µg")
+        DetailRow("Tiamina (B1)", food.tiamina, "mg")
+        DetailRow("Riboflavina (B2)", food.riboflavina, "mg")
+        DetailRow("Piridoxina (B6)", food.piridoxina, "mg")
+        DetailRow("Niacina (B3)", food.niacina, "mg")
+        DetailRow("Vitamina C", food.vitaminaC, "mg")
     }
 }
 
@@ -247,7 +248,7 @@ fun ExpandableCard(
             AnimatedVisibility(visible = isExpanded) {
                 Column {
                     Spacer(Modifier.height(8.dp))
-                    Divider()
+                    HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
                     Spacer(Modifier.height(8.dp))
                     expandedContent()
                 }

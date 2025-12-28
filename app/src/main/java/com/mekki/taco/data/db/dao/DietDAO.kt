@@ -11,7 +11,6 @@ import com.mekki.taco.data.db.entity.Dieta
 import com.mekki.taco.data.model.DietaComItens
 import kotlinx.coroutines.flow.Flow
 
-// Responsável pelas tarefas de DB de uma dieta
 @Dao
 interface DietaDao {
 
@@ -32,6 +31,12 @@ interface DietaDao {
      */
     @Update
     suspend fun atualizarDieta(dieta: Dieta)
+
+    /**
+     * Atualiza apenas o nome da dieta, preservando dataCriacao, objetivoCalorias, etc.
+     */
+    @Query("UPDATE dietas SET nome = :novoNome WHERE id = :dietId")
+    suspend fun atualizarNomeDieta(dietId: Int, novoNome: String)
 
     /**
      * Deleta uma dieta do banco de dados.
@@ -82,7 +87,7 @@ interface DietaDao {
      */
     @Transaction
     @Query("SELECT * FROM dietas WHERE id = :dietId")
-    fun getDietaComItens(dietId: Int): Flow<DietaComItens?> // Return Flow of nullable
+    fun getDietaComItens(dietId: Int): Flow<DietaComItens?>
     @Transaction
     @Query("SELECT * FROM dietas ORDER BY dataCriacao DESC LIMIT 1")
     fun getLatestDietaWithItems(): Flow<DietaComItens?>
