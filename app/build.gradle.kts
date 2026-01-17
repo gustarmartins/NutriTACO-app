@@ -28,6 +28,18 @@ android {
         }
     }
 
+    flavorDimensions += "version"
+    productFlavors {
+        create("standard") {
+            dimension = "version"
+            versionNameSuffix = "-standard"
+        }
+        create("ai") {
+            dimension = "version"
+            versionNameSuffix = "-ai"
+        }
+    }
+
     buildFeatures {
         compose = true
     }
