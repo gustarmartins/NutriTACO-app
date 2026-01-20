@@ -33,3 +33,8 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Personal Dir
+DB_MIGRATION_STRATEGY.md
+GUIDE_VARIANTS.md
+README_NEW.md
