@@ -7,6 +7,10 @@ import com.mekki.taco.data.db.entity.DailyLog
 import com.mekki.taco.data.db.entity.DailyWaterLog
 import com.mekki.taco.data.model.DailyLogWithFood
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 
 class DiaryRepository(
     private val dailyLogDao: DailyLogDao,
@@ -29,21 +33,40 @@ class DiaryRepository(
         dailyLogDao.insertLog(log)
     }
 
-    suspend fun importDietPlanToDate(dietId: Int, date: String) {
+    suspend fun importDietPlanToDate(dietId: Int, dateStr: String) {
         val planItems = dietItemDao.getDietItemsList(dietId)
+        val date = try {
+            LocalDate.parse(dateStr)
+        } catch (e: Exception) {
+            LocalDate.now()
+        }
 
         val newLogs = planItems.map { planItem ->
+            val timeStr = planItem.consumptionTime ?: "08:00"
+            val time = try {
+                LocalTime.parse(timeStr)
+            } catch (e: Exception) {
+                LocalTime.of(8, 0)
+            }
+            val dateTime = LocalDateTime.of(date, time)
+            val timestamp = dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
             DailyLog(
                 foodId = planItem.foodId,
-                date = date,
+                date = dateStr,
                 quantityGrams = planItem.quantityGrams,
                 mealType = planItem.mealType ?: "Outros",
+                entryTimestamp = timestamp,
                 isConsumed = false,
                 originalQuantityGrams = planItem.quantityGrams
             )
         }
 
         dailyLogDao.insertAll(newLogs)
+    }
+
+    suspend fun updateTimestamp(log: DailyLog, newTimestamp: Long) {
+        dailyLogDao.updateLog(log.copy(entryTimestamp = newTimestamp))
     }
 
     suspend fun toggleConsumed(log: DailyLog) {
