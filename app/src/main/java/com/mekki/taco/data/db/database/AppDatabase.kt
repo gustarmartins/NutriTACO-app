@@ -54,7 +54,6 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "taco_database"
                 )
-                    // popula o banco na primeira chamada da DB - apenas caso não exista.
                     .addCallback(AppDatabaseCallback(context.applicationContext, scope))
 
                     // destrói o banco ao mudar versões
