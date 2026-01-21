@@ -16,9 +16,12 @@ import kotlinx.coroutines.CoroutineScope
 
 @Database(
     entities = [
-        Alimento::class,
-        Dieta::class,
-        ItemDieta::class
+        Food::class,
+        Diet::class,
+        DietItem::class,
+        DailyLog::class,
+        FoodFts::class,
+        DailyWaterLog::class
     ],
     // aumentar conforme atualizações da Tabela TACO oficial
     version = 1,
