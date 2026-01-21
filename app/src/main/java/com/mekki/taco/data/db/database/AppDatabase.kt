@@ -25,7 +25,7 @@ import kotlinx.coroutines.CoroutineScope
     ],
     // aumentar conforme atualizações da Tabela TACO oficial
     version = 1,
-    exportSchema = false
+    exportSchema = true
 )
 
 abstract class AppDatabase : RoomDatabase() {
