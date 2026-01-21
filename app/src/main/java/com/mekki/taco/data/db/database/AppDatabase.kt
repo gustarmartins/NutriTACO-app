@@ -17,8 +17,6 @@ import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.db.entity.FoodFts
 import kotlinx.coroutines.CoroutineScope
 
-// para produção o exportSchema deve ser true
-
 @Database(
     entities = [
         Food::class,
