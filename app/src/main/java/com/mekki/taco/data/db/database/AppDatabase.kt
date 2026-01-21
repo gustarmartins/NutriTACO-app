@@ -30,9 +30,11 @@ import kotlinx.coroutines.CoroutineScope
 
 abstract class AppDatabase : RoomDatabase() {
 
-    abstract fun alimentoDao(): AlimentoDao
-    abstract fun dietaDao(): DietaDao
-    abstract fun itemDietaDao(): ItemDietaDao
+    abstract fun foodDao(): FoodDao
+    abstract fun dietDao(): DietDao
+    abstract fun dietItemDao(): DietItemDao
+    abstract fun dailyLogDao(): DailyLogDao
+    abstract fun dailyWaterLogDao(): DailyWaterLogDao
 
     companion object {
         // A anotação @Volatile garante que a variável INSTANCE seja sempre atualizada
