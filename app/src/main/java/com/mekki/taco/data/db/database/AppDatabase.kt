@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.mekki.taco.data.db.dao.DailyLogDao
 import com.mekki.taco.data.db.dao.DailyWaterLogDao
 import com.mekki.taco.data.db.dao.DietDao
@@ -26,8 +28,7 @@ import kotlinx.coroutines.CoroutineScope
         FoodFts::class,
         DailyWaterLog::class
     ],
-    // aumentar conforme atualizações da Tabela TACO oficial
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 
@@ -40,10 +41,15 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dailyWaterLogDao(): DailyWaterLogDao
 
     companion object {
-        // A anotação @Volatile garante que a variável INSTANCE seja sempre atualizada
-        // e visível para todas as threads, prevenindo problemas de concorrência.
+        // Reads and writes to this field are atomic and writes are always made visible to other threads
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE daily_log ADD COLUMN notes TEXT")
+            }
+        }
 
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             // Retorna a instância existente se já foi criada (padrão Singleton).
@@ -55,9 +61,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "taco_database"
                 )
                     .addCallback(AppDatabaseCallback(context.applicationContext, scope))
-
-                    // destrói o banco ao mudar versões
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                 INSTANCE = instance
                 instance
