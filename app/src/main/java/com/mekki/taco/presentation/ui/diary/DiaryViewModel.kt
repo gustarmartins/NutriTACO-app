@@ -12,6 +12,7 @@ import com.mekki.taco.data.model.UserProfile
 import com.mekki.taco.data.repository.DiaryRepository
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.utils.NutrientCalculator
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,7 +25,12 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 data class DiaryTotals(
     val consumedKcal: Double = 0.0,
@@ -34,7 +40,7 @@ data class DiaryTotals(
     val goalKcal: Double = 2000.0,
     val proteinPerKg: Double = 0.0,
     val waterIntake: Int = 0,
-    val waterGoal: Int = 2000, // Default 2L
+    val waterGoal: Int = 2000, // TODO make it customizable
     val userWeight: Double? = null
 )
 
@@ -50,35 +56,35 @@ class DiaryViewModel(
     private val _currentDate = MutableStateFlow(LocalDate.now())
     val currentDate = _currentDate.asStateFlow()
 
-    // --- State: Available Diets (for Import Dialog) ---
+    // --- State: Available Diets ---
     private val _availableDiets = MutableStateFlow<List<Diet>>(emptyList())
     val availableDiets = _availableDiets.asStateFlow()
 
     // --- State: User Profile ---
     private val _userProfile = MutableStateFlow(UserProfile())
-    
+
     // --- State: Search ---
     private val _searchTerm = MutableStateFlow("")
     val searchTerm = _searchTerm.asStateFlow()
-    
+
     private val _searchIsLoading = MutableStateFlow(false)
     val searchIsLoading = _searchIsLoading.asStateFlow()
-    
+
     private val _expandedFoodId = MutableStateFlow<Int?>(null)
     val expandedFoodId = _expandedFoodId.asStateFlow()
-    
+
     private val _quickAddAmount = MutableStateFlow("100")
     val quickAddAmount = _quickAddAmount.asStateFlow()
 
-    // Search Results Flow
+    @OptIn(ExperimentalCoroutinesApi::class)
     val searchResults: StateFlow<List<Food>> = _searchTerm
         .debounce(300)
         .flatMapLatest { term ->
             if (term.length >= 2) {
                 _searchIsLoading.value = true
-                foodDao.getFoodsByName(term).map { 
+                foodDao.getFoodsByName(term).map {
                     _searchIsLoading.value = false
-                    it 
+                    it
                 }
             } else {
                 flowOf(emptyList())
@@ -99,28 +105,35 @@ class DiaryViewModel(
 
     private fun observeProfile() {
         viewModelScope.launch {
-            userProfileRepository.userProfileFlow.collect { 
+            userProfileRepository.userProfileFlow.collect {
                 _userProfile.value = it
             }
         }
     }
 
-    // --- Reactive Logs ---
+    @OptIn(ExperimentalCoroutinesApi::class)
     val dailyLogs: StateFlow<Map<String, List<DailyLogWithFood>>> = _currentDate
         .flatMapLatest { date ->
             repository.getDailyLogs(date.toString())
         }
-        .combine(MutableStateFlow(Unit)) { logs, _ ->
-            logs.groupBy { it.log.mealType }
+        .map { logs ->
+            logs.groupBy { item ->
+                val instant = Instant.ofEpochMilli(item.log.entryTimestamp)
+                val zoneId = ZoneId.systemDefault()
+                val localDateTime = LocalDateTime.ofInstant(instant, zoneId)
+                localDateTime.format(DateTimeFormatter.ofPattern("HH:00"))
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     // --- Water Log ---
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val dailyWater = _currentDate.flatMapLatest { date ->
         repository.getWaterLog(date.toString())
     }
 
     // --- Real-time Totals ---
+    @OptIn(ExperimentalCoroutinesApi::class)
     val dailyTotals: StateFlow<DiaryTotals> = combine(
         _currentDate.flatMapLatest { repository.getDailyLogs(it.toString()) },
         dailyWater,
@@ -128,14 +141,17 @@ class DiaryViewModel(
     ) { logs, waterLog, profile ->
         calculateTotals(logs, waterLog?.quantityMl ?: 0, profile)
     }
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DiaryTotals())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DiaryTotals())
 
     private fun calculateTotals(
-        logs: List<DailyLogWithFood>, 
-        waterMl: Int, 
+        logs: List<DailyLogWithFood>,
+        waterMl: Int,
         profile: UserProfile
     ): DiaryTotals {
-        var k = 0.0; var p = 0.0; var c = 0.0; var f = 0.0
+        var k = 0.0;
+        var p = 0.0;
+        var c = 0.0;
+        var f = 0.0
 
         logs.filter { it.log.isConsumed }.forEach { item ->
             val nutrients = NutrientCalculator.calcularNutrientesParaPorcao(
@@ -172,6 +188,10 @@ class DiaryViewModel(
         _currentDate.value = _currentDate.value.plusDays(offset)
     }
 
+    fun setDate(date: LocalDate) {
+        _currentDate.value = date
+    }
+
     fun goToToday() {
         _currentDate.value = LocalDate.now()
     }
@@ -191,6 +211,27 @@ class DiaryViewModel(
     fun updateQuantity(log: DailyLog, newQuantity: Double) {
         viewModelScope.launch {
             repository.updateQuantity(log, newQuantity)
+        }
+    }
+
+    fun updateNotes(log: DailyLog, newNotes: String) {
+        viewModelScope.launch {
+            repository.updateNotes(log, newNotes)
+        }
+    }
+
+    fun updateTimestamp(log: DailyLog, newHour: Int, newMinute: Int) {
+        val date = try {
+            LocalDate.parse(log.date)
+        } catch (e: Exception) {
+            LocalDate.now()
+        }
+        val time = LocalTime.of(newHour, newMinute)
+        val dateTime = LocalDateTime.of(date, time)
+        val timestamp = dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        viewModelScope.launch {
+            repository.updateTimestamp(log, timestamp)
         }
     }
 
@@ -238,34 +279,29 @@ class DiaryViewModel(
         _quickAddAmount.value = amount
     }
 
-    fun addFoodToLog(food: Food, mealType: String) {
+    fun addFoodToLog(food: Food, mealType: String, customTime: LocalTime? = null) {
         val amount = _quickAddAmount.value.toDoubleOrNull() ?: 100.0
+        
+        val date = _currentDate.value
+        val time = customTime ?: LocalTime.now()
+        val dateTime = LocalDateTime.of(date, time)
+        val timestamp = dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
         viewModelScope.launch {
             val log = DailyLog(
                 foodId = food.id,
-                date = _currentDate.value.toString(),
+                date = date.toString(),
                 quantityGrams = amount,
                 mealType = mealType,
-                isConsumed = true // Assume consumed if added to today? Or false? Let's default to false like Import. 
-                // But if adding manually to log, user probably ate it or plans to.
-                // Let's stick to false to require checking it off, or true?
-                // Request says "Daily Log... add any food... comparison system".
-                // If I add to log, it's usually planning or logging.
-                // Let's set default isConsumed = false so they can check it off.
-                // Or maybe true?
-                // The import sets to false.
-                // I'll set to false for consistency with "Plan", but user might find it annoying if they just ate it.
-                // I'll set it to TRUE because usually when you search and add to "Daily Log" you are logging what you ate.
-                // But the existing UI has checkboxes.
-                // Let's default to FALSE to be safe, user can click check.
+                entryTimestamp = timestamp,
+                isConsumed = false
             )
             repository.addLog(log)
-            
-            // Clear search?
-            // User might want to add more.
+
+            clearSearch()
         }
     }
-    
+
     fun clearSearch() {
         _searchTerm.value = ""
         _expandedFoodId.value = null

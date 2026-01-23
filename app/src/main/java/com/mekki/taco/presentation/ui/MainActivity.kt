@@ -1,31 +1,47 @@
-package com.mekki.taco
+package com.mekki.taco.presentation.ui
 
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.mekki.taco.data.db.dao.AlimentoDao
-import com.mekki.taco.data.db.dao.DietaDao
-import com.mekki.taco.data.db.dao.ItemDietaDao
-import com.mekki.taco.data.db.database.AppDatabase
 import com.mekki.taco.data.repository.UserProfileRepository
-import com.mekki.taco.presentation.navigation.AppNavHost
+import com.mekki.taco.presentation.navigation.AppNavigation
+import com.mekki.taco.presentation.navigation.FOOD_DATABASE_ROUTE
+import com.mekki.taco.presentation.navigation.SETTINGS_ROUTE
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.profile.ProfileViewModelFactory
+import com.mekki.taco.presentation.ui.theme.NutriTACOTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,7 +49,10 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    companion object { private const val TAG = "MainActivity_TACO" }
+
+    companion object {
+        private const val TAG = "MainActivity_TACO"
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,93 +61,103 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
 
-        val appDatabase = AppDatabase.getDatabase(applicationContext, applicationScope)
-        val alimentoDao: AlimentoDao = appDatabase.alimentoDao()
-        val dietaDao: DietaDao = appDatabase.dietaDao()
-        val itemDietaDao: ItemDietaDao = appDatabase.itemDietaDao()
-
         setContent {
-            MaterialTheme {
-                // 1. INICIALIZAÇÃO DOS VIEWMODELS E ESTADOS
-                val navController = rememberNavController()
-                var fab: @Composable (() -> Unit)? by remember { mutableStateOf(null) }
-                var screenTitle by rememberSaveable { mutableStateOf("NutriTACO") }
+            val context = LocalContext.current
+            val profileRepository = remember { UserProfileRepository(context) }
+            val profileViewModel: ProfileViewModel =
+                viewModel(factory = ProfileViewModelFactory(profileRepository))
+            val uiState by profileViewModel.uiState.collectAsState()
 
-                // ViewModel e Estados da BottomSheet
-                val context = LocalContext.current
-                val profileRepository = remember { UserProfileRepository(context) }
-                val profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModelFactory(profileRepository))
+            NutriTACOTheme(darkTheme = uiState.userProfile.isDarkMode) {
+                val navController = rememberNavController()
+                var screenTitle by rememberSaveable { mutableStateOf("NutriTACO") }
+                var fab: @Composable (() -> Unit)? by remember { mutableStateOf(null) }
+                var extraActions: @Composable (() -> Unit) by remember { mutableStateOf({}) }
+
                 val sheetState = rememberModalBottomSheetState()
                 val scope = rememberCoroutineScope()
                 var showBottomSheet by remember { mutableStateOf(false) }
 
-                // 2. LÓGICA DA UI PERSISTENTE
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
+
+                val shouldShowGlobalTopBar = when {
+                    currentRoute?.startsWith("food_detail") == true -> false
+                    currentRoute?.startsWith("create_diet") == true -> false
+                    currentRoute?.startsWith("diet_detail") == true -> false
+                    currentRoute == "home" -> false
+                    currentRoute == "diary" -> false
+                    currentRoute == FOOD_DATABASE_ROUTE -> false
+                    else -> true
+                }
+
                 val canNavigateBack = navController.previousBackStackEntry != null
 
                 DisposableEffect(navBackStackEntry) {
+                    val route = navBackStackEntry?.destination?.route
                     val defaultTitle = when {
-                        currentRoute?.startsWith("alimento_detail") == true -> "Detalhes do Alimento"
-                        currentRoute?.startsWith("diet_detail") == true -> "Detalhes da Dieta"
-                        currentRoute == "diet_list" -> "Minhas Dietas"
-                        currentRoute == "create_diet" -> "Criar Nova Dieta"
+                        route?.startsWith("create_diet") == true -> "Editar Dieta"
+                        route == "diet_list" -> "Minhas Dietas"
+                        route == "diary" -> "Diário Alimentar"
+                        route == SETTINGS_ROUTE -> "Configurações"
                         else -> "NutriTACO"
                     }
-                    screenTitle = defaultTitle
-
-                    onDispose{
+                    if (route != "diet_detail/{dietId}") {
+                        screenTitle = defaultTitle
                     }
+                    onDispose {}
                 }
 
-                // 3. SCAFFOLD PRINCIPAL
                 Scaffold(
                     topBar = {
-                        TopAppBar(
-                            title = { Text(text = screenTitle) },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                                navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                                actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                            ),
-                            navigationIcon = {
-                                if (canNavigateBack) {
-                                    IconButton(onClick = { navController.navigateUp() }) {
+                        if (shouldShowGlobalTopBar) {
+                            TopAppBar(
+                                title = { Text(text = screenTitle) },
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = MaterialTheme.colorScheme.background,
+                                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                                    actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                                ),
+                                navigationIcon = {
+                                    if (canNavigateBack && currentRoute != "home") {
+                                        IconButton(onClick = { navController.navigateUp() }) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                                contentDescription = "Voltar"
+                                            )
+                                        }
+                                    }
+                                },
+                                actions = {
+                                    extraActions()
+                                    IconButton(onClick = { showBottomSheet = true }) {
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription = "Voltar"
+                                            imageVector = Icons.Default.AccountCircle,
+                                            contentDescription = "Abrir Perfil"
                                         )
                                     }
                                 }
-                            },
-                            actions = {
-                                IconButton(onClick = { showBottomSheet = true }) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccountCircle,
-                                        contentDescription = "Abrir Perfil"
-                                    )
-                                }
-                            }
-                        )
+                            )
+                        }
                     },
                     floatingActionButton = {
                         fab?.invoke()
                     }
                 ) { innerPadding ->
-                    // 4. CONTEÚDO DA NAVEGAÇÃO
-                    AppNavHost(
+                    val contentPadding =
+                        if (shouldShowGlobalTopBar) innerPadding else PaddingValues(bottom = innerPadding.calculateBottomPadding())
+
+                    AppNavigation(
                         navController = navController,
-                        modifier = Modifier.padding(innerPadding),
-                        onTitleChange = { newTitle -> screenTitle = newTitle },
+                        modifier = Modifier.padding(contentPadding),
+                        context = LocalContext.current,
                         onFabChange = { newFab -> fab = newFab },
-                        alimentoDao = alimentoDao,
-                        dietaDao = dietaDao,
-                        itemDietaDao = itemDietaDao
+                        onActionsChange = { newActions -> extraActions = newActions ?: {} },
+                        onTitleChange = { newTitle -> screenTitle = newTitle }
                     )
                 }
 
-                // 5. ABA DE PERFIL
                 if (showBottomSheet) {
                     ModalBottomSheet(
                         onDismissRequest = { showBottomSheet = false },
@@ -142,12 +171,17 @@ class MainActivity : ComponentActivity() {
                                         showBottomSheet = false
                                     }
                                 }
+                            },
+                            onNavigateToSettings = {
+                                scope.launch { sheetState.hide() }.invokeOnCompletion {
+                                    showBottomSheet = false
+                                    navController.navigate(SETTINGS_ROUTE)
+                                }
                             }
                         )
                     }
                 }
             }
         }
-        Log.d(TAG, "onCreate: setContent com AppNavHost chamado.")
     }
 }

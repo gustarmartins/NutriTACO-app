@@ -39,7 +39,7 @@ class SettingsViewModel(
         val updatedProfile = currentProfile.copy(isDarkMode = isDark)
 
         _uiState.update { it.copy(userProfile = updatedProfile) }
-        
+
         viewModelScope.launch {
             repository.saveProfile(updatedProfile)
         }
@@ -49,7 +49,8 @@ class SettingsViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isBackupLoading = true, backupMessage = null) }
             val result = backupManager.exportData(uri)
-            val message = if (result.isSuccess) "Dados exportados com sucesso!" else "Erro ao exportar: ${result.exceptionOrNull()?.message}"
+            val message =
+                if (result.isSuccess) "Dados exportados com sucesso!" else "Erro ao exportar: ${result.exceptionOrNull()?.message}"
             _uiState.update { it.copy(isBackupLoading = false, backupMessage = message) }
         }
     }
@@ -58,7 +59,8 @@ class SettingsViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isBackupLoading = true, backupMessage = null) }
             val result = backupManager.importData(uri)
-            val message = if (result.isSuccess) "Dados importados com sucesso!" else "Erro ao importar: ${result.exceptionOrNull()?.message}"
+            val message =
+                if (result.isSuccess) "Dados importados com sucesso!" else "Erro ao importar: ${result.exceptionOrNull()?.message}"
             _uiState.update { it.copy(isBackupLoading = false, backupMessage = message) }
         }
     }

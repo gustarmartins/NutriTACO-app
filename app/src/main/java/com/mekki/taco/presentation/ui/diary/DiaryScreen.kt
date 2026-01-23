@@ -2,9 +2,9 @@ package com.mekki.taco.presentation.ui.diary
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,8 +28,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -40,11 +40,16 @@ import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
@@ -62,7 +67,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -73,11 +81,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mekki.taco.data.db.entity.Diet
@@ -85,7 +95,11 @@ import com.mekki.taco.data.model.DailyLogWithFood
 import com.mekki.taco.presentation.ui.components.MacroPieChart
 import com.mekki.taco.presentation.ui.components.PieChartData
 import com.mekki.taco.presentation.ui.components.SearchItem
+import com.mekki.taco.presentation.ui.components.TimePickerDialog
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -93,7 +107,9 @@ import java.util.Locale
 @Composable
 fun DiaryScreen(
     viewModel: DiaryViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToDetail: (Int) -> Unit,
+    onActionsChange: ((@Composable () -> Unit)?) -> Unit
 ) {
     val currentDate by viewModel.currentDate.collectAsState()
     val dailyLogs by viewModel.dailyLogs.collectAsState()
@@ -103,14 +119,46 @@ fun DiaryScreen(
     var showImportDialog by remember { mutableStateOf(false) }
     var showSearchSheet by remember { mutableStateOf(false) }
     var showWeightDialog by remember { mutableStateOf(false) }
+    var logToEditTime by remember { mutableStateOf<com.mekki.taco.data.db.entity.DailyLog?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val showImportInList = dailyLogs.isEmpty()
+
+    // Ensure we don't have duplicate actions from the global top bar
+    LaunchedEffect(Unit) {
+        onActionsChange(null)
+    }
 
     Scaffold(
         topBar = {
-            DateNavigationHeader(
-                date = currentDate,
-                onPrev = { viewModel.changeDate(-1) },
-                onNext = { viewModel.changeDate(1) },
-                onToday = { viewModel.goToToday() }
+            CenterAlignedTopAppBar(
+                title = {
+                    DateSelectorTitle(
+                        date = currentDate,
+                        onPrev = { viewModel.changeDate(-1) },
+                        onNext = { viewModel.changeDate(1) },
+                        onClick = { showDatePicker = true }
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Voltar"
+                        )
+                    }
+                },
+                actions = {
+                    if (!showImportInList) {
+                        IconButton(onClick = { showImportDialog = true }) {
+                            Icon(Icons.Default.Download, contentDescription = "Importar Dieta")
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
+                )
             )
         },
         floatingActionButton = {
@@ -150,16 +198,18 @@ fun DiaryScreen(
             }
 
             // 3. Import Button
-            item {
-                OutlinedButton(
-                    onClick = { showImportDialog = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Download, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Importar de uma Dieta")
+            if (showImportInList) {
+                item {
+                    OutlinedButton(
+                        onClick = { showImportDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Download, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Importar de uma Dieta")
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
-                Spacer(Modifier.height(16.dp))
             }
 
             // 4. Meal Lists
@@ -168,13 +218,12 @@ fun DiaryScreen(
                     EmptyStateMessage(onAddClick = { showSearchSheet = true })
                 }
             } else {
-                val mealOrder = listOf("Café da Manhã", "Almoço", "Jantar", "Lanche", "Pré-treino", "Pós-treino", "Outros")
-                val sortedGroups = dailyLogs.toSortedMap(compareBy { mealOrder.indexOf(it).let { idx -> if(idx == -1) 99 else idx } })
+                val sortedGroups = dailyLogs.toSortedMap()
 
-                sortedGroups.forEach { (mealType, logs) ->
+                sortedGroups.forEach { (timeBlock, logs) ->
                     item {
                         Text(
-                            text = mealType,
+                            text = timeBlock,
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -184,15 +233,74 @@ fun DiaryScreen(
                         DiaryLogItem(
                             item = item,
                             onToggle = { viewModel.toggleConsumed(item.log) },
-                            onQuantityChange = { newQty -> viewModel.updateQuantity(item.log, newQty) },
-                            onDelete = { viewModel.deleteLog(item.log) }
+                            onQuantityChange = { newQty ->
+                                viewModel.updateQuantity(
+                                    item.log,
+                                    newQty
+                                )
+                            },
+                            onNotesChange = { newNotes ->
+                                viewModel.updateNotes(item.log, newNotes)
+                            },
+                            onDelete = { viewModel.deleteLog(item.log) },
+                            onTimeClick = { logToEditTime = item.log }
                         )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                alpha = 0.5f
+                            )
+                        )
                     }
                     item { Spacer(Modifier.height(12.dp)) }
                 }
             }
         }
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = currentDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
+                .toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val selectedDate =
+                            Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        viewModel.setDate(selectedDate)
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (logToEditTime != null) {
+        val log = logToEditTime!!
+        val instant = Instant.ofEpochMilli(log.entryTimestamp)
+        val localTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault()).toLocalTime()
+
+        TimePickerDialog(
+            onDismissRequest = { logToEditTime = null },
+            initialHour = localTime.hour,
+            initialMinute = localTime.minute,
+            onConfirm = { h, m ->
+                viewModel.updateTimestamp(log, h, m)
+                logToEditTime = null
+            }
+        )
     }
 
     if (showImportDialog) {
@@ -210,6 +318,7 @@ fun DiaryScreen(
         ModalBottomSheet(onDismissRequest = { showSearchSheet = false }) {
             DiarySearchSheetContent(
                 viewModel = viewModel,
+                onNavigateToDetail = onNavigateToDetail,
                 onClose = { showSearchSheet = false }
             )
         }
@@ -224,6 +333,64 @@ fun DiaryScreen(
                 showWeightDialog = false
             }
         )
+    }
+}
+
+@Composable
+fun DateSelectorTitle(
+    date: LocalDate,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onClick: () -> Unit
+) {
+    val formatter = DateTimeFormatter.ofPattern("EEE, dd MMM", Locale.forLanguageTag("pt-BR"))
+    val isToday = date == LocalDate.now()
+    val dateText =
+        if (isToday) "Hoje" else date.format(formatter).replaceFirstChar { it.uppercase() }
+
+    var offsetX by remember { mutableFloatStateOf(0f) }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (offsetX > 50) onPrev()
+                        else if (offsetX < -50) onNext()
+                        offsetX = 0f
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        offsetX += dragAmount
+                    }
+                )
+            }
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.ChevronLeft,
+                contentDescription = "Dia Anterior",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = dateText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = "Próximo Dia",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        }
     }
 }
 
@@ -246,7 +413,11 @@ fun WaterTrackerCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.LocalDrink, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text("Água", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Água",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Text(
                     "${currentMl}ml / ${goalMl}ml",
@@ -254,9 +425,9 @@ fun WaterTrackerCard(
                     color = if (currentMl >= goalMl) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            
+
             Spacer(Modifier.height(16.dp))
-            
+
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -268,15 +439,15 @@ fun WaterTrackerCard(
                 ) {
                     Icon(Icons.Default.Remove, null)
                 }
-                
+
                 Spacer(Modifier.width(24.dp))
-                
+
                 Text(
                     "${(currentMl / 1000.0)} L",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
-                
+
                 Spacer(Modifier.width(24.dp))
 
                 FilledIconButton(
@@ -293,6 +464,7 @@ fun WaterTrackerCard(
 @Composable
 fun DiarySearchSheetContent(
     viewModel: DiaryViewModel,
+    onNavigateToDetail: (Int) -> Unit,
     onClose: () -> Unit
 ) {
     val searchTerm by viewModel.searchTerm.collectAsState()
@@ -301,13 +473,20 @@ fun DiarySearchSheetContent(
     val expandedId by viewModel.expandedFoodId.collectAsState()
     val quickAddAmount by viewModel.quickAddAmount.collectAsState()
 
-    val mealTypes = listOf("Café da Manhã", "Almoço", "Jantar", "Lanche", "Pré-treino", "Pós-treino", "Outros")
+    val mealTypes =
+        listOf("Café da Manhã", "Almoço", "Jantar", "Lanche", "Pré-treino", "Pós-treino", "Outros")
     var selectedMealType by remember { mutableStateOf(mealTypes.first()) }
+    var selectedTime by remember { mutableStateOf(java.time.LocalTime.now()) }
+    var showTimePicker by remember { mutableStateOf(false) }
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    Column(Modifier.padding(16.dp).fillMaxHeight(0.9f)) {
+    Column(
+        Modifier
+            .padding(16.dp)
+            .fillMaxHeight(0.9f)
+    ) {
         Text("Adicionar Alimento", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
 
@@ -328,8 +507,31 @@ fun DiarySearchSheetContent(
                 )
             }
         }
-        
+
         Spacer(Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = { showTimePicker = true }) {
+                Icon(Icons.Default.AccessTime, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Horário: ${selectedTime.format(DateTimeFormatter.ofPattern("HH:mm"))}")
+            }
+        }
+        
+        if (showTimePicker) {
+            TimePickerDialog(
+                onDismissRequest = { showTimePicker = false },
+                initialHour = selectedTime.hour,
+                initialMinute = selectedTime.minute,
+                onConfirm = { h, m ->
+                    selectedTime = java.time.LocalTime.of(h, m)
+                    showTimePicker = false
+                }
+            )
+        }
 
         OutlinedTextField(
             value = searchTerm,
@@ -338,11 +540,11 @@ fun DiarySearchSheetContent(
             placeholder = { Text("Buscar um alimento") },
             leadingIcon = { Icon(Icons.Default.Search, null) },
             trailingIcon = {
-                 if(searchTerm.isNotEmpty()) {
-                     IconButton(onClick = { viewModel.clearSearch() }) {
-                         Icon(Icons.Default.Close, null)
-                     }
-                 }
+                if (searchTerm.isNotEmpty()) {
+                    IconButton(onClick = { viewModel.clearSearch() }) {
+                        Icon(Icons.Default.Close, null)
+                    }
+                }
             },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -353,12 +555,18 @@ fun DiarySearchSheetContent(
         )
 
         if (isLoading) {
-            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp), contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator()
             }
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f).padding(top = 16.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(searchResults) { food ->
@@ -368,22 +576,24 @@ fun DiarySearchSheetContent(
                         onToggle = { viewModel.onFoodToggled(food.id) },
                         currentAmount = quickAddAmount,
                         onAmountChange = viewModel::onQuickAddAmountChange,
-                        onNavigateToDetail = { }, // No detail nav for now
+                        onNavigateToDetail = { onNavigateToDetail(food.id) },
                         onAddToDiet = {
-                             viewModel.addFoodToLog(food, selectedMealType)
-                             viewModel.clearSearch()
-                             onClose()
+                            viewModel.addFoodToLog(food, selectedMealType, selectedTime)
+                            viewModel.clearSearch()
+                            onClose()
                         },
                         isAddToDietPrimary = true,
                         actionButtonLabel = "Registrar"
                     )
                 }
-                
+
                 if (searchResults.isEmpty() && searchTerm.length >= 2) {
                     item {
                         Text(
                             "Nenhum resultado encontrado.",
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -424,49 +634,6 @@ fun UpdateWeightDialog(
 }
 
 @Composable
-fun DateNavigationHeader(
-    date: LocalDate,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onToday: () -> Unit
-) {
-    val formatter = DateTimeFormatter.ofPattern("EEE, dd MMM", Locale("pt", "BR"))
-    val isToday = date == LocalDate.now()
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        IconButton(onClick = onPrev) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Anterior")
-        }
-
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = if (isToday) "Hoje" else date.format(formatter).replaceFirstChar { it.uppercase() },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            if (!isToday) {
-                Text(
-                    text = "Voltar para hoje",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onToday() }
-                )
-            }
-        }
-
-        IconButton(onClick = onNext) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Próximo")
-        }
-    }
-}
-
-@Composable
 fun DiarySummaryCard(
     totals: DiaryTotals,
     onUpdateWeight: () -> Unit
@@ -483,14 +650,18 @@ fun DiarySummaryCard(
                 verticalAlignment = Alignment.Top
             ) {
                 Column {
-                    Text("Resumo Diário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Resumo Diário",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                     Text(
                         "${totals.consumedKcal.toInt()} / ${totals.goalKcal.toInt()} kcal",
                         style = MaterialTheme.typography.headlineSmall,
                         color = if (totals.consumedKcal > totals.goalKcal) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
                 }
-                
+
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -509,7 +680,7 @@ fun DiarySummaryCard(
                     }
                 }
             }
-            
+
             Spacer(Modifier.height(16.dp))
 
             Row(
@@ -529,7 +700,9 @@ fun DiarySummaryCard(
                         totalUnit = "",
                         showCenterText = false
                     )
-                    val progress = if(totals.goalKcal > 0) (totals.consumedKcal / totals.goalKcal * 100).toInt().coerceAtMost(100) else 0
+                    val progress =
+                        if (totals.goalKcal > 0) (totals.consumedKcal / totals.goalKcal * 100).toInt()
+                            .coerceAtMost(100) else 0
                     Text(
                         text = "$progress%",
                         style = MaterialTheme.typography.titleMedium,
@@ -545,7 +718,7 @@ fun DiarySummaryCard(
                         MacroMiniStat("Proteínas", totals.consumedProtein, Color(0xFF2E7A7A))
                         MacroMiniStat("Gorduras", totals.consumedFat, Color(0xFFC97C4A))
                     }
-                    
+
                     HorizontalDivider()
 
                     Text(
@@ -587,13 +760,23 @@ fun DiaryLogItem(
     item: DailyLogWithFood,
     onToggle: () -> Unit,
     onQuantityChange: (Double) -> Unit,
-    onDelete: () -> Unit
+    onNotesChange: (String) -> Unit,
+    onDelete: () -> Unit,
+    onTimeClick: () -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     var sliderValue by remember(item.log.quantityGrams) { mutableFloatStateOf(item.log.quantityGrams.toFloat()) }
 
-    val alpha by animateFloatAsState(targetValue = if (item.log.isConsumed) 0.5f else 1f, label = "alpha")
-    val strikeColor by animateColorAsState(targetValue = if (item.log.isConsumed) Color.Gray else MaterialTheme.colorScheme.onSurface, label = "color")
+    val strikeColor by animateColorAsState(
+        targetValue = if (item.log.isConsumed) Color.Gray else MaterialTheme.colorScheme.onSurface,
+        label = "color"
+    )
+
+    val timeStr = remember(item.log.entryTimestamp) {
+        val instant = Instant.ofEpochMilli(item.log.entryTimestamp)
+        LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("HH:mm"))
+    }
 
     Column(
         modifier = Modifier
@@ -616,7 +799,12 @@ fun DiaryLogItem(
                     contentAlignment = Alignment.Center
                 ) {
                     if (item.log.isConsumed) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }
@@ -627,13 +815,24 @@ fun DiaryLogItem(
                     .weight(1f)
                     .padding(horizontal = 8.dp)
             ) {
-                Text(
-                    text = item.food.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = strikeColor,
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = timeStr,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onTimeClick() }
+                            .padding(end = 6.dp)
+                    )
+                    Text(
+                        text = item.food.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = strikeColor,
+                        maxLines = 1
+                    )
+                }
                 Text(
                     text = "${item.log.quantityGrams.toInt()}g",
                     style = MaterialTheme.typography.bodySmall,
@@ -660,7 +859,11 @@ fun DiaryLogItem(
                         color = MaterialTheme.colorScheme.primary
                     )
                     IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Delete, contentDescription = "Remover", tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Remover",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
 
@@ -674,10 +877,21 @@ fun DiaryLogItem(
                         value = sliderValue,
                         onValueChange = { sliderValue = it },
                         onValueChangeFinished = { onQuantityChange(sliderValue.toDouble()) },
-                        valueRange = 0f..2000f, // Cap at 2000g
+                        valueRange = 0f..2000f,
                         modifier = Modifier.weight(1f)
                     )
                 }
+
+                Spacer(Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = item.log.notes ?: "",
+                    onValueChange = onNotesChange,
+                    label = { Text("Observações") },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    maxLines = 3
+                )
 
                 // 4. Comparison Graph (for imported diet items)
                 item.log.originalQuantityGrams?.let { target ->

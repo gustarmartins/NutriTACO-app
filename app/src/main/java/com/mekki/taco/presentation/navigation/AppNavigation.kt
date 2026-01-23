@@ -1,215 +1,347 @@
 package com.mekki.taco.presentation.navigation
 
-import android.util.Log
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.mekki.taco.data.db.dao.AlimentoDao
-import com.mekki.taco.data.db.dao.DietaDao
-import com.mekki.taco.data.db.dao.ItemDietaDao
+import com.mekki.taco.data.db.database.AppDatabase
+import com.mekki.taco.data.manager.BackupManager
+import com.mekki.taco.data.repository.DiaryRepository
+import com.mekki.taco.data.repository.OnboardingRepository
 import com.mekki.taco.data.repository.UserProfileRepository
-import com.mekki.taco.presentation.ui.addfood.AddFoodScreen
-import com.mekki.taco.presentation.ui.addfood.AddFoodViewModel
-import com.mekki.taco.presentation.ui.addfood.AddFoodViewModelFactory
-import com.mekki.taco.presentation.ui.diet.CreateDietScreen
+import com.mekki.taco.presentation.ui.database.FilterPreferences
+import com.mekki.taco.presentation.ui.database.FoodDatabaseScreen
+import com.mekki.taco.presentation.ui.database.FoodDatabaseViewModel
+import com.mekki.taco.presentation.ui.database.FoodDatabaseViewModelFactory
+import com.mekki.taco.presentation.ui.diary.DiaryScreen
+import com.mekki.taco.presentation.ui.diary.DiaryViewModel
+import com.mekki.taco.presentation.ui.diary.DiaryViewModelFactory
 import com.mekki.taco.presentation.ui.diet.DietDetailScreen
 import com.mekki.taco.presentation.ui.diet.DietDetailViewModel
 import com.mekki.taco.presentation.ui.diet.DietDetailViewModelFactory
 import com.mekki.taco.presentation.ui.diet.DietListScreen
 import com.mekki.taco.presentation.ui.diet.DietListViewModel
 import com.mekki.taco.presentation.ui.diet.DietListViewModelFactory
-import com.mekki.taco.presentation.ui.fooddetail.AlimentoDetailScreen
-import com.mekki.taco.presentation.ui.fooddetail.AlimentoDetailViewModel
-import com.mekki.taco.presentation.ui.fooddetail.AlimentoDetailViewModelFactory
+import com.mekki.taco.presentation.ui.fooddetail.FoodDetailScreen
+import com.mekki.taco.presentation.ui.fooddetail.FoodDetailViewModel
+import com.mekki.taco.presentation.ui.fooddetail.FoodDetailViewModelFactory
 import com.mekki.taco.presentation.ui.home.HomeScreen
 import com.mekki.taco.presentation.ui.home.HomeViewModel
 import com.mekki.taco.presentation.ui.home.HomeViewModelFactory
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.profile.ProfileViewModelFactory
-import com.mekki.taco.presentation.ui.search.AlimentoSearchScreen
-import com.mekki.taco.presentation.ui.search.AlimentoViewModel
-import com.mekki.taco.presentation.ui.search.AlimentoViewModelFactory
+import com.mekki.taco.presentation.ui.search.FoodSearchScreen
+import com.mekki.taco.presentation.ui.search.FoodViewModel
+import com.mekki.taco.presentation.ui.search.FoodViewModelFactory
+import com.mekki.taco.presentation.ui.settings.SettingsScreen
+import com.mekki.taco.presentation.ui.settings.SettingsViewModel
+import com.mekki.taco.presentation.ui.settings.SettingsViewModelFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
-object AppDestinations {
-    object Args {
-        const val ALIMENTO_ID = "alimentoId"
-        const val DIET_ID = "dietId"
-    }
-
-    const val HOME_ROUTE = "home"
-    const val DIET_LIST_ROUTE = "diet_list"
-    const val CREATE_DIET_ROUTE = "create_diet"
-    const val ALIMENTO_DETAIL_ROUTE = "alimento_detail/{${Args.ALIMENTO_ID}}"
-    const val DIET_DETAIL_ROUTE = "diet_detail/{${Args.DIET_ID}}"
-
-    // query-like optional param style (use defaultValue = -1 in navArgument)
-    const val ALIMENTO_SEARCH_ROUTE = "alimento_search?dietId={${Args.DIET_ID}}"
-    const val ADD_FOOD_ROUTE = "add_food/{${Args.ALIMENTO_ID}}?dietId={${Args.DIET_ID}}"
-
-    fun alimentoDetail(alimentoId: Int) = "alimento_detail/$alimentoId"
-    fun dietDetail(dietId: Int) = "diet_detail/$dietId"
-    fun addFood(alimentoId: Int, dietId: Int? = null) = "add_food/$alimentoId?dietId=${dietId ?: -1}"
-    fun alimentoSearch(dietId: Int? = null) = "alimento_search?dietId=${dietId ?: -1}"
-}
+const val HOME_ROUTE = "home"
+const val DIET_LIST_ROUTE = "diet_list"
+const val DIET_DETAIL_ROUTE = "diet_detail"
+const val FOOD_DETAIL_ROUTE = "food_detail"
+const val DIARY_ROUTE = "diary"
+const val FOOD_SEARCH_ROUTE = "food_search"
+const val FOOD_DATABASE_ROUTE = "food_database"
+const val SETTINGS_ROUTE = "settings"
 
 @Composable
-fun AppNavHost(
+fun AppNavigation(
     modifier: Modifier = Modifier,
-    navController: NavHostController,
-    onTitleChange: (String) -> Unit,
+    navController: NavHostController = rememberNavController(),
+    context: Context,
     onFabChange: (@Composable (() -> Unit)?) -> Unit,
-    alimentoDao: AlimentoDao,
-    dietaDao: DietaDao,
-    itemDietaDao: ItemDietaDao
+    onActionsChange: (@Composable (() -> Unit)?) -> Unit,
+    onTitleChange: (String) -> Unit
 ) {
+    val appScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
+    val database = AppDatabase.getDatabase(context, appScope)
+
+    val foodDao = database.foodDao()
+    val dietDao = database.dietDao()
+    val dietItemDao = database.dietItemDao()
+    val dailyLogDao = database.dailyLogDao()
+    val dailyWaterLogDao = database.dailyWaterLogDao()
+
+    val userProfileRepository = remember { UserProfileRepository(context) }
+    val backupManager = remember { BackupManager(context, database, userProfileRepository) }
+    val diaryRepository = DiaryRepository(dailyLogDao, dietItemDao, dailyWaterLogDao)
+    val onboardingRepository = remember { OnboardingRepository(context) }
+
+    val homeViewModel: HomeViewModel = viewModel(
+        factory = HomeViewModelFactory(
+            dietDao,
+            foodDao,
+            dietItemDao,
+            dailyLogDao,
+            onboardingRepository,
+            userProfileRepository
+        )
+    )
+    val profileViewModel: ProfileViewModel = viewModel(
+        factory = ProfileViewModelFactory(userProfileRepository)
+    )
+    val dietListViewModel: DietListViewModel = viewModel(
+        factory = DietListViewModelFactory(dietDao, dietItemDao)
+    )
+    val settingsViewModel: SettingsViewModel = viewModel(
+        factory = SettingsViewModelFactory(userProfileRepository, backupManager)
+    )
+
+    val filterPreferences = remember { FilterPreferences(context) }
+
     NavHost(
         modifier = modifier,
         navController = navController,
-        startDestination = AppDestinations.HOME_ROUTE
+        startDestination = HOME_ROUTE
     ) {
-        // HOME
-        composable(route = AppDestinations.HOME_ROUTE) {
-            val context = LocalContext.current
-            val profileRepository = remember { UserProfileRepository(context) }
-            val profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModelFactory(profileRepository))
-            val homeFactory = HomeViewModelFactory(dietaDao, alimentoDao)
-            val homeViewModel: HomeViewModel = viewModel(factory = homeFactory)
-
+        composable(HOME_ROUTE) {
+            onFabChange(null)
+            onActionsChange(null)
+            onTitleChange("NutriTACO")
             HomeScreen(
                 homeViewModel = homeViewModel,
                 profileViewModel = profileViewModel,
-                onNavigateToDietList = { navController.navigate(AppDestinations.DIET_LIST_ROUTE) },
-                onNavigateToDiary = { Log.d("AppNavHost", "Navigate to Diary clicked - TODO") },
-                onNavigateToDetail = { alimentoId ->
-                    navController.navigate(AppDestinations.alimentoDetail(alimentoId))
-                }
+                onNavigateToDietList = { navController.navigate(DIET_LIST_ROUTE) },
+                onNavigateToCreateDiet = { navController.navigate("$DIET_DETAIL_ROUTE/-1") },
+                onNavigateToDiary = { navController.navigate(DIARY_ROUTE) },
+                onNavigateToDetail = { foodId ->
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
+                },
+                onNavigateToEdit = { foodId ->
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId?edit=true")
+                },
+                onNavigateToDietDetail = { dietId ->
+                    navController.navigate("$DIET_DETAIL_ROUTE/$dietId")
+                },
+                onNavigateToSearch = { searchTerm ->
+                    navController.navigate("$FOOD_SEARCH_ROUTE?term=$searchTerm")
+                },
+                onNavigateToDatabase = { navController.navigate(FOOD_DATABASE_ROUTE) },
+                onNavigateToSettings = { navController.navigate(SETTINGS_ROUTE) }
             )
         }
 
-        // DIET LIST
-        composable(route = AppDestinations.DIET_LIST_ROUTE) {
-            val dietListFactory = DietListViewModelFactory(dietaDao, itemDietaDao)
-            val dietListViewModel: DietListViewModel = viewModel(factory = dietListFactory)
+        composable(DIARY_ROUTE) {
+            onFabChange(null)
+            val diaryViewModel: DiaryViewModel = viewModel(
+                factory = DiaryViewModelFactory(
+                    diaryRepository,
+                    dietDao,
+                    foodDao,
+                    userProfileRepository
+                )
+            )
+            DiaryScreen(
+                viewModel = diaryViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDetail = { foodId ->
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
+                },
+                onActionsChange = onActionsChange
+            )
+        }
+
+        composable(DIET_LIST_ROUTE) {
             DietListScreen(
                 viewModel = dietListViewModel,
-                onNavigateToCreateDiet = { navController.navigate(AppDestinations.CREATE_DIET_ROUTE) },
+                onNavigateToCreateDiet = { navController.navigate("$DIET_DETAIL_ROUTE/-1") },
                 onNavigateToDietDetail = { dietId ->
-                    navController.navigate(AppDestinations.dietDetail(dietId))
+                    navController.navigate("$DIET_DETAIL_ROUTE/$dietId")
+                },
+                onEditDiet = { dietId ->
+                    navController.navigate("$DIET_DETAIL_ROUTE/$dietId")
                 },
                 onFabChange = onFabChange
             )
         }
 
-        // DIET DETAIL
         composable(
-            route = AppDestinations.DIET_DETAIL_ROUTE,
-            arguments = listOf(navArgument(AppDestinations.Args.DIET_ID) { type = NavType.IntType })
+            route = "$DIET_DETAIL_ROUTE/{dietId}",
+            arguments = listOf(navArgument("dietId") { type = NavType.IntType })
         ) { backStackEntry ->
-            val dietId = backStackEntry.arguments?.getInt(AppDestinations.Args.DIET_ID)
-            if (dietId != null) {
-                val detailFactory = DietDetailViewModelFactory(dietId, dietaDao, itemDietaDao)
-                val detailViewModel: DietDetailViewModel = viewModel(factory = detailFactory)
-                DietDetailScreen(
-                    viewModel = detailViewModel,
-                    onNavigateToAddFood = {
-                        navController.navigate(AppDestinations.alimentoSearch(dietId = dietId))
-                    },
-                    onTitleChange = onTitleChange,
-                    onFabChange = onFabChange
-                )
-            }
-        }
+            val dietId = backStackEntry.arguments?.getInt("dietId") ?: -1
 
-        // CREATE DIET
-        composable(route = AppDestinations.CREATE_DIET_ROUTE) {
-            val parentEntry = remember(it) { navController.getBackStackEntry(AppDestinations.DIET_LIST_ROUTE) }
-            val dietListViewModel: DietListViewModel = viewModel(viewModelStoreOwner = parentEntry)
-            CreateDietScreen(
-                viewModel = dietListViewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToAddFood = {
-                    // open generic search (no diet preselected)
-                    navController.navigate(AppDestinations.alimentoSearch())
+            // userProfileRepository must be here for the updated DietDetailViewModelFactory
+            val dietDetailViewModel: DietDetailViewModel = viewModel(
+                factory = DietDetailViewModelFactory(
+                    dietId,
+                    dietDao,
+                    dietItemDao,
+                    foodDao,
+                    dailyLogDao,
+                    userProfileRepository
+                )
+            )
+
+            // Observe updates from FoodDetailScreen
+            val savedStateHandle = backStackEntry.savedStateHandle
+            val modifiedFoodId by savedStateHandle.getLiveData<Int>("modified_food_id")
+                .observeAsState()
+
+            androidx.compose.runtime.LaunchedEffect(modifiedFoodId) {
+                modifiedFoodId?.let { id ->
+                    dietDetailViewModel.onFoodUpdated(id)
+                    savedStateHandle.remove<Int>("modified_food_id")
                 }
+            }
+
+            DietDetailScreen(
+                viewModel = dietDetailViewModel,
+                profileViewModel = profileViewModel,
+                onEditDiet = { /* Unused */ },
+                onEditFood = { foodId ->
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId?edit=true")
+                },
+                onViewFood = { foodId ->
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
+                },
+                onTitleChange = onTitleChange,
+                onFabChange = onFabChange,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToSettings = { navController.navigate(SETTINGS_ROUTE) }
             )
         }
 
-        // ALIMENTO SEARCH
         composable(
-            route = AppDestinations.ALIMENTO_SEARCH_ROUTE,
-            arguments = listOf(navArgument(AppDestinations.Args.DIET_ID) {
-                type = NavType.IntType
-                defaultValue = -1
+            route = "$FOOD_DETAIL_ROUTE/{foodId}?edit={edit}&addToDietContext={addToDietContext}&dietName={dietName}",
+            arguments = listOf(
+                navArgument("foodId") { type = NavType.IntType },
+                navArgument("edit") { type = NavType.BoolType; defaultValue = false },
+                navArgument("addToDietContext") { type = NavType.BoolType; defaultValue = false },
+                navArgument("dietName") {
+                    type = NavType.StringType; nullable = true; defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            onFabChange(null)
+            val foodId = backStackEntry.arguments?.getInt("foodId") ?: 0
+            val isEdit = backStackEntry.arguments?.getBoolean("edit") ?: false
+            val isAddToDietContext =
+                backStackEntry.arguments?.getBoolean("addToDietContext") ?: false
+            val dietName = backStackEntry.arguments?.getString("dietName")
+
+            val foodDetailViewModel: FoodDetailViewModel = viewModel(
+                factory = FoodDetailViewModelFactory(foodId, foodDao, dietDao, isEdit)
+            )
+            val uiState by foodDetailViewModel.uiState.collectAsState()
+            val availableDiets by homeViewModel.availableDiets.collectAsState()
+
+            FoodDetailScreen(
+                uiState = uiState,
+                availableDiets = availableDiets,
+                onPortionChange = foodDetailViewModel::updatePortion,
+                onNavigateBack = { navController.popBackStack() },
+                onTitleChange = onTitleChange,
+                onEditToggle = foodDetailViewModel::onEditToggle,
+                onSave = {
+                    foodDetailViewModel.saveChanges { newId ->
+                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                            "modified_food_id",
+                            newId
+                        )
+
+                        val prevRoute = navController.previousBackStackEntry?.destination?.route
+                        if (prevRoute?.startsWith(FOOD_DETAIL_ROUTE) == true ||
+                            prevRoute?.startsWith(DIET_DETAIL_ROUTE) == true
+                        ) {
+                            navController.popBackStack()
+                        } else {
+                            // If we came directly to edit (e.g. from Home), replace Edit screen with View screen
+                            navController.navigate("$FOOD_DETAIL_ROUTE/$newId") {
+                                popUpTo(
+                                    navController.currentBackStackEntry?.destination?.id ?: 0
+                                ) { inclusive = true }
+                            }
+                        }
+                    }
+                },
+                onClone = foodDetailViewModel::cloneAndGetId,
+                onDelete = foodDetailViewModel::deleteFood,
+                onEditFieldChange = foodDetailViewModel::onEditFieldChange,
+                onNavigateToNewFood = { newId ->
+                    navController.popBackStack()
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$newId?edit=true&addToDietContext=$isAddToDietContext&dietName=$dietName")
+                },
+                onAddToDiet = { dietId, qty, meal, time ->
+                    homeViewModel.addFoodToDiet(dietId, foodId, qty, meal, time)
+                },
+                onFastAdd = if (isAddToDietContext) {
+                    { portion ->
+                        navController.popBackStack()
+                    }
+                } else null,
+                targetDietName = dietName
+            )
+        }
+
+        composable(
+            route = "$FOOD_SEARCH_ROUTE?term={term}",
+            arguments = listOf(navArgument("term") {
+                type = NavType.StringType
+                defaultValue = ""
+                nullable = true
             })
         ) { backStackEntry ->
-            val dietId = backStackEntry.arguments?.getInt(AppDestinations.Args.DIET_ID)
-            val searchViewModel: AlimentoViewModel = viewModel(factory = AlimentoViewModelFactory(alimentoDao))
+            onFabChange(null)
+            onTitleChange("Buscar Alimentos")
+            val initialTerm = backStackEntry.arguments?.getString("term") ?: ""
 
-            AlimentoSearchScreen(
-                viewModel = searchViewModel,
-                onAlimentoClick = { alimentoId ->
-                    navController.navigate(AppDestinations.addFood(alimentoId = alimentoId, dietId = dietId?.takeIf { it != -1 }))
+            val foodViewModel: FoodViewModel = viewModel(
+                factory = FoodViewModelFactory(foodDao)
+            )
+
+            // Initializes search if term provided
+            androidx.compose.runtime.LaunchedEffect(initialTerm) {
+                if (initialTerm.isNotBlank()) {
+                    foodViewModel.onTermoBuscaChange(initialTerm)
+                }
+            }
+
+            FoodSearchScreen(
+                viewModel = foodViewModel,
+                onAlimentoClick = { foodId ->
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
                 },
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
-        // ADD FOOD
-        composable(
-            route = AppDestinations.ADD_FOOD_ROUTE,
-            arguments = listOf(
-                navArgument(AppDestinations.Args.ALIMENTO_ID) { type = NavType.IntType },
-                navArgument(AppDestinations.Args.DIET_ID) {
-                    type = NavType.IntType
-                    defaultValue = -1
+        composable(FOOD_DATABASE_ROUTE) {
+            onFabChange(null)
+            val viewModel: FoodDatabaseViewModel = viewModel(
+                factory = FoodDatabaseViewModelFactory(foodDao, filterPreferences)
+            )
+            FoodDatabaseScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onFoodClick = { foodId ->
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
                 }
             )
-        ) { backStackEntry ->
-            val foodId = backStackEntry.arguments?.getInt(AppDestinations.Args.ALIMENTO_ID)
-            val dietId = backStackEntry.arguments?.getInt(AppDestinations.Args.DIET_ID)?.takeIf { it != -1 }
-
-            if (foodId != null) {
-                val addFoodFactory = AddFoodViewModelFactory(
-                    foodId = foodId,
-                    alimentoDao = alimentoDao,
-                    dietaDao = dietaDao,
-                    itemDietaDao = itemDietaDao,
-                    initialDietId = dietId
-                )
-                val addFoodViewModel: AddFoodViewModel = viewModel(factory = addFoodFactory)
-                AddFoodScreen(
-                    viewModel = addFoodViewModel,
-                    onFoodAdded = { navController.popBackStack() }
-                )
-            }
         }
 
-        composable(
-            route = AppDestinations.ALIMENTO_DETAIL_ROUTE,
-            arguments = listOf(navArgument(AppDestinations.Args.ALIMENTO_ID) { type = NavType.IntType })
-        ) { backStackEntry ->
-            val alimentoId = backStackEntry.arguments?.getInt(AppDestinations.Args.ALIMENTO_ID)
-            if (alimentoId != null) {
-                val detailFactory = AlimentoDetailViewModelFactory(alimentoId, alimentoDao)
-                val detailViewModel: AlimentoDetailViewModel = viewModel(factory = detailFactory)
-                val uiState by detailViewModel.uiState.collectAsState()
-
-                AlimentoDetailScreen(
-                    uiState = uiState,
-                    onPortionChange = detailViewModel::updatePortion,
-                    onNavigateBack = { navController.popBackStack() },
-                    onTitleChange = onTitleChange
-                )
-            }
+        composable(SETTINGS_ROUTE) {
+            onFabChange(null)
+            onActionsChange(null)
+            onTitleChange("Configurações")
+            SettingsScreen(
+                viewModel = settingsViewModel
+            )
         }
     }
 }
