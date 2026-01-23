@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.Flow
 interface DailyLogDao {
 
     @Transaction
-    @Query("SELECT * FROM daily_log WHERE date = :date ORDER BY id ASC")
+    @Query("SELECT * FROM daily_log WHERE date = :date ORDER BY entryTimestamp ASC")
     fun getLogsForDate(date: String): Flow<List<DailyLogWithFood>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
