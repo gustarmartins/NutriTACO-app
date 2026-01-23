@@ -20,27 +20,30 @@ class SmartFoodMatcher(private val foodDao: FoodDao) {
         for (item in scannedItems) {
             var food: Food? = null
 
-            // 1. Try to use AI matched ID
+            // Try to use AI matched ID
             if (item.matchedId != null) {
-                 val matched = foodDao.getFoodById(item.matchedId).first()
-                 if (matched != null) {
-                     food = matched
-                     Log.d("SmartFoodMatcher", "Used AI matched ID: ${matched.name}")
-                 }
+                val matched = foodDao.getFoodById(item.matchedId).first()
+                if (matched != null) {
+                    food = matched
+                    Log.d("SmartFoodMatcher", "Used AI matched ID: ${matched.name}")
+                }
             }
 
-            // 2. If no ID or ID not valid, try to find in TACO by name
+            // If no ID or ID not valid, try to find in TACO by name
             if (food == null) {
                 food = findBestMatch(item.rawName)
             }
 
-            // 3. If still not found, create a "Custom AI Food"
+            // If still not found, create a "Custom AI Food"
             if (food == null) {
-                Log.i("SmartFoodMatcher", "Food '${item.rawName}' not found in TACO. Creating custom entry.")
+                Log.i(
+                    "SmartFoodMatcher",
+                    "Food '${item.rawName}' not found in TACO. Creating custom entry."
+                )
                 food = createCustomFood(item)
             }
 
-            // 4. Create the Diet Item
+            // Create the Diet Item
             if (food != null) {
                 val dietItem = DietItem(
                     id = UUID.randomUUID().hashCode(),
@@ -60,7 +63,10 @@ class SmartFoodMatcher(private val foodDao: FoodDao) {
         if (matchCache.containsKey(rawTerm)) return matchCache[rawTerm]
 
         val cleanTerm = rawTerm.unaccent().lowercase()
-            .replace(Regex("(cozido|grelhado|frito|assado|cru|fatia|unidade|colher|sopa|cha|scoop)"), "")
+            .replace(
+                Regex("(cozido|grelhado|frito|assado|cru|fatia|unidade|colher|sopa|cha|scoop)"),
+                ""
+            )
             .trim()
 
         if (cleanTerm.length < 2) return null
@@ -107,7 +113,11 @@ class SmartFoodMatcher(private val foodDao: FoodDao) {
             raw.contains("Café", true) || raw.contains("Desjejum", true) -> "Café da Manhã"
             raw.contains("Almoço", true) -> "Almoço"
             raw.contains("Jantar", true) -> "Jantar"
-            raw.contains("Lanche", true) || raw.contains("Pré", true) || raw.contains("Pós", true) -> "Lanche"
+            raw.contains("Lanche", true) || raw.contains("Pré", true) || raw.contains(
+                "Pós",
+                true
+            ) -> "Lanche"
+
             raw.contains("Ceia", true) -> "Lanche"
             else -> "Lanche"
         }

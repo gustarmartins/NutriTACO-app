@@ -36,8 +36,8 @@ class DietScannerService(private val foodDao: FoodDao) {
 
                 // This is very expensive and not practical at all for production
                 val allFoods = foodDao.getAllFoods().first()
-                val dbContext = allFoods.joinToString("\n") { 
-                    "${it.id}|${it.name}|${it.category}" 
+                val dbContext = allFoods.joinToString("\n") {
+                    "${it.id}|${it.name}|${it.category}"
                 }
 
                 val prompt = """
@@ -79,14 +79,17 @@ class DietScannerService(private val foodDao: FoodDao) {
                     ]
                 """.trimIndent()
 
-                Log.d("DietScanner", "Sending prompt to Gemini (Context Length: ${dbContext.length} chars)...")
+                Log.d(
+                    "DietScanner",
+                    "Sending prompt to Gemini (Context Length: ${dbContext.length} chars)..."
+                )
                 val response = generativeModel.generateContent(prompt)
-                
+
                 val jsonString = response.text
                     ?.replace("```json", "")
                     ?.replace("```", "")
                     ?.trim() ?: "[]"
-                
+
                 Log.d("DietScanner", "Gemini Response JSON:\n$jsonString")
 
                 parseJsonResult(jsonString)
@@ -104,8 +107,9 @@ class DietScannerService(private val foodDao: FoodDao) {
             val array = JSONArray(json)
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                val dbId = if (obj.has("db_id") && !obj.isNull("db_id")) obj.getInt("db_id") else null
-                
+                val dbId =
+                    if (obj.has("db_id") && !obj.isNull("db_id")) obj.getInt("db_id") else null
+
                 result.add(
                     ScannedItem(
                         rawName = obj.optString("food"),
