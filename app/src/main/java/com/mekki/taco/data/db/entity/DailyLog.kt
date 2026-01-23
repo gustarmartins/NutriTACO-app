@@ -28,7 +28,11 @@ data class DailyLog(
     val quantityGrams: Double,
     val mealType: String,
 
+    val entryTimestamp: Long = 0L,
+
     val isConsumed: Boolean = false,
-    
-    val originalQuantityGrams: Double? = null
+
+    val originalQuantityGrams: Double? = null,
+
+    val notes: String? = null
 )
