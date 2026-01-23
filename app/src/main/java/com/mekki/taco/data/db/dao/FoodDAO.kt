@@ -5,104 +5,150 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
+import androidx.room.Transaction
 import androidx.room.Update
+import androidx.sqlite.db.SupportSQLiteQuery
 import com.mekki.taco.data.db.entity.Food
+import com.mekki.taco.utils.normalizeForSearch
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 @Dao
-interface AlimentoDao {
+abstract class FoodDao {
 
-    /**
-     * Insere um único alimento no banco de dados.
-     * Se um alimento com o mesmo 'codigoOriginal' já existir, ele será substituído.
-     * @param food O alimento a ser inserido.
-     * @return O ID da linha (rowId) do alimento inserido.
-     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun inserirAlimento(food: Food): Long
+    protected abstract suspend fun insertFoodInternal(food: Food): Long
 
-    /**
-     * Insere uma lista de alimentos no banco de dados.
-     * Se algum alimento com o mesmo 'codigoOriginal' já existir, ele será substituído.
-     * Útil para popular o banco de dados inicialmente a partir dos CSVs.
-     * @param foods A lista de alimentos a ser inserida.
-     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun inserirAlimentos(foods: List<Food>)
+    protected abstract suspend fun insertAllFoodsInternal(foods: List<Food>): List<Long>
 
-    /**
-     * Atualiza um alimento existente no banco de dados.
-     * A correspondência é feita pela chave primária do alimento.
-     * @param food O alimento a ser atualizado.
-     * @return O número de linhas atualizadas (deve ser 1 se o alimento existir).
-     */
     @Update
-    suspend fun atualizarAlimento(food: Food): Int
+    protected abstract suspend fun updateFoodInternal(food: Food): Int
 
-    /**
-     * Deleta um único alimento do banco de dados.
-     * A correspondência é feita pela chave primária do alimento.
-     * @param food O alimento a ser deletado.
-     */
     @Delete
-    suspend fun deletarAlimento(food: Food)
+    protected abstract suspend fun deleteFoodInternal(food: Food)
+
+    @Query("DELETE FROM foods")
+    protected abstract suspend fun deleteAllFoodsInternal()
+
+    // --- FTS Maintenance ---
+    @Query("INSERT INTO foods_fts (rowid, normalized_data) VALUES (:rowid, :normalized)")
+    abstract suspend fun insertFts(rowid: Long, normalized: String)
+
+    @Query("DELETE FROM foods_fts WHERE rowid = :rowid")
+    abstract suspend fun deleteFts(rowid: Long)
+
+    @Query("DELETE FROM foods_fts")
+    abstract suspend fun deleteAllFts()
+
+    // --- Public Operations (With FTS Maintenance) ---
+
+    @Transaction
+    open suspend fun insertFood(food: Food): Long {
+        val id = insertFoodInternal(food)
+        val normalized = food.name.normalizeForSearch()
+        insertFts(id, normalized)
+        return id
+    }
+
+    @Transaction
+    open suspend fun insertAllFoods(foods: List<Food>) {
+        val ids = insertAllFoodsInternal(foods)
+        foods.forEachIndexed { index, food ->
+            val id = ids[index]
+            val normalized = food.name.normalizeForSearch()
+            insertFts(id, normalized)
+        }
+    }
+
+    @Transaction
+    open suspend fun updateFood(food: Food): Int {
+        val count = updateFoodInternal(food)
+        if (count > 0) {
+            deleteFts(food.id.toLong())
+            insertFts(food.id.toLong(), food.name.normalizeForSearch())
+        }
+        return count
+    }
+
+    @Transaction
+    open suspend fun deleteFood(food: Food) {
+        deleteFoodInternal(food)
+        deleteFts(food.id.toLong())
+    }
+
+    @Transaction
+    open suspend fun deleteAllFoods() {
+        deleteAllFoodsInternal()
+        deleteAllFts()
+    }
+
+    // --- Search ---
+
+    @Query(
+        """
+        SELECT foods.* FROM foods 
+        JOIN foods_fts ON foods.id = foods_fts.rowid 
+        WHERE foods_fts MATCH :ftsQuery
+        ORDER BY 
+          CASE 
+            WHEN foods_fts.normalized_data = :normalizedQuery THEN 3
+            WHEN foods_fts.normalized_data LIKE :normalizedQuery || ' %' THEN 2
+            WHEN foods_fts.normalized_data LIKE :normalizedQuery || '%' THEN 1
+            ELSE 0 
+          END DESC,
+          length(foods.name) ASC, 
+          foods.usageCount DESC
+    """
+    )
+    abstract fun searchFoodsInternal(normalizedQuery: String, ftsQuery: String): Flow<List<Food>>
 
     /**
-     * Deleta todos os alimentos da tabela.
+     * Standard entry point for basic search.
+     * Uses FTS with default prefix matching.
      */
-    @Query("DELETE FROM alimento")
-    suspend fun deletarTodosAlimentos()
+    open fun getFoodsByName(termoBusca: String): Flow<List<Food>> {
+        val normalized = termoBusca.normalizeForSearch()
+        if (normalized.isBlank()) return flowOf(emptyList())
 
-    /**
-     * Busca um alimento pelo seu ID interno do Room.
-     * @param id O ID interno do alimento.
-     * @return Um Flow contendo o Alimento ou null se não encontrado.
-     */
-    @Query("SELECT * FROM alimento WHERE id = :id")
-    fun buscarAlimentoPorId(id: Int): Flow<Food?>
+        val ftsQuery = normalized.split(" ")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { "$it*" }
 
-    /**
-     * Busca um alimento pelo seu código original da Tabela TACO.
-     * @param codigoOriginal O código original (IdAlimento do CSV).
-     * @return Um Flow contendo o Alimento ou null se não encontrado.
-     */
-    @Query("SELECT * FROM alimento WHERE codigoOriginal = :codigoOriginal")
-    fun buscarAlimentoPorCodigoOriginal(codigoOriginal: String): Flow<Food?>
+        return searchFoodsInternal(normalized, ftsQuery)
+    }
 
-    /**
-     * Busca todos os alimentos cadastrados, ordenados pelo nome.
-     * @return Um Flow contendo a lista de todos os alimentos.
-     */
-    @Query("SELECT * FROM alimento ORDER BY nome ASC")
-    fun buscarTodosAlimentos(): Flow<List<Food>>
+    @Query("SELECT * FROM foods WHERE name LIKE :pattern")
+    abstract suspend fun findFoodsByNameLike(pattern: String): List<Food>
 
-    /**
-     * Busca alimentos cujo nome contenha o termo de pesquisa (ignorando maiúsculas/minúsculas).
-     * @param termoBusca O texto a ser procurado no nome dos alimentos.
-     * @return Um Flow contendo a lista de alimentos correspondentes.
-     */
-    @Query("SELECT * FROM alimento WHERE LOWER(nome) LIKE LOWER(:termoBusca) || '%' ORDER BY nome ASC")
-    fun buscarAlimentosPorNome(termoBusca: String): Flow<List<Food>>
+    @Query("SELECT * FROM foods WHERE id = :id")
+    abstract fun getFoodById(id: Int): Flow<Food?>
 
-    /**
-     * Busca todos os alimentos de uma categoria específica, ordenados pelo nome.
-     * @param categoria A categoria para filtrar os alimentos.
-     * @return Um Flow contendo a lista de alimentos da categoria especificada.
-     */
-    @Query("SELECT * FROM alimento WHERE categoria = :categoria ORDER BY nome ASC")
-    fun buscarAlimentosPorCategoria(categoria: String): Flow<List<Food>>
+    @Query("SELECT * FROM foods WHERE tacoID = :tacoID")
+    abstract fun getFoodByTacoID(tacoID: String): Flow<Food?>
 
-    /**
-     * Retorna uma lista de todos os nomes de categorias distintas.
-     * @return Um Flow contendo a lista de strings das categorias únicas.
-     */
-    @Query("SELECT DISTINCT categoria FROM alimento ORDER BY categoria ASC")
-    fun buscarTodasCategorias(): Flow<List<String>>
+    @Query("SELECT * FROM foods ORDER BY name ASC")
+    abstract fun getAllFoods(): Flow<List<Food>>
 
-    /**
-     * Conta o número total de alimentos na tabela.
-     * @return O número total de alimentos.
-     */
-    @Query("SELECT COUNT(*) FROM alimento")
-    suspend fun contarAlimentos(): Int
+    @RawQuery(observedEntities = [Food::class])
+    abstract fun searchFoodsRaw(query: SupportSQLiteQuery): Flow<List<Food>>
+
+    @Query("UPDATE foods SET usageCount = usageCount + 1 WHERE id = :id")
+    abstract suspend fun incrementUsageCount(id: Int)
+
+    @Query("SELECT * FROM foods WHERE category = :categoria ORDER BY name ASC")
+    abstract fun getFoodsByCategory(categoria: String): Flow<List<Food>>
+
+    @Query("SELECT DISTINCT category FROM foods ORDER BY category ASC")
+    abstract fun getAllCategories(): Flow<List<String>>
+
+    @Query("SELECT COUNT(*) FROM foods")
+    abstract suspend fun countAllFoods(): Int
+
+    @Query("SELECT * FROM foods WHERE isCustom = 1")
+    abstract suspend fun getAllCustomFoods(): List<Food>
+
+    @Query("DELETE FROM foods WHERE isCustom = 1")
+    abstract suspend fun deleteCustomFoods()
 }
