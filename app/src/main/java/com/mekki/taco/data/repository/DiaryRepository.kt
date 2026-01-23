@@ -77,6 +77,10 @@ class DiaryRepository(
         dailyLogDao.updateLog(log.copy(quantityGrams = newQuantity))
     }
 
+    suspend fun updateNotes(log: DailyLog, newNotes: String) {
+        dailyLogDao.updateLog(log.copy(notes = newNotes))
+    }
+
     suspend fun deleteLog(log: DailyLog) {
         dailyLogDao.deleteLog(log)
     }
