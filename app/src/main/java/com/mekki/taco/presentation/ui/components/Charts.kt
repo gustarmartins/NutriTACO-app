@@ -4,7 +4,16 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +30,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
 
@@ -112,8 +122,6 @@ fun MacroBarChart(
 ) {
     val totalMacros = data.sumOf { it.value.toDouble() }.toFloat()
     val maxVal = data.maxOfOrNull { it.value } ?: 1f
-
-    // Animation states for bar heights (0f to 1f)
     val animatedProgress = remember(data) { data.map { Animatable(0f) } }
 
     LaunchedEffect(data) {
@@ -127,49 +135,65 @@ fun MacroBarChart(
         }
     }
 
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        // Bar Area
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            data.forEachIndexed { index, item ->
-                val heightRatio = if(maxVal > 0) item.value / maxVal else 0f
-                val animatedRatio = heightRatio * animatedProgress[index].value
+        val dfPercent = DecimalFormat("#")
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Value Label above bar
-                    Text(
-                        text = "${item.value.toInt()}g",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    // The Bar
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.6f) // Width of bar relative to column
-                            .fillMaxHeight(animatedRatio.coerceAtLeast(0.01f))
-                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                            .background(item.color)
-                    )
-                }
+        data.forEachIndexed { index, item ->
+            val heightRatio = if (maxVal > 0) item.value / maxVal else 0f
+            val animatedRatio = heightRatio * animatedProgress[index].value
+            val percent = if (totalMacros > 0) 100f * item.value / totalMacros else 0f
+
+            val label = when (item.label.lowercase()) {
+                "carboidratos" -> "Carbs"
+                "proteínas" -> "Prot"
+                "gorduras" -> "Gord"
+                else -> item.label.take(4)
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "${item.value.toInt()}g",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${dfPercent.format(percent)}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(80.dp * animatedRatio)
+                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                        .background(item.color)
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
-
-        Legend(data, totalMacros)
     }
 }
 
@@ -188,22 +212,18 @@ private fun Legend(data: List<PieChartData>, totalMacros: Float) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 4.dp)
             ) {
-                // Ponto colorido
                 Box(
                     modifier = Modifier
                         .size(12.dp)
                         .background(color = slice.color, shape = CircleShape)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                // Nome do Macro
                 Text(
                     text = slice.label,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold
                 )
-                // empurrar o valor para a direita
                 Spacer(modifier = Modifier.weight(1f))
-                // em gramas e porcentagem
                 Text(
                     text = "${dfValue.format(slice.value)}g (${dfPercent.format(percent)}%)",
                     style = MaterialTheme.typography.bodyMedium,
