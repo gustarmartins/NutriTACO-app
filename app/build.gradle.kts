@@ -1,44 +1,75 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
-    id("org.jetbrains.kotlin.kapt")
+    alias(libs.plugins.gms.google.services)
+}
+
+kotlin {
+    jvmToolchain(17)
+
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 android {
     namespace = "com.mekki.taco"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.mekki.taco"
-        minSdk = 29
-        targetSdk = 35
+        minSdk = 24
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        getByName("debug") {
+            isDefault = true
+        }
+
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
+    flavorDimensions += "version"
+    productFlavors {
+        create("standard") {
+            dimension = "version"
+            versionNameSuffix = "-standard"
+            isDefault = true
+        }
+
+        create("ai") {
+            dimension = "version"
+            versionNameSuffix = "-ai"
         }
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = "11"
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 
@@ -49,41 +80,51 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.runtime)
+    implementation(libs.androidx.compose.ui.text)
+    implementation(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.compose.material3)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    val composeBom = platform("androidx.compose:compose-bom:2025.05.00")
-    implementation(composeBom)
-    androidTestImplementation(composeBom)
-    // Material Design 3
-    implementation("androidx.compose.material3:material3")
-    // Android Studio Preview support
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    // UI Tests
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
-    // Optional - Included automatically by material, only add when you need
-    // the icons but not the material library (e.g. when using Material3 or a
-    // custom design system based on Foundation)
-    implementation("androidx.compose.material:material-icons-core")
-    // Optional - Add full set of material icons
-    implementation("androidx.compose.material:material-icons-extended")
-    // Optional - Add window size utils
-    implementation("androidx.compose.material3.adaptive:adaptive")
-    implementation("androidx.navigation:navigation-compose:2.9.0")
-    // Optional - Integration with activities
-    implementation("androidx.activity:activity-compose:1.10.1")
-    // Optional - Integration with ViewModels
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.5")
-    // Optional - Integration with LiveData
-    implementation("androidx.compose.runtime:runtime-livedata")
-    // Optional - Integration with RxJava
-    implementation("androidx.compose.runtime:runtime-rxjava2")
-    // ROOM
-    val room_version = "2.7.1"
-    implementation("androidx.room:room-runtime:$room_version")
-    kapt("androidx.room:room-compiler:$room_version")
-    implementation("androidx.room:room-ktx:$room_version")
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Compose BOM + libs
+    implementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    implementation(libs.bundles.compose.core)
+
+    debugImplementation(libs.compose.ui.tooling)
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
+
+    // AndroidX
+    implementation(libs.navigation.compose)
+    implementation(libs.activity.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+
+    // Room
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    // DataStore + 3rd party
+    implementation(libs.datastore.preferences)
+    implementation(libs.reorderable)
+
+    // AI
+    "aiImplementation"(libs.mlkit.text.recognition)
+    "aiImplementation"(platform(libs.firebase.bom))
+    "aiImplementation"(libs.firebase.vertexai)
+    "aiImplementation"(libs.camera.core)
+    "aiImplementation"(libs.camera.camera2)
+    "aiImplementation"(libs.camera.lifecycle)
+    "aiImplementation"(libs.camera.view)
+    "aiImplementation"(libs.accompanist.permissions)
+    "aiImplementation"(libs.coroutines.play.services)
+
+    // Gson
+    implementation(libs.gson)
+
+    // Desugaring
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 }

@@ -1,79 +1,56 @@
 package com.mekki.taco.data.db.dao
 
-import androidx.room.*
-import com.mekki.taco.data.db.entity.ItemDieta
-import kotlinx.coroutines.flow.Flow
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
+import com.mekki.taco.data.db.entity.DietItem
 import com.mekki.taco.data.model.DietItemWithFood
+import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface ItemDietaDao {
+interface DietItemDao {
 
-    /**
-     * Insere um novo item (alimento) em uma dieta.
-     * @param itemDieta O item da dieta a ser inserido.
-     * @return O ID da linha (rowId) do item inserido.
-     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun inserirItemDieta(itemDieta: ItemDieta): Long
+    suspend fun insertDietItem(dietItem: DietItem): Long
 
-    /**
-     * Insere uma lista de itens de dieta.
-     * @param itensDieta A lista de itens de dieta a serem inseridos.
-     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun inserirItensDieta(itensDieta: List<ItemDieta>)
+    suspend fun insertDietItems(itensDieta: List<DietItem>)
 
-    /**
-     * Atualiza um item de dieta existente.
-     * @param itemDieta O item da dieta a ser atualizado.
-     */
     @Update
-    suspend fun atualizarItemDieta(itemDieta: ItemDieta)
+    suspend fun updateDietItem(dietItem: DietItem)
 
-    /**
-     * Deleta um item de dieta específico.
-     * @param itemDieta O item da dieta a ser deletado.
-     */
     @Delete
-    suspend fun deletarItemDieta(itemDieta: ItemDieta)
+    suspend fun deleteDietItem(dietItem: DietItem)
 
-    /**
-     * Busca todos os itens de uma dieta específica, ordenados talvez pelo tipo de refeição ou ID.
-     * @param idDieta O ID da dieta cujos itens devem ser buscados.
-     * @return Um Flow contendo a lista de ItemDieta para a dieta especificada.
-     */
-    @Query("SELECT * FROM itens_dieta WHERE dietaId = :idDieta ORDER BY tipoRefeicao ASC, id ASC")
-    fun buscarItensPorDietaId(idDieta: Int): Flow<List<ItemDieta>>
+    @Query("SELECT * FROM diet_items WHERE dietId = :idDieta ORDER BY mealType ASC, id ASC")
+    fun getDietItemsByDietId(idDieta: Int): Flow<List<DietItem>>
 
-    /**
-     * Busca um item de dieta específico pelo seu ID.
-     * @param itemId O ID do ItemDieta.
-     * @return Um Flow contendo o ItemDieta ou null.
-     */
-    @Query("SELECT * FROM itens_dieta WHERE id = :itemId")
-    fun buscarItemDietaPorId(itemId: Int): Flow<ItemDieta?>
+    @Query("SELECT * FROM diet_items WHERE id = :itemId")
+    fun getDietItemById(itemId: Int): Flow<DietItem?>
 
+    @Query("DELETE FROM diet_items WHERE dietId = :idDieta")
+    suspend fun deleteAllItemsByDietId(idDieta: Int)
 
-    /**
-     * Deleta todos os itens de uma dieta específica.
-     * Útil se você quiser limpar uma dieta sem deletar a dieta em si.
-     * @param idDieta O ID da dieta cujos itens serão deletados.
-     */
-    @Query("DELETE FROM itens_dieta WHERE dietaId = :idDieta")
-    suspend fun deletarTodosItensDeUmaDieta(idDieta: Int)
-
-    /**
-     * Busca todos os itens de uma dieta específica, trazendo também os dados completos
-     * do Alimento associado a cada item.
-     * @Transaction é crucial para garantir que a query de relação seja executada atomicamente.
-     */
     @Transaction
-    @Query("SELECT * FROM itens_dieta WHERE dietaId = :idDieta")
-    fun buscarItensComAlimentoPorDietaId(idDieta: Int): Flow<List<DietItemWithFood>>
+    @Query("SELECT * FROM diet_items WHERE dietId = :idDieta")
+    fun getDietItemsWithFoodByDietId(idDieta: Int): Flow<List<DietItemWithFood>>
 
-    @Query("UPDATE itens_dieta SET quantidadeGramas = :novaQuantidade WHERE id = :itemId")
-    suspend fun atualizarQuantidadeItem(itemId: Int, novaQuantidade: Double)
+    @Query("UPDATE diet_items SET quantityGrams = :novaQuantidade WHERE id = :itemId")
+    suspend fun updateItemQuantity(itemId: Int, novaQuantidade: Double)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(items: List<ItemDieta>)
+    suspend fun insertAll(items: List<DietItem>)
+
+    @Query("SELECT * FROM diet_items WHERE dietId = :dietId")
+    suspend fun getDietItemsList(dietId: Int): List<DietItem>
+
+    @Query("SELECT * FROM diet_items")
+    suspend fun getAllDietItems(): List<DietItem>
+
+    @Query("DELETE FROM diet_items")
+    suspend fun deleteAllDietItems()
 }

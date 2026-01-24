@@ -5,14 +5,14 @@ import androidx.room.Relation
 import com.mekki.taco.data.db.entity.Diet
 import com.mekki.taco.data.db.entity.DietItem
 
-data class DietaComItens(
+data class DietWithItems(
     @Embedded
     val diet: Diet,
 
     @Relation(
         parentColumn = "id",
-        entityColumn = "dietaId",
+        entityColumn = "dietId",
         entity = DietItem::class
     )
-    val itens: List<DietItemWithFood>
+    val items: List<DietItemWithFood>
 )

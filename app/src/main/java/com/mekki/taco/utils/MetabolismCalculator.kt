@@ -9,7 +9,6 @@ object BMRCalculator {
      * Esta é a quantidade de calorias que o corpo queima em repouso.
      */
     fun calculateBMR(profile: UserProfile): Double {
-        // Checa se os valores não são nulos
         val weight = profile.weight ?: return 0.0
         val height = profile.height ?: return 0.0
         val age = profile.age ?: return 0.0

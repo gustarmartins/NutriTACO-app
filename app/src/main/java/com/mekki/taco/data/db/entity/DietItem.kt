@@ -6,31 +6,31 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "itens_dieta",
+    tableName = "diet_items",
     foreignKeys = [
         ForeignKey(
-            entity = Dieta::class,
+            entity = Diet::class,
             parentColumns = ["id"],
-            childColumns = ["dietaId"],
+            childColumns = ["dietId"],
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
             entity = Food::class,
             parentColumns = ["id"],
-            childColumns = ["alimentoId"],
+            childColumns = ["foodId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["dietaId"]), Index(value = ["alimentoId"])]
+    indices = [Index(value = ["dietId"]), Index(value = ["foodId"])]
 )
-data class ItemDieta(
+data class DietItem(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
-    val dietaId: Int,
-    val alimentoId: Int,
+    val dietId: Int,
+    val foodId: Int,
 
-    val quantidadeGramas: Double,
-    val tipoRefeicao: String? = null,
-    val horaConsumo: String? = null
+    val quantityGrams: Double,
+    val mealType: String? = null,
+    val consumptionTime: String? = null
 )

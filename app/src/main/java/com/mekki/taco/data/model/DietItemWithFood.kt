@@ -2,19 +2,16 @@ package com.mekki.taco.data.model
 
 import androidx.room.Embedded
 import androidx.room.Relation
-import com.mekki.taco.data.db.entity.Alimento
-import com.mekki.taco.data.db.entity.ItemDieta
+import com.mekki.taco.data.db.entity.DietItem
+import com.mekki.taco.data.db.entity.Food
 
-/**
- * Esta data class junta um [ItemDieta] com o [Alimento] correspondente.
- */
-data class ItemDietaComAlimento(
+data class DietItemWithFood(
     @Embedded
-    val itemDieta: ItemDieta,
+    val dietItem: DietItem,
 
     @Relation(
-        parentColumn = "alimentoId", // Coluna em ItemDieta
-        entityColumn = "id"         // Coluna em Alimento que corresponde
+        parentColumn = "foodId",
+        entityColumn = "id"
     )
-    val alimento: Alimento
+    val food: Food
 )

@@ -1,14 +1,13 @@
-// Math.kt
 package com.mekki.taco.utils
 
-import com.mekki.taco.data.db.entity.Alimento
 import com.mekki.taco.data.db.entity.Aminoacidos
+import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.db.entity.Lipidios
 
 data class NutrientesPorPorcao(
     val nomeOriginal: String, // Nome do alimento base
     val quantidadeGramas: Double, // Quantidade para a qual os nutrientes foram calculados
-    val umidade: Double?, // % (geralmente não é escalonado, mas incluído para informação)
+    val umidade: Double?, // medido em %
     val energiaKcal: Double?,
     val energiaKj: Double?,
     val proteina: Double?,
@@ -44,7 +43,7 @@ object NutrientCalculator {
      * Assume que os valores no objeto Alimento são por 100g.
      */
     fun calcularNutrientesParaPorcao(
-        alimentoBase: Alimento, // O alimento original com valores por 100g
+        foodBase: Food, // O alimento original com valores por 100g
         quantidadeDesejadaGramas: Double
     ): NutrientesPorPorcao {
         val fator = quantidadeDesejadaGramas / 100.0
@@ -53,7 +52,7 @@ object NutrientCalculator {
             return valorPor100g?.let { it * fator }
         }
 
-        val lipidiosCalculados = alimentoBase.lipidios?.let { lip ->
+        val lipidiosCalculados = foodBase.lipidios?.let { lip ->
             Lipidios(
                 total = calcular(lip.total),
                 saturados = calcular(lip.saturados),
@@ -62,7 +61,7 @@ object NutrientCalculator {
             )
         }
 
-        val aminoacidosCalculados = alimentoBase.aminoacidos?.let { aa ->
+        val aminoacidosCalculados = foodBase.aminoacidos?.let { aa ->
             Aminoacidos(
                 triptofano = calcular(aa.triptofano), treonina = calcular(aa.treonina),
                 isoleucina = calcular(aa.isoleucina), leucina = calcular(aa.leucina),
@@ -77,34 +76,34 @@ object NutrientCalculator {
         }
 
         return NutrientesPorPorcao(
-            nomeOriginal = alimentoBase.nome,
+            nomeOriginal = foodBase.name,
             quantidadeGramas = quantidadeDesejadaGramas,
-            umidade = alimentoBase.umidade, // Umidade geralmente é uma % do total, não escalonada pela porção da mesma forma
-            energiaKcal = calcular(alimentoBase.energiaKcal),
-            energiaKj = calcular(alimentoBase.energiaKj),
-            proteina = calcular(alimentoBase.proteina),
-            carboidratos = calcular(alimentoBase.carboidratos),
+            umidade = foodBase.umidade,
+            energiaKcal = calcular(foodBase.energiaKcal),
+            energiaKj = calcular(foodBase.energiaKj),
+            proteina = calcular(foodBase.proteina),
+            carboidratos = calcular(foodBase.carboidratos),
             lipidios = lipidiosCalculados,
-            fibraAlimentar = calcular(alimentoBase.fibraAlimentar),
-            colesterol = calcular(alimentoBase.colesterol),
-            cinzas = calcular(alimentoBase.cinzas),
-            calcio = calcular(alimentoBase.calcio),
-            magnesio = calcular(alimentoBase.magnesio),
-            manganes = calcular(alimentoBase.manganes),
-            fosforo = calcular(alimentoBase.fosforo),
-            ferro = calcular(alimentoBase.ferro),
-            sodio = calcular(alimentoBase.sodio),
-            potassio = calcular(alimentoBase.potassio),
-            cobre = calcular(alimentoBase.cobre),
-            zinco = calcular(alimentoBase.zinco),
-            retinol = calcular(alimentoBase.retinol),
-            RE = calcular(alimentoBase.RE),
-            RAE = calcular(alimentoBase.RAE),
-            tiamina = calcular(alimentoBase.tiamina),
-            riboflavina = calcular(alimentoBase.riboflavina),
-            piridoxina = calcular(alimentoBase.piridoxina),
-            niacina = calcular(alimentoBase.niacina),
-            vitaminaC = calcular(alimentoBase.vitaminaC),
+            fibraAlimentar = calcular(foodBase.fibraAlimentar),
+            colesterol = calcular(foodBase.colesterol),
+            cinzas = calcular(foodBase.cinzas),
+            calcio = calcular(foodBase.calcio),
+            magnesio = calcular(foodBase.magnesio),
+            manganes = calcular(foodBase.manganes),
+            fosforo = calcular(foodBase.fosforo),
+            ferro = calcular(foodBase.ferro),
+            sodio = calcular(foodBase.sodio),
+            potassio = calcular(foodBase.potassio),
+            cobre = calcular(foodBase.cobre),
+            zinco = calcular(foodBase.zinco),
+            retinol = calcular(foodBase.retinol),
+            RE = calcular(foodBase.RE),
+            RAE = calcular(foodBase.RAE),
+            tiamina = calcular(foodBase.tiamina),
+            riboflavina = calcular(foodBase.riboflavina),
+            piridoxina = calcular(foodBase.piridoxina),
+            niacina = calcular(foodBase.niacina),
+            vitaminaC = calcular(foodBase.vitaminaC),
             aminoacidos = aminoacidosCalculados
         )
     }

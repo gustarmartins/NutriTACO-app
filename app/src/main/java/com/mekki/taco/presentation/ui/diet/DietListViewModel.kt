@@ -3,33 +3,37 @@ package com.mekki.taco.presentation.ui.diet
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mekki.taco.data.db.dao.DietaDao
-import com.mekki.taco.data.db.dao.ItemDietaDao
-import com.mekki.taco.data.db.entity.Dieta
-import com.mekki.taco.data.db.entity.ItemDieta
-import com.mekki.taco.data.model.ItemDietaComAlimento
-import kotlinx.coroutines.flow.*
+import com.mekki.taco.data.db.dao.DietDao
+import com.mekki.taco.data.db.dao.DietItemDao
+import com.mekki.taco.data.db.entity.Diet
+import com.mekki.taco.data.db.entity.DietItem
+import com.mekki.taco.data.model.DietItemWithFood
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 class DietListViewModel(
-    private val dietaDao: DietaDao,
-    private val itemDietaDao: ItemDietaDao
+    private val dietDao: DietDao,
+    private val dietItemDao: DietItemDao
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "DietListViewModel"
     }
 
-    private val _dietas = MutableStateFlow<List<Dieta>>(emptyList())
-    val dietas: StateFlow<List<Dieta>> = _dietas.asStateFlow()
+    private val _dietas = MutableStateFlow<List<Diet>>(emptyList())
+    val dietas: StateFlow<List<Diet>> = _dietas.asStateFlow()
 
-    // --- State for the CreateDietScreen ---
     private val _nomeNovaDieta = MutableStateFlow("")
     val nomeNovaDieta: StateFlow<String> = _nomeNovaDieta.asStateFlow()
 
-    // Holds the list of foods added before the diet is saved
-    private val _temporaryFoodList = MutableStateFlow<List<ItemDietaComAlimento>>(emptyList())
-    val temporaryFoodList: StateFlow<List<ItemDietaComAlimento>> = _temporaryFoodList.asStateFlow()
+    private val _temporaryFoodList = MutableStateFlow<List<DietItemWithFood>>(emptyList())
+    val temporaryFoodList: StateFlow<List<DietItemWithFood>> = _temporaryFoodList.asStateFlow()
 
     private val _dietaSalvaEvent = MutableSharedFlow<Unit>()
     val dietaSalvaEvent: SharedFlow<Unit> = _dietaSalvaEvent.asSharedFlow()
@@ -40,7 +44,7 @@ class DietListViewModel(
 
     private fun carregarDietas() {
         viewModelScope.launch {
-            dietaDao.buscarTodasDietas()
+            dietDao.getAllDiets()
                 .catch { e -> Log.e(TAG, "Error loading diets", e) }
                 .collect { _dietas.value = it }
         }
@@ -50,63 +54,64 @@ class DietListViewModel(
         _nomeNovaDieta.value = nome
     }
 
-    // --- Functions for the new Create Diet flow ---
-
-    fun addFoodToTemporaryList(item: ItemDietaComAlimento) {
+    fun addFoodToTemporaryList(item: DietItemWithFood) {
         _temporaryFoodList.value += item
     }
 
-    fun removeTemporaryFoodItem(item: ItemDietaComAlimento) {
-        _temporaryFoodList.value = _temporaryFoodList.value.filter { it.itemDieta.id != item.itemDieta.id }
+    fun removeTemporaryFoodItem(item: DietItemWithFood) {
+        _temporaryFoodList.value =
+            _temporaryFoodList.value.filter { it.dietItem.id != item.dietItem.id }
     }
 
     fun salvarNovaDieta() {
         viewModelScope.launch {
             val nomeLimpo = _nomeNovaDieta.value.trim()
             if (nomeLimpo.isEmpty() || _temporaryFoodList.value.isEmpty()) {
-                Log.w(TAG, "Attempted to save diet with empty name or food list.")
                 return@launch
             }
 
-            // 1. Create and save the Dieta to get its ID
-            val novaDieta = Dieta(
-                nome = nomeLimpo,
-                dataCriacao = System.currentTimeMillis(),
-                objetivoCalorias = null // Removed as requested
+            val isFirst = _dietas.value.isEmpty()
+
+            val novaDiet = Diet(
+                name = nomeLimpo,
+                creationDate = System.currentTimeMillis(),
+                calorieGoals = null,
+                isMain = isFirst
             )
 
             try {
-                val newDietId = dietaDao.inserirDieta(novaDieta) // Assume inserirDieta returns the new ID (Long)
+                val newDietId = dietDao.insertOrReplaceDiet(novaDiet)
 
-                // 2. Create ItemDieta entities linked to the new diet
                 val itemsParaSalvar = _temporaryFoodList.value.map { tempItem ->
-                    ItemDieta(
-                        dietaId = newDietId.toInt(),
-                        alimentoId = tempItem.alimento.id,
-                        quantidadeGramas = tempItem.itemDieta.quantidadeGramas,
-                        tipoRefeicao = tempItem.itemDieta.tipoRefeicao
+                    DietItem(
+                        dietId = newDietId.toInt(),
+                        foodId = tempItem.food.id,
+                        quantityGrams = tempItem.dietItem.quantityGrams,
+                        mealType = tempItem.dietItem.mealType
                     )
                 }
 
-                // 3. Save all the items
-                itemDietaDao.insertAll(itemsParaSalvar) // You will need to add this function to your DAO
+                dietItemDao.insertAll(itemsParaSalvar)
+                _dietaSalvaEvent.emit(Unit)
 
-                Log.d(TAG, "New diet '$nomeLimpo' and ${itemsParaSalvar.size} items saved successfully.")
-                _dietaSalvaEvent.emit(Unit) // Navigate back
-
-                // 4. Clear the state for the next use
                 _nomeNovaDieta.value = ""
                 _temporaryFoodList.value = emptyList()
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error saving new diet and its items", e)
+                Log.e(TAG, "Error saving new diet", e)
             }
         }
     }
 
-    fun deletarDieta(dieta: Dieta) {
+    fun deletarDieta(diet: Diet) {
         viewModelScope.launch {
-            dietaDao.deletarDieta(dieta)
+            dietDao.deleteDiet(diet)
+        }
+    }
+
+    fun setMainDiet(diet: Diet) {
+        viewModelScope.launch {
+            dietDao.setAsMainDiet(diet.id)
         }
     }
 }

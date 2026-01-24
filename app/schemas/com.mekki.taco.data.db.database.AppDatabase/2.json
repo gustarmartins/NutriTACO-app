@@ -1,0 +1,607 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "46b28cc152b3ea4c159411c2e1f90e14",
+    "entities": [
+      {
+        "tableName": "foods",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tacoID` TEXT NOT NULL, `name` TEXT NOT NULL, `category` TEXT NOT NULL, `isCustom` INTEGER NOT NULL DEFAULT 0, `usageCount` INTEGER NOT NULL DEFAULT 0, `energiaKcal` REAL, `energiaKj` REAL, `proteina` REAL, `colesterol` REAL, `carboidratos` REAL, `fibraAlimentar` REAL, `cinzas` REAL, `calcio` REAL, `magnesio` REAL, `manganes` REAL, `fosforo` REAL, `ferro` REAL, `sodio` REAL, `potassio` REAL, `cobre` REAL, `zinco` REAL, `retinol` REAL, `RE` REAL, `RAE` REAL, `tiamina` REAL, `riboflavina` REAL, `piridoxina` REAL, `niacina` REAL, `vitaminaC` REAL, `umidade` REAL, `lipidios_total` REAL, `lipidios_saturados` REAL, `lipidios_monoinsaturados` REAL, `lipidios_poliinsaturados` REAL, `aminoacidos_triptofano` REAL, `aminoacidos_treonina` REAL, `aminoacidos_isoleucina` REAL, `aminoacidos_leucina` REAL, `aminoacidos_lisina` REAL, `aminoacidos_metionina` REAL, `aminoacidos_cistina` REAL, `aminoacidos_fenilalanina` REAL, `aminoacidos_tirosina` REAL, `aminoacidos_valina` REAL, `aminoacidos_arginina` REAL, `aminoacidos_histidina` REAL, `aminoacidos_alanina` REAL, `aminoacidos_acidoAspartico` REAL, `aminoacidos_acidoGlutamico` REAL, `aminoacidos_glicina` REAL, `aminoacidos_prolina` REAL, `aminoacidos_serina` REAL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tacoID",
+            "columnName": "tacoID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCustom",
+            "columnName": "isCustom",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "usageCount",
+            "columnName": "usageCount",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "energiaKcal",
+            "columnName": "energiaKcal",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "energiaKj",
+            "columnName": "energiaKj",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "proteina",
+            "columnName": "proteina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "colesterol",
+            "columnName": "colesterol",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "carboidratos",
+            "columnName": "carboidratos",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "fibraAlimentar",
+            "columnName": "fibraAlimentar",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "cinzas",
+            "columnName": "cinzas",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "calcio",
+            "columnName": "calcio",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "magnesio",
+            "columnName": "magnesio",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "manganes",
+            "columnName": "manganes",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "fosforo",
+            "columnName": "fosforo",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "ferro",
+            "columnName": "ferro",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sodio",
+            "columnName": "sodio",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "potassio",
+            "columnName": "potassio",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "cobre",
+            "columnName": "cobre",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "zinco",
+            "columnName": "zinco",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "retinol",
+            "columnName": "retinol",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "RE",
+            "columnName": "RE",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "RAE",
+            "columnName": "RAE",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "tiamina",
+            "columnName": "tiamina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "riboflavina",
+            "columnName": "riboflavina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "piridoxina",
+            "columnName": "piridoxina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "niacina",
+            "columnName": "niacina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "vitaminaC",
+            "columnName": "vitaminaC",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "umidade",
+            "columnName": "umidade",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lipidios.total",
+            "columnName": "lipidios_total",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lipidios.saturados",
+            "columnName": "lipidios_saturados",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lipidios.monoinsaturados",
+            "columnName": "lipidios_monoinsaturados",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lipidios.poliinsaturados",
+            "columnName": "lipidios_poliinsaturados",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.triptofano",
+            "columnName": "aminoacidos_triptofano",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.treonina",
+            "columnName": "aminoacidos_treonina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.isoleucina",
+            "columnName": "aminoacidos_isoleucina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.leucina",
+            "columnName": "aminoacidos_leucina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.lisina",
+            "columnName": "aminoacidos_lisina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.metionina",
+            "columnName": "aminoacidos_metionina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.cistina",
+            "columnName": "aminoacidos_cistina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.fenilalanina",
+            "columnName": "aminoacidos_fenilalanina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.tirosina",
+            "columnName": "aminoacidos_tirosina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.valina",
+            "columnName": "aminoacidos_valina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.arginina",
+            "columnName": "aminoacidos_arginina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.histidina",
+            "columnName": "aminoacidos_histidina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.alanina",
+            "columnName": "aminoacidos_alanina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.acidoAspartico",
+            "columnName": "aminoacidos_acidoAspartico",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.acidoGlutamico",
+            "columnName": "aminoacidos_acidoGlutamico",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.glicina",
+            "columnName": "aminoacidos_glicina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.prolina",
+            "columnName": "aminoacidos_prolina",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aminoacidos.serina",
+            "columnName": "aminoacidos_serina",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_foods_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_foods_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_foods_tacoID",
+            "unique": true,
+            "columnNames": [
+              "tacoID"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_foods_tacoID` ON `${TABLE_NAME}` (`tacoID`)"
+          },
+          {
+            "name": "index_foods_category",
+            "unique": false,
+            "columnNames": [
+              "category"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_foods_category` ON `${TABLE_NAME}` (`category`)"
+          }
+        ]
+      },
+      {
+        "tableName": "diets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `creationDate` INTEGER NOT NULL, `calorieGoals` REAL, `isMain` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creationDate",
+            "columnName": "creationDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "calorieGoals",
+            "columnName": "calorieGoals",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "isMain",
+            "columnName": "isMain",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "diet_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `dietId` INTEGER NOT NULL, `foodId` INTEGER NOT NULL, `quantityGrams` REAL NOT NULL, `mealType` TEXT, `consumptionTime` TEXT, FOREIGN KEY(`dietId`) REFERENCES `diets`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`foodId`) REFERENCES `foods`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dietId",
+            "columnName": "dietId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "foodId",
+            "columnName": "foodId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantityGrams",
+            "columnName": "quantityGrams",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mealType",
+            "columnName": "mealType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "consumptionTime",
+            "columnName": "consumptionTime",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_diet_items_dietId",
+            "unique": false,
+            "columnNames": [
+              "dietId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_diet_items_dietId` ON `${TABLE_NAME}` (`dietId`)"
+          },
+          {
+            "name": "index_diet_items_foodId",
+            "unique": false,
+            "columnNames": [
+              "foodId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_diet_items_foodId` ON `${TABLE_NAME}` (`foodId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "diets",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "dietId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "foods",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "foodId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "daily_log",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `foodId` INTEGER NOT NULL, `date` TEXT NOT NULL, `quantityGrams` REAL NOT NULL, `mealType` TEXT NOT NULL, `entryTimestamp` INTEGER NOT NULL, `isConsumed` INTEGER NOT NULL, `originalQuantityGrams` REAL, `notes` TEXT, FOREIGN KEY(`foodId`) REFERENCES `foods`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "foodId",
+            "columnName": "foodId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantityGrams",
+            "columnName": "quantityGrams",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mealType",
+            "columnName": "mealType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entryTimestamp",
+            "columnName": "entryTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isConsumed",
+            "columnName": "isConsumed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalQuantityGrams",
+            "columnName": "originalQuantityGrams",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_log_foodId",
+            "unique": false,
+            "columnNames": [
+              "foodId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_log_foodId` ON `${TABLE_NAME}` (`foodId`)"
+          },
+          {
+            "name": "index_daily_log_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_log_date` ON `${TABLE_NAME}` (`date`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "foods",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "foodId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "foods_fts",
+        "createSql": "CREATE VIRTUAL TABLE IF NOT EXISTS `${TABLE_NAME}` USING FTS4(`normalized_data` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "normalized_data",
+            "columnName": "normalized_data",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": []
+        },
+        "ftsVersion": "FTS4",
+        "ftsOptions": {
+          "tokenizer": "simple",
+          "tokenizerArgs": [],
+          "contentTable": "",
+          "languageIdColumnName": "",
+          "matchInfo": "FTS4",
+          "notIndexedColumns": [],
+          "prefixSizes": [],
+          "preferredOrder": "ASC"
+        },
+        "contentSyncTriggers": []
+      },
+      {
+        "tableName": "daily_water",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `quantityMl` INTEGER NOT NULL, PRIMARY KEY(`date`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantityMl",
+            "columnName": "quantityMl",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '46b28cc152b3ea4c159411c2e1f90e14')"
+    ]
+  }
+}

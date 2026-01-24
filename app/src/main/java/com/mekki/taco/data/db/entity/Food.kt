@@ -1,26 +1,38 @@
 package com.mekki.taco.data.db.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "alimento",
+    tableName = "foods",
     indices = [
-        Index(value = ["nome"]),
-        Index(value = ["codigoOriginal"], unique = true),
-        Index(value = ["categoria"])
+        Index(value = ["name"]),
+        Index(value = ["tacoID"], unique = true),
+        Index(value = ["category"])
+        // Index(value = ["uuid"], unique = true)
     ]
 )
 
-data class Alimento(
+data class Food(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
-    val codigoOriginal: String, // "IdAlimento"
-    val nome: String,           // Nome do alimento
-    val categoria: String,      // Categoria do alimento
+    val tacoID: String,
+    val name: String,
+    val category: String,
+
+    @ColumnInfo(defaultValue = "0")
+    val isCustom: Boolean = false,
+
+    // collision-free sharing between users
+    // @ColumnInfo(defaultValue = "NULL")
+    // val uuid: String? = null,
+
+    @ColumnInfo(defaultValue = "0")
+    val usageCount: Int = 0,
 
     val energiaKcal: Double?,
     val energiaKj: Double?,
