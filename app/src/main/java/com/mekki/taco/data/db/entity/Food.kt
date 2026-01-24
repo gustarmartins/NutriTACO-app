@@ -12,6 +12,7 @@ import androidx.room.PrimaryKey
         Index(value = ["name"]),
         Index(value = ["tacoID"], unique = true),
         Index(value = ["category"])
+        // Index(value = ["uuid"], unique = true)
     ]
 )
 
@@ -25,6 +26,10 @@ data class Food(
 
     @ColumnInfo(defaultValue = "0")
     val isCustom: Boolean = false,
+
+    // collision-free sharing between users
+    // @ColumnInfo(defaultValue = "NULL")
+    // val uuid: String? = null,
 
     @ColumnInfo(defaultValue = "0")
     val usageCount: Int = 0,
