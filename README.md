@@ -7,7 +7,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material3-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-[Funcionalidades](#funcionalidades) • [Tecnologias](#tecnologias) • [Licença](#-licença) • [Download]
+[Funcionalidades](#funcionalidades) • [Tecnologias](#tecnologias) • [Licença](#licença) • [Download]
 
 ---
 
