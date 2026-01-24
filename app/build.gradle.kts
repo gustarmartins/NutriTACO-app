@@ -2,9 +2,21 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.gms.google.services)
+}
+
+kotlin {
+    jvmToolchain(17)
+
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 android {
@@ -21,6 +33,10 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            isDefault = true
+        }
+
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -36,7 +52,9 @@ android {
         create("standard") {
             dimension = "version"
             versionNameSuffix = "-standard"
+            isDefault = true
         }
+
         create("ai") {
             dimension = "version"
             versionNameSuffix = "-ai"
@@ -53,14 +71,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    kotlin {
-        jvmToolchain(17)
-
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
 }
 
 dependencies {
@@ -72,6 +82,7 @@ dependencies {
     implementation(libs.androidx.runtime)
     implementation(libs.androidx.compose.ui.text)
     implementation(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.compose.material3)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -112,7 +123,8 @@ dependencies {
     "aiImplementation"(libs.coroutines.play.services)
 
     // Gson
-    implementation("com.google.code.gson:gson:2.13.2")
+    implementation(libs.gson)
 
+    // Desugaring
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 }
