@@ -22,7 +22,7 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 
 data class BackupData(
-    val version: Int = 1, // Schema Version of Backup
+    val version: Int, // Schema Version of Backup
     val timestamp: Long = System.currentTimeMillis(),
     val appVersionCode: Int = BuildConfig.VERSION_CODE,
     val appVersionName: String = BuildConfig.VERSION_NAME,
@@ -111,6 +111,7 @@ class BackupManager(
             }
 
             val backup = BackupData(
+                version = db.openHelper.readableDatabase.version,
                 userProfile = profile,
                 customFoods = customFoods,
                 diets = diets,
@@ -136,9 +137,9 @@ class BackupManager(
         }
     }
 
-    suspend fun importData(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun importData(uri: Uri, merge: Boolean = false): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Starting import...")
+            Log.d(TAG, "Starting import... Merge=$merge")
 
             // 1. Read JSON
             val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -151,27 +152,67 @@ class BackupManager(
 
             // 2. Transactional Restore
             db.withTransaction {
-                // Wipe user data
-                Log.d(TAG, "Wiping existing user data...")
-                db.dailyLogDao().deleteAllLogs()
-                db.dailyWaterLogDao().deleteAllWaterLogs()
-                db.dietItemDao().deleteAllDietItems()
-                db.dietDao().deleteAllDiets()
-                db.foodDao().deleteCustomFoods()
+                if (!merge) {
+                    // WIPES USER DATA
+                    Log.d(TAG, "Wiping existing user data...")
+                    db.dailyLogDao().deleteAllLogs()
+                    db.dailyWaterLogDao().deleteAllWaterLogs()
+                    db.dietItemDao().deleteAllDietItems()
+                    db.dietDao().deleteAllDiets()
+                    db.foodDao().deleteCustomFoods()
+                }
 
                 // Restore Custom Foods & Build Map (TacoID -> New ID)
                 Log.d(TAG, "Restoring custom foods...")
+                val customFoodMapping = mutableMapOf<String, Int>()
+
                 backup.customFoods.forEach { food ->
-                    // Ensure isCustom is true just in case
-                    val newFood = food.copy(id = 0, isCustom = true)
-                    db.foodDao().insertFood(newFood)
+                    // 1. Heal missing UUIDs from older backups
+                    var targetUuid = food.uuid
+                    if (targetUuid == null && food.tacoID.startsWith("CUSTOM-")) {
+                        // Extract UUID from tacoID if possible (CUSTOM-uuid-string...)
+                        targetUuid = food.tacoID.removePrefix("CUSTOM-")
+                        // Validate it's a UUID, otherwise keep null to trigger generation
+                        if (targetUuid.length < 32) targetUuid = null 
+                    }
+                    
+                    if (targetUuid == null) {
+                        targetUuid = java.util.UUID.randomUUID().toString()
+                    }
+
+                    val foodWithUuid = food.copy(uuid = targetUuid)
+
+                    // 2. Check if we already have this food by UUID to prevent duplication
+                    val existingByUuid = db.foodDao().getFoodByUuid(targetUuid)
+
+                    if (existingByUuid != null) {
+                        Log.d(TAG, "Skipping duplicate custom food (UUID match): ${food.name}")
+                        customFoodMapping[food.tacoID] = existingByUuid.id
+                    } else {
+                        // 3. Check for tacoID collisions (same ID, different UUID)
+                        val existingByTacoId = db.foodDao().getFoodByTacoIDSuspend(food.tacoID)
+                        
+                        val finalFoodToInsert = if (existingByTacoId != null) {
+                            // Collision detected. Rename tacoID but keep our resolved UUID
+                            val newTacoID = "CUSTOM-$targetUuid"
+                            Log.d(TAG, "TacoID collision for ${food.name}. Renaming ${food.tacoID} -> $newTacoID")
+                            foodWithUuid.copy(tacoID = newTacoID, id = 0, isCustom = true)
+                        } else {
+                            foodWithUuid.copy(id = 0, isCustom = true)
+                        }
+
+                        val newId = db.foodDao().insertFood(finalFoodToInsert)
+                        customFoodMapping[food.tacoID] = newId.toInt()
+                    }
                 }
 
                 // Refresh Food Map (All foods now in DB)
                 // We need this to resolve tacoID -> ID for both custom and official foods
-                // Since we are inside a transaction, we can query.
                 val allFoods = db.foodDao().getAllFoods().first()
-                val tacoIdToNewId = allFoods.associate { it.tacoID to it.id }
+                val standardFoodMap = allFoods.associate { it.tacoID to it.id }
+
+                // We want to look up in custom mapping first (resolves collisions), then standard map
+                val tacoIdToNewId = standardFoodMap + customFoodMapping
 
                 // Restore Diets
                 Log.d(TAG, "Restoring diets...")
@@ -235,14 +276,27 @@ class BackupManager(
 
                 // Restore Water
                 Log.d(TAG, "Restoring water logs...")
-                backup.waterLogs.forEach {
-                    db.dailyWaterLogDao().insertOrUpdate(it)
+                if (merge) {
+                    // In merge mode, we don't overwrite existing days.
+                    val existingWaterDates = db.dailyWaterLogDao().getAllWaterLogs().map { it.date }.toSet()
+                    backup.waterLogs.forEach { log ->
+                        if (!existingWaterDates.contains(log.date)) {
+                            db.dailyWaterLogDao().insertOrUpdate(log)
+                        }
+                    }
+                } else {
+                    backup.waterLogs.forEach {
+                        db.dailyWaterLogDao().insertOrUpdate(it)
+                    }
                 }
             }
 
             // Restore Profile (outside transaction)
-            if (backup.userProfile != null) {
+            if (!merge && backup.userProfile != null) {
                 userProfileRepository.saveProfile(backup.userProfile)
+            } else if (merge) {
+                // In merge, we ignore profile import to preserve user data.
+                Log.d(TAG, "Merge mode: Skipping UserProfile import.")
             }
 
             Log.d(TAG, "Import completed successfully.")

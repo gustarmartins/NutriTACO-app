@@ -15,7 +15,9 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val userProfile: UserProfile = UserProfile(),
     val isBackupLoading: Boolean = false,
-    val backupMessage: String? = null
+    val backupMessage: String? = null,
+    val showImportDialog: Boolean = false,
+    val pendingImportUri: Uri? = null
 )
 
 class SettingsViewModel(
@@ -56,12 +58,34 @@ class SettingsViewModel(
     }
 
     fun onImportData(uri: Uri) {
+        _uiState.update {
+            it.copy(
+                showImportDialog = true,
+                pendingImportUri = uri,
+                backupMessage = null
+            )
+        }
+    }
+
+    fun confirmImport(merge: Boolean) {
+        val uri = _uiState.value.pendingImportUri ?: return
+        dismissImportDialog()
+
         viewModelScope.launch {
             _uiState.update { it.copy(isBackupLoading = true, backupMessage = null) }
-            val result = backupManager.importData(uri)
+            val result = backupManager.importData(uri, merge)
             val message =
                 if (result.isSuccess) "Dados importados com sucesso!" else "Erro ao importar: ${result.exceptionOrNull()?.message}"
             _uiState.update { it.copy(isBackupLoading = false, backupMessage = message) }
+        }
+    }
+
+    fun dismissImportDialog() {
+        _uiState.update {
+            it.copy(
+                showImportDialog = false,
+                pendingImportUri = null
+            )
         }
     }
 }

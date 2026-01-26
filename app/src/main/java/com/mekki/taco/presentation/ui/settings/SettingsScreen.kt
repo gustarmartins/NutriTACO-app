@@ -54,6 +54,44 @@ fun SettingsScreen(
         uri?.let { viewModel.onImportData(it) }
     }
 
+    if (uiState.showImportDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.dismissImportDialog() },
+            title = { Text(text = "Importar Dados") },
+            text = {
+                Text(
+                    "Como você deseja importar os dados?\n\n" +
+                            "• Mesclar: Mantém seus dados atuais e adiciona os novos dados do backup.\n" +
+                            "• Sobrescrever: Apaga TODOS os dados atuais e restaura o backup."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmImport(merge = true) }
+                ) {
+                    Text("Mesclar")
+                }
+            },
+            dismissButton = {
+                Row {
+                    androidx.compose.material3.TextButton(
+                        onClick = { viewModel.dismissImportDialog() }
+                    ) {
+                        Text("Cancelar")
+                    }
+                    androidx.compose.material3.TextButton(
+                        onClick = { viewModel.confirmImport(merge = false) },
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Sobrescrever")
+                    }
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
