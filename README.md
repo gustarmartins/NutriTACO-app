@@ -7,7 +7,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material3-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-[Funcionalidades](#funcionalidades) • [Tecnologias](#tecnologias) • [Licença](#licença) • [Download]
+[Funcionalidades](#funcionalidades) • [Tecnologias](#tecnologias) • [Licença](#licença) • [Download (Beta version)](https://github.com/gustarmartins/NutriTACO-app/releases/download/v0.5.0-beta.rc2/NutriTACO-v0.5.0-beta.rc2.apk)
 
 > [!IMPORTANT]
 > O projeto NutriTACO foi construído por mim de forma voluntária, é distribuído "as-is" (como
