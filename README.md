@@ -9,9 +9,7 @@
 
 [Funcionalidades](#funcionalidades) • [Tecnologias](#tecnologias) • [Licença](#licença) • [Download]
 
----
-
-> > [!IMPORTANT]
+> [!IMPORTANT]
 > O projeto NutriTACO foi construído por mim de forma voluntária, é distribuído "as-is" (como
 > está), e se tornou possível graças aos dados da Tabela Brasileira de Composição de Alimentos (TACO).
 > 
@@ -81,8 +79,6 @@ nutricional dos principais alimentos consumidos no país, garantindo informaçõ
 e relevantes para a nossa população. 
 
 > * Tabela Brasileira de Composição de Alimentos (TACO). 4. ed. rev. e ampl. Campinas: NEPA-UNICAMP, 2011. 161 p.
-
----
 
 ## Licença
 
