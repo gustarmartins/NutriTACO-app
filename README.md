@@ -1,13 +1,10 @@
-# 🥗 NutriTACO
+# 🥗 NutriTACO [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/) [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material3-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 
 **Aplicativo Android com planejamento de dietas e consulta nutricional para brasileiros.**
 
 [![Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
-[![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material3-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Download (Beta)](https://img.shields.io/badge/Download%20(Beta)-FF69B4?style=flat-square&logo=android&logoColor=white)](https://github.com/gustarmartins/NutriTACO-app/releases/latest)
 
-[Funcionalidades](#funcionalidades) • [Tecnologias](#tecnologias) • [Licença](#licença) • [Download (Beta version)](https://github.com/gustarmartins/NutriTACO-app/releases/download/v0.5.0-beta.rc2/NutriTACO-v0.5.0-beta.rc2.apk)
 
 > [!IMPORTANT]
 > O projeto NutriTACO foi construído por mim de forma voluntária, é distribuído "as-is" (como
@@ -21,6 +18,8 @@
 > - [Download da Tabela (PDF - 4ª edição)](https://nepa.unicamp.br/wp-content/uploads/sites/27/2023/10/taco_4_edicao_ampliada_e_revisada.pdf)
 
 ---
+[Sobre](#sobre) • [Funcionalidades](#funcionalidades) • [Tecnologias](#tecnologias) • [TACO](#a-tabela-taco) • [Licença](#licença)
+
 ## Sobre
 
 O NutriTACO é um aplicativo nativo para a plataforma Android (em breve disponível na Play Store)
@@ -67,7 +66,6 @@ O projeto utiliza o que há de mais moderno no desenvolvimento Android, como:
 | **Injeção de Dependência** | Factory Pattern |
 
 ---
-
 ## A Tabela TACO
 
 Este projeto tem como diferencial o uso exclusivo da **Tabela Brasileira de Composição de
