@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -364,6 +365,7 @@ fun DietDetailScreen(
         ) {
             SearchFoodSheetContent(
                 mealType = focusedMealType!!,
+                addedItems = groupedItems[focusedMealType] ?: emptyList(),
                 searchState = foodSearchState,
                 onSearchTermChange = viewModel.foodSearchManager::onSearchTermChange,
                 onSortOptionChange = viewModel.foodSearchManager::onSortOptionChange,
@@ -373,7 +375,7 @@ fun DietDetailScreen(
                     viewModel.addFoodToMeal(food, qty)
                 },
                 onNavigateToDetail = onViewFood,
-                onNavigateToCreate = { onEditFood(0) }
+                onNavigateToCreate = { viewModel.onStartCreateFood() }
             )
         }
     }
@@ -1245,6 +1247,7 @@ fun CloneFoodDialog(
 @Composable
 fun SearchFoodSheetContent(
     mealType: String,
+    addedItems: List<DietItemWithFood>,
     searchState: FoodSearchState,
     onSearchTermChange: (String) -> Unit,
     onSortOptionChange: (FoodSortOption) -> Unit,
@@ -1267,7 +1270,53 @@ fun SearchFoodSheetContent(
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
-        Spacer(Modifier.height(16.dp))
+
+        if (addedItems.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Já na refeição:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                addedItems.forEach { item ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                item.food.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 120.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "${DecimalFormat("#").format(item.dietItem.quantityGrams)}g",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        Spacer(Modifier.height(8.dp))
 
         // Search Field
         OutlinedTextField(

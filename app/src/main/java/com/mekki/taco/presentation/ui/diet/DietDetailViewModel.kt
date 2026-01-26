@@ -115,6 +115,8 @@ class DietDetailViewModel(
     private val _suggestedGoals = MutableStateFlow<List<SmartGoal>>(emptyList())
     val suggestedGoals = _suggestedGoals.asStateFlow()
 
+    private var _pendingCreateFood = false
+
     // --- Navigation & UI Events ---
     private val _navigateToEditFood = Channel<Int>(Channel.BUFFERED)
     val navigateToEditFood = _navigateToEditFood.receiveAsFlow()
@@ -201,6 +203,13 @@ class DietDetailViewModel(
 
     fun applySmartGoal(goal: SmartGoal) {
         onCalorieGoalChange(goal.calories.toDouble())
+    }
+
+    fun onStartCreateFood() {
+        _pendingCreateFood = true
+        viewModelScope.launch {
+            _navigateToEditFood.send(0)
+        }
     }
 
     fun addFoodToMeal(food: Food, quantity: Double = 100.0) {
@@ -363,10 +372,12 @@ class DietDetailViewModel(
     private suspend fun cloneAndEdit(item: DietItemWithFood) {
         val food = item.food
         val newName = "${food.name} (Cópia)"
+        val newUuid = UUID.randomUUID().toString()
 
         val clonedFood = food.copy(
             id = 0,
-            tacoID = "CUSTOM-${UUID.randomUUID()}",
+            tacoID = "CUSTOM-$newUuid",
+            uuid = newUuid,
             name = newName,
             isCustom = true,
             category = "Meus Alimentos"
@@ -571,6 +582,15 @@ class DietDetailViewModel(
     fun onFoodUpdated(foodId: Int) {
         viewModelScope.launch {
             val updatedFood = foodDao.getFoodById(foodId).firstOrNull() ?: return@launch
+
+            if (_pendingCreateFood) {
+                if (_focusedMealType.value != null) {
+                    addFoodToMeal(updatedFood)
+                    setFocusedMealType(null)
+                }
+                _pendingCreateFood = false
+            }
+
             val currentDiet = _dietDetails.value ?: return@launch
             val updatedList = currentDiet.items.map {
                 if (it.dietItem.foodId == foodId) it.copy(food = updatedFood) else it
