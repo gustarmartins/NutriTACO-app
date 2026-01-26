@@ -43,6 +43,7 @@ gson = "2.13.2"
 desugar_jdk_libs = "2.1.5"
 foundationLayout = "1.10.1"
 material3 = "1.4.0"
+media3Transformer = "1.9.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -114,6 +115,7 @@ gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
 androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-media3-transformer = { group = "androidx.media3", name = "media3-transformer", version.ref = "media3Transformer" }
 
 [bundles]
 compose-core = [
