@@ -125,8 +125,35 @@ abstract class FoodDao {
     @Query("SELECT * FROM foods WHERE id = :id")
     abstract fun getFoodById(id: Int): Flow<Food?>
 
+    @Query("SELECT * FROM foods WHERE id = :id")
+    abstract suspend fun getFoodByIdSync(id: Int): Food?
+
     @Query("SELECT * FROM foods WHERE tacoID = :tacoID")
     abstract fun getFoodByTacoID(tacoID: String): Flow<Food?>
+
+    @Query("SELECT * FROM foods WHERE tacoID = :tacoID LIMIT 1")
+    abstract suspend fun getFoodByTacoIDSuspend(tacoID: String): Food?
+
+    @Query("SELECT * FROM foods WHERE uuid = :uuid LIMIT 1")
+    abstract suspend fun getFoodByUuid(uuid: String): Food?
+
+    /**
+     * Handles the Efficient batch lookup for import operations.
+     */
+    @Query("SELECT * FROM foods WHERE uuid IN (:uuids)")
+    abstract suspend fun getFoodsByUuids(uuids: List<String>): List<Food>
+
+    /**
+     * Used for resolving official TACO foods during import.
+     */
+    @Query("SELECT * FROM foods WHERE tacoID IN (:tacoIds)")
+    abstract suspend fun getFoodsByTacoIds(tacoIds: List<String>): List<Food>
+
+    /**
+     * Check if a UUID already exists in the database.
+     */
+    @Query("SELECT EXISTS(SELECT 1 FROM foods WHERE uuid = :uuid LIMIT 1)")
+    abstract suspend fun uuidExists(uuid: String): Boolean
 
     @Query("SELECT * FROM foods ORDER BY name ASC")
     abstract fun getAllFoods(): Flow<List<Food>>

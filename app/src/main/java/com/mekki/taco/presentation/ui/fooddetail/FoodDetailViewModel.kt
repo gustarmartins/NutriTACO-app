@@ -50,9 +50,11 @@ class FoodDetailViewModel(
 
     private fun loadFood() {
         if (alimentoId == 0) {
+            val newUuid = UUID.randomUUID().toString()
             val newFood = Food(
                 id = 0,
-                tacoID = "CUSTOM-${UUID.randomUUID()}",
+                tacoID = "CUSTOM-$newUuid",
+                uuid = newUuid,
                 name = "",
                 category = "Meus Alimentos",
                 isCustom = true,
@@ -330,11 +332,13 @@ class FoodDetailViewModel(
         }
 
         val newName = "$coreName$newSuffix"
+        val newUuid = UUID.randomUUID().toString()
 
         // Round values to avoid floating point artifacts on view
         val clonedFood = current.copy(
             id = 0,
-            tacoID = "CUSTOM-${UUID.randomUUID()}",
+            tacoID = "CUSTOM-$newUuid",
+            uuid = newUuid,
             name = newName,
             isCustom = true,
             category = "Meus Alimentos",

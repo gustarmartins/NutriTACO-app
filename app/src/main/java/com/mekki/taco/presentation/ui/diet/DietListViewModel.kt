@@ -8,6 +8,7 @@ import com.mekki.taco.data.db.dao.DietItemDao
 import com.mekki.taco.data.db.entity.Diet
 import com.mekki.taco.data.db.entity.DietItem
 import com.mekki.taco.data.model.DietItemWithFood
+import com.mekki.taco.data.sharing.DietSharingManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -19,7 +20,8 @@ import kotlinx.coroutines.launch
 
 class DietListViewModel(
     private val dietDao: DietDao,
-    private val dietItemDao: DietItemDao
+    private val dietItemDao: DietItemDao,
+    private val dietSharingManager: DietSharingManager
 ) : ViewModel() {
 
     companion object {
@@ -37,9 +39,48 @@ class DietListViewModel(
 
     private val _dietaSalvaEvent = MutableSharedFlow<Unit>()
     val dietaSalvaEvent: SharedFlow<Unit> = _dietaSalvaEvent.asSharedFlow()
+    
+    private val _sharingStatus = MutableStateFlow<String?>(null)
+    val sharingStatus: StateFlow<String?> = _sharingStatus.asStateFlow()
 
     init {
         carregarDietas()
+    }
+
+    fun clearSharingStatus() {
+        _sharingStatus.value = null
+    }
+
+    fun exportDiet(dietId: Int, uri: android.net.Uri) {
+        viewModelScope.launch {
+            _sharingStatus.value = "Exportando..."
+            val result = dietSharingManager.exportDietToUri(dietId, uri)
+            when (result) {
+                is com.mekki.taco.data.sharing.ExportResult.Success -> {
+                    _sharingStatus.value = "Dieta exportada com sucesso!"
+                }
+                is com.mekki.taco.data.sharing.ExportResult.Error -> {
+                    _sharingStatus.value = "Erro ao exportar: ${result.message}"
+                }
+            }
+        }
+    }
+
+    fun importDiet(uri: android.net.Uri) {
+        viewModelScope.launch {
+            _sharingStatus.value = "Importando..."
+            val result = dietSharingManager.importDiet(uri)
+            when (result) {
+                is com.mekki.taco.data.sharing.ImportResult.Success -> {
+                    _sharingStatus.value = "Dieta '${result.diet.name}' importada com sucesso!"
+                    carregarDietas() // Refresh list
+                }
+                is com.mekki.taco.data.sharing.ImportResult.Error -> {
+                    _sharingStatus.value = "Erro ao importar: ${result.message}"
+                }
+                else -> { /* Preview not handled here */ }
+            }
+        }
     }
 
     private fun carregarDietas() {

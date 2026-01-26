@@ -2,6 +2,9 @@
 
 package com.mekki.taco.presentation.ui.diet
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,8 +23,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,12 +43,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,15 +65,48 @@ fun DietListScreen(
     onNavigateToCreateDiet: () -> Unit,
     onNavigateToDietDetail: (dietId: Int) -> Unit,
     onEditDiet: (dietId: Int) -> Unit,
-    onFabChange: (@Composable (() -> Unit)?) -> Unit
+    onFabChange: (@Composable (() -> Unit)?) -> Unit,
+    onActionsChange: (@Composable (() -> Unit)?) -> Unit
 ) {
     val dietas by viewModel.dietas.collectAsState()
+    val sharingStatus by viewModel.sharingStatus.collectAsState()
     var dietToSetMain by remember { mutableStateOf<Diet?>(null) }
+    var dietToExportId by remember { mutableIntStateOf(-1) }
+    val context = LocalContext.current
+
+    // Launchers
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null && dietToExportId != -1) {
+            viewModel.exportDiet(dietToExportId, uri)
+        }
+        dietToExportId = -1
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.importDiet(it) }
+    }
+
+    // Effects
+    LaunchedEffect(sharingStatus) {
+        sharingStatus?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearSharingStatus()
+        }
+    }
 
     LaunchedEffect(Unit) {
         onFabChange {
             FloatingActionButton(onClick = onNavigateToCreateDiet) {
                 Icon(Icons.Filled.Add, contentDescription = "Criar Nova Dieta")
+            }
+        }
+        onActionsChange {
+            IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
+                Icon(Icons.Filled.ArrowDownward, contentDescription = "Importar Dieta")
             }
         }
     }
@@ -106,7 +146,11 @@ fun DietListScreen(
                     onClick = { onNavigateToDietDetail(dieta.id) },
                     onLongClick = { dietToSetMain = dieta },
                     onEditClick = { onEditDiet(dieta.id) },
-                    onDeleteClick = { viewModel.deletarDieta(dieta) }
+                    onDeleteClick = { viewModel.deletarDieta(dieta) },
+                    onExportClick = {
+                        dietToExportId = dieta.id
+                        exportLauncher.launch("${dieta.name}.json")
+                    }
                 )
             }
         }
@@ -142,7 +186,8 @@ fun DietListItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onExportClick: () -> Unit
 ) {
     val containerColor = if (diet.isMain)
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -195,6 +240,12 @@ fun DietListItem(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onExportClick) {
+                    Icon(
+                        imageVector = Icons.Filled.Share,
+                        contentDescription = "Exportar Dieta"
+                    )
+                }
                 IconButton(onClick = onEditClick) {
                     Icon(
                         imageVector = Icons.Filled.Edit,

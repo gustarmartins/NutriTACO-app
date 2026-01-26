@@ -28,7 +28,7 @@ import kotlinx.coroutines.CoroutineScope
         FoodFts::class,
         DailyWaterLog::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 
@@ -51,6 +51,66 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Add UUID column (nullable, with default NULL for official foods)
+                safeAddColumn(db, "foods", "uuid", "TEXT DEFAULT NULL")
+
+                // 1.1 Add usageCount column
+                safeAddColumn(db, "foods", "usageCount", "INTEGER NOT NULL DEFAULT 0")
+
+                // 1.2 Add potentially missing nutritional columns (RE, RAE, lipids, amino acids)
+                val missingColumns = listOf(
+                    "RE", "RAE",
+                    "lipidios_total", "lipidios_saturados", "lipidios_monoinsaturados", "lipidios_poliinsaturados",
+                    "aminoacidos_triptofano", "aminoacidos_treonina", "aminoacidos_isoleucina", "aminoacidos_leucina",
+                    "aminoacidos_lisina", "aminoacidos_metionina", "aminoacidos_cistina", "aminoacidos_fenilalanina",
+                    "aminoacidos_tirosina", "aminoacidos_valina", "aminoacidos_arginina", "aminoacidos_histidina",
+                    "aminoacidos_alanina", "aminoacidos_acidoAspartico", "aminoacidos_acidoGlutamico",
+                    "aminoacidos_glicina", "aminoacidos_prolina", "aminoacidos_serina"
+                )
+
+                for (column in missingColumns) {
+                    safeAddColumn(db, "foods", column, "REAL")
+                }
+
+                // 2. Create unique index for UUID lookups
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_foods_uuid ON foods(uuid)")
+
+                // 3. Generate UUIDs for existing custom foods
+                val cursor = db.query("SELECT id FROM foods WHERE isCustom = 1 AND uuid IS NULL")
+                while (cursor.moveToNext()) {
+                    val id = cursor.getInt(0)
+                    val uuid = java.util.UUID.randomUUID().toString()
+                    db.execSQL("UPDATE foods SET uuid = ? WHERE id = ?", arrayOf<Any?>(uuid, id))
+                }
+                cursor.close()
+            }
+
+            private fun safeAddColumn(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
+                var exists = false
+                val cursor = db.query("PRAGMA table_info($table)")
+                try {
+                    val nameColumnIndex = cursor.getColumnIndex("name")
+                    if (nameColumnIndex != -1) {
+                        while (cursor.moveToNext()) {
+                            val name = cursor.getString(nameColumnIndex)
+                            if (name.equals(column, ignoreCase = true)) {
+                                exists = true
+                                break
+                            }
+                        }
+                    }
+                } finally {
+                    cursor.close()
+                }
+
+                if (!exists) {
+                    db.execSQL("ALTER TABLE $table ADD COLUMN $column $type")
+                }
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             // Retorna a instância existente se já foi criada (padrão Singleton).
             // Caso contrário, cria a instância do banco de dados de forma segura para threads.
@@ -61,7 +121,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "taco_database"
                 )
                     .addCallback(AppDatabaseCallback(context.applicationContext, scope))
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance
