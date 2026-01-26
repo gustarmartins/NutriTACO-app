@@ -19,6 +19,7 @@ import com.mekki.taco.data.manager.BackupManager
 import com.mekki.taco.data.repository.DiaryRepository
 import com.mekki.taco.data.repository.OnboardingRepository
 import com.mekki.taco.data.repository.UserProfileRepository
+import com.mekki.taco.data.sharing.DietSharingManager
 import com.mekki.taco.presentation.ui.database.FilterPreferences
 import com.mekki.taco.presentation.ui.database.FoodDatabaseScreen
 import com.mekki.taco.presentation.ui.database.FoodDatabaseViewModel
@@ -79,6 +80,7 @@ fun AppNavigation(
 
     val userProfileRepository = remember { UserProfileRepository(context) }
     val backupManager = remember { BackupManager(context, database, userProfileRepository) }
+    val dietSharingManager = remember { DietSharingManager(context, database) }
     val diaryRepository = DiaryRepository(dailyLogDao, dietItemDao, dailyWaterLogDao)
     val onboardingRepository = remember { OnboardingRepository(context) }
 
@@ -96,7 +98,7 @@ fun AppNavigation(
         factory = ProfileViewModelFactory(userProfileRepository)
     )
     val dietListViewModel: DietListViewModel = viewModel(
-        factory = DietListViewModelFactory(dietDao, dietItemDao)
+        factory = DietListViewModelFactory(dietDao, dietItemDao, dietSharingManager)
     )
     val settingsViewModel: SettingsViewModel = viewModel(
         factory = SettingsViewModelFactory(userProfileRepository, backupManager)
@@ -166,7 +168,8 @@ fun AppNavigation(
                 onEditDiet = { dietId ->
                     navController.navigate("$DIET_DETAIL_ROUTE/$dietId")
                 },
-                onFabChange = onFabChange
+                onFabChange = onFabChange,
+                onActionsChange = onActionsChange
             )
         }
 
