@@ -256,8 +256,6 @@ class DietDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _snackbarMessages.send("${food.name} adicionado ao $mealType")
         }
-
-        foodSearchManager.clear()
     }
 
     // --- Clone Feature ---
