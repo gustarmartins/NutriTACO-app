@@ -1,5 +1,6 @@
 package com.mekki.taco.presentation.ui.home
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.db.dao.DailyLogDao
@@ -17,13 +18,13 @@ import com.mekki.taco.data.repository.OnboardingRepository
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.presentation.ui.components.ChartType
 import com.mekki.taco.utils.NutrientCalculator
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -31,16 +32,15 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
+import javax.inject.Inject
 
 data class DietSummary(
     val diet: Diet, val totalNutrition: Food, val chartType: ChartType = ChartType.PIE
@@ -85,37 +85,125 @@ sealed class SnackbarAction {
     data class GoToDiet(val dietId: Int) : SnackbarAction()
 }
 
-class HomeViewModel(
+private const val KEY_SEARCH_TERM = "search_term"
+private const val KEY_QUICK_ADD_AMOUNT = "quick_add_amount"
+private const val KEY_SORT_OPTION = "sort_option"
+private const val KEY_EXPANDED_FOOD_ID = "expanded_food_id"
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(
     private val dietDao: DietDao,
     private val foodDao: FoodDao,
     private val dietItemDao: DietItemDao,
     private val dailyLogDao: DailyLogDao,
     private val onboardingRepository: OnboardingRepository,
-    private val userProfileRepository: UserProfileRepository
+    private val userProfileRepository: UserProfileRepository,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     val availableDiets =
         dietDao.getAllDiets().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _state = MutableStateFlow(HomeState())
-    val state: StateFlow<HomeState> = _state.asStateFlow()
+    // Persisted State
+    private val searchTerm = savedStateHandle.getStateFlow(KEY_SEARCH_TERM, "")
+    private val quickAddAmount = savedStateHandle.getStateFlow(KEY_QUICK_ADD_AMOUNT, "100")
+    private val sortOption =
+        savedStateHandle.getStateFlow(KEY_SORT_OPTION, FoodSortOption.RELEVANCE)
+    private val expandedAlimentoId = savedStateHandle.getStateFlow<Int?>(KEY_EXPANDED_FOOD_ID, null)
+
+    private val _searchIsLoading = MutableStateFlow(false)
+    private val _rawSearchResults = MutableStateFlow<List<Food>>(emptyList())
+    private val _showRegistrarTutorial = MutableStateFlow(false)
 
     private val _effects = Channel<HomeEffect>(Channel.BUFFERED)
     val effects = _effects.receiveAsFlow()
 
-    private val _rawSearchResults = MutableStateFlow<List<Food>>(emptyList())
+    private val dashboardData = combine(
+        dietDao.getAllDietsWithItems(), userProfileRepository.dietChartPreferencesFlow
+    ) { dietList, preferences ->
+        val summaries = dietList.map { dietWithItems ->
+            val totalFood = calculateTotalNutrition(dietWithItems)
+            val storedType = preferences[dietWithItems.diet.id]
+            val chartType = if (storedType != null) {
+                try {
+                    ChartType.valueOf(storedType)
+                } catch (e: Exception) {
+                    ChartType.PIE
+                }
+            } else {
+                ChartType.PIE
+            }
+
+            DietSummary(
+                diet = dietWithItems.diet, totalNutrition = totalFood, chartType = chartType
+            )
+        }
+
+        val mainDiet = dietList.find { it.diet.isMain } ?: dietList.firstOrNull()
+        val timeline = mainDiet?.let { calculateTimeline(it.items) } ?: emptyList()
+        val nextMeal = calculateNextMeal(timeline)
+
+        Triple(summaries, nextMeal, timeline)
+    }
+
+    val state: StateFlow<HomeState> = combine(
+        listOf(
+            dashboardData,
+            searchTerm,
+            _searchIsLoading,
+            _rawSearchResults,
+            expandedAlimentoId,
+            quickAddAmount,
+            sortOption,
+            _showRegistrarTutorial
+        )
+    ) { args ->
+        val dashboard = args[0] as Triple<List<DietSummary>, DashboardMealGroup?, List<DashboardMealGroup>>
+        val term = args[1] as String
+        val isLoading = args[2] as Boolean
+        val rawResults = args[3] as List<Food>
+        val expandedId = args[4] as Int?
+        val amount = args[5] as String
+        val sort = args[6] as FoodSortOption
+        val showTutorial = args[7] as Boolean
+
+        val (summaries, nextMeal, timeline) = dashboard
+
+        val sortedResults = when (sort) {
+            FoodSortOption.RELEVANCE -> rawResults
+            FoodSortOption.PROTEIN -> rawResults.sortedByDescending { it.proteina ?: 0.0 }
+            FoodSortOption.CARBS -> rawResults.sortedByDescending { it.carboidratos ?: 0.0 }
+            FoodSortOption.FAT -> rawResults.sortedByDescending { it.lipidios?.total ?: 0.0 }
+            FoodSortOption.CALORIES -> rawResults.sortedByDescending { it.energiaKcal ?: 0.0 }
+        }
+
+        HomeState(
+            dietSummaries = summaries,
+            nextMeal = nextMeal,
+            dailyTimeline = timeline,
+            searchTerm = term,
+            searchIsLoading = isLoading,
+            searchResults = sortedResults,
+            expandedAlimentoId = expandedId,
+            quickAddAmount = amount,
+            sortOption = sort,
+            showRegistrarTutorial = showTutorial
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = HomeState()
+    )
 
     init {
-        loadAllDietsForCarousel()
         observeSearchTerm()
-        observeSorting()
         observeTutorials()
     }
 
     private fun observeTutorials() {
         viewModelScope.launch {
             onboardingRepository.hasSeenTutorial("registrar_tutorial").collect { seen ->
-                _state.update { it.copy(showRegistrarTutorial = !seen) }
+                _showRegistrarTutorial.value = !seen
             }
         }
     }
@@ -123,7 +211,7 @@ class HomeViewModel(
     fun dismissRegistrarTutorial() {
         viewModelScope.launch {
             onboardingRepository.markTutorialSeen("registrar_tutorial")
-            _state.update { it.copy(showRegistrarTutorial = false) }
+            _showRegistrarTutorial.value = false
         }
     }
 
@@ -197,46 +285,6 @@ class HomeViewModel(
                     "${meal.mealType} registrado com sucesso!", "Ver", SnackbarAction.GoToDiary
                 )
             )
-        }
-    }
-
-    private fun loadAllDietsForCarousel() {
-        viewModelScope.launch {
-            // Combine Diets with Chart Preferences
-            combine(
-                dietDao.getAllDietsWithItems(), userProfileRepository.dietChartPreferencesFlow
-            ) { dietList, preferences ->
-                val summaries = dietList.map { dietWithItems ->
-                    val totalFood = calculateTotalNutrition(dietWithItems)
-                    val storedType = preferences[dietWithItems.diet.id]
-                    val chartType = if (storedType != null) {
-                        try {
-                            ChartType.valueOf(storedType)
-                        } catch (e: Exception) {
-                            ChartType.PIE
-                        }
-                    } else {
-                        ChartType.PIE
-                    }
-
-                    DietSummary(
-                        diet = dietWithItems.diet, totalNutrition = totalFood, chartType = chartType
-                    )
-                }
-
-                // Calculate Next Meal and Timeline from Main Diet
-                val mainDiet = dietList.find { it.diet.isMain } ?: dietList.firstOrNull()
-                val timeline = mainDiet?.let { calculateTimeline(it.items) } ?: emptyList()
-                val nextMeal = calculateNextMeal(timeline)
-
-                Triple(summaries, nextMeal, timeline)
-            }.collect { (summaries, nextMeal, timeline) ->
-                _state.update {
-                    it.copy(
-                        dietSummaries = summaries, nextMeal = nextMeal, dailyTimeline = timeline
-                    )
-                }
-            }
         }
     }
 
@@ -367,72 +415,54 @@ class HomeViewModel(
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
     private fun observeSearchTerm() {
         viewModelScope.launch {
-            _state.map { it.searchTerm }.debounce(300).distinctUntilChanged()
+            searchTerm.debounce(300).distinctUntilChanged()
                 .flatMapLatest { term ->
                     if (term.length < 2) {
                         flowOf(emptyList())
                     } else {
-                        _state.update { it.copy(searchIsLoading = true) }
+                        _searchIsLoading.value = true
                         foodDao.getFoodsByName(term)
                     }
-                }.catch { _state.update { it.copy(searchIsLoading = false) } }.collect { results ->
+                }.catch {
+                    _searchIsLoading.value = false
+                    // Handle error (maybe clear results or show toast)
+                }.collect { results ->
                     _rawSearchResults.value = results
-                    _state.update { it.copy(searchIsLoading = false) }
+                    _searchIsLoading.value = false
                 }
-        }
-    }
-
-    private fun observeSorting() {
-        viewModelScope.launch {
-            combine(
-                _rawSearchResults, _state.map { it.sortOption }.distinctUntilChanged()
-            ) { results, sortOption ->
-                when (sortOption) {
-                    FoodSortOption.RELEVANCE -> results
-                    FoodSortOption.PROTEIN -> results.sortedByDescending { it.proteina ?: 0.0 }
-                    FoodSortOption.CARBS -> results.sortedByDescending { it.carboidratos ?: 0.0 }
-                    FoodSortOption.FAT -> results.sortedByDescending { it.lipidios?.total ?: 0.0 }
-                    FoodSortOption.CALORIES -> results.sortedByDescending { it.energiaKcal ?: 0.0 }
-                }
-            }.collect { sortedResults ->
-                _state.update { it.copy(searchResults = sortedResults) }
-            }
         }
     }
 
     fun onSearchTermChange(term: String) {
-        _state.update { it.copy(searchTerm = term, expandedAlimentoId = null) }
+        savedStateHandle[KEY_SEARCH_TERM] = term
+        savedStateHandle[KEY_EXPANDED_FOOD_ID] = null
     }
 
     fun onSortOptionSelected(option: FoodSortOption) {
-        _state.update { it.copy(sortOption = option) }
+        savedStateHandle[KEY_SORT_OPTION] = option
     }
 
     fun onAlimentoToggled(alimentoId: Int) {
-        _state.update {
-            if (it.expandedAlimentoId == alimentoId) {
-                it.copy(expandedAlimentoId = null)
-            } else {
-                it.copy(expandedAlimentoId = alimentoId, quickAddAmount = "100")
-            }
+        val currentId = savedStateHandle.get<Int?>(KEY_EXPANDED_FOOD_ID)
+        if (currentId == alimentoId) {
+            savedStateHandle[KEY_EXPANDED_FOOD_ID] = null
+        } else {
+            savedStateHandle[KEY_EXPANDED_FOOD_ID] = alimentoId
+            savedStateHandle[KEY_QUICK_ADD_AMOUNT] = "100"
         }
     }
 
     fun onQuickAddAmountChange(amount: String) {
         val filtered = amount.filter { it.isDigit() || it == '.' }
-        _state.update { it.copy(quickAddAmount = filtered) }
+        savedStateHandle[KEY_QUICK_ADD_AMOUNT] = filtered
     }
 
     fun cleanSearch() {
-        _state.update {
-            it.copy(
-                searchTerm = "",
-                searchResults = emptyList(),
-                expandedAlimentoId = null,
-                quickAddAmount = "100",
-                sortOption = FoodSortOption.RELEVANCE
-            )
-        }
+        savedStateHandle[KEY_SEARCH_TERM] = ""
+        savedStateHandle[KEY_EXPANDED_FOOD_ID] = null
+        savedStateHandle[KEY_QUICK_ADD_AMOUNT] = "100"
+        savedStateHandle[KEY_SORT_OPTION] = FoodSortOption.RELEVANCE
+        _rawSearchResults.value = emptyList()
     }
 
 

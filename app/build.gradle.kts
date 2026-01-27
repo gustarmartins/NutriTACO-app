@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.gms.google.services)
+    alias(libs.plugins.hilt.android)
+    id("kotlin-parcelize")
 }
 
 kotlin {
@@ -27,8 +29,8 @@ android {
         applicationId = "com.mekki.taco"
         minSdk = 24
         targetSdk = 36
-        versionCode = 6
-        versionName = "v0.6.0-beta"
+        versionCode = 7
+        versionName = "v0.7.0-beta"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -127,4 +129,9 @@ dependencies {
 
     // Desugaring
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
 }

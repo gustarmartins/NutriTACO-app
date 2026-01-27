@@ -1,6 +1,7 @@
 package com.mekki.taco.presentation.ui.diet
 
 import android.graphics.Bitmap
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.db.dao.DailyLogDao
@@ -21,21 +22,21 @@ import com.mekki.taco.data.service.SmartFoodMatcher
 import com.mekki.taco.presentation.ui.search.FoodSearchManager
 import com.mekki.taco.utils.BMRCalculator
 import com.mekki.taco.utils.NutrientCalculator
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-
 import kotlinx.coroutines.flow.firstOrNull
-
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
-
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
+import javax.inject.Inject
 
 enum class DietGoalType {
     CUT, MAINTAIN, BULK
@@ -48,9 +49,15 @@ data class SmartGoal(
     val description: String
 )
 
-@OptIn(FlowPreview::class)
-class DietDetailViewModel(
-    private val dietId: Int,
+private const val KEY_IS_EDIT_MODE = "is_edit_mode"
+private const val KEY_DIET_DETAILS = "diet_details"
+private const val KEY_HAS_UNSAVED = "has_unsaved_changes"
+private const val KEY_FOCUSED_MEAL = "focused_meal_type"
+private const val KEY_PENDING_CREATE_FOOD = "pending_create_food"
+
+@HiltViewModel
+class DietDetailViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle,
     private val dietDao: DietDao,
     private val dietItemDao: DietItemDao,
     private val foodDao: FoodDao,
@@ -58,30 +65,28 @@ class DietDetailViewModel(
     private val userProfileRepository: UserProfileRepository
 ) : ViewModel() {
 
-    private val _isEditMode = MutableStateFlow(dietId == -1)
-    val isEditMode = _isEditMode.asStateFlow()
-    val foodSearchManager = FoodSearchManager(foodDao, viewModelScope)
+    val dietId: Int = savedStateHandle.get<Int>("dietId") ?: -1
+
+    val isEditMode = savedStateHandle.getStateFlow(KEY_IS_EDIT_MODE, dietId == -1)
+    val foodSearchManager = FoodSearchManager(foodDao, viewModelScope, savedStateHandle)
 
     fun toggleEditMode() {
-        if (_isEditMode.value && _hasUnsavedChanges.value) {
-        }
-        _isEditMode.value = !_isEditMode.value
+        savedStateHandle[KEY_IS_EDIT_MODE] = !isEditMode.value
     }
 
     fun setEditMode(enabled: Boolean) {
-        _isEditMode.value = enabled
+        savedStateHandle[KEY_IS_EDIT_MODE] = enabled
     }
 
     fun setFocusedMealType(mealType: String?) {
-        _focusedMealType.value = mealType
+        savedStateHandle[KEY_FOCUSED_MEAL] = mealType
         if (mealType == null) {
             foodSearchManager.clear()
         }
     }
 
     // --- Core Diet State ---
-    private val _dietDetails = MutableStateFlow<DietWithItems?>(null)
-    val dietDetails = _dietDetails.asStateFlow()
+    val dietDetails = savedStateHandle.getStateFlow<DietWithItems?>(KEY_DIET_DETAILS, null)
 
     private val _groupedItems = MutableStateFlow<Map<String, List<DietItemWithFood>>>(emptyMap())
     val groupedItems = _groupedItems.asStateFlow()
@@ -89,11 +94,9 @@ class DietDetailViewModel(
     private val _dietTotalNutrition = MutableStateFlow<Food?>(null)
     val dietTotalNutrition = _dietTotalNutrition.asStateFlow()
 
-    private val _hasUnsavedChanges = MutableStateFlow(false)
-    val hasUnsavedChanges = _hasUnsavedChanges.asStateFlow()
+    val hasUnsavedChanges = savedStateHandle.getStateFlow(KEY_HAS_UNSAVED, false)
 
-    private val _focusedMealType = MutableStateFlow<String?>(null)
-    val focusedMealType = _focusedMealType.asStateFlow()
+    val focusedMealType = savedStateHandle.getStateFlow<String?>(KEY_FOCUSED_MEAL, null)
 
     // --- Scanner State ---
     private val _isScanning = MutableStateFlow(false)
@@ -115,7 +118,11 @@ class DietDetailViewModel(
     private val _suggestedGoals = MutableStateFlow<List<SmartGoal>>(emptyList())
     val suggestedGoals = _suggestedGoals.asStateFlow()
 
-    private var _pendingCreateFood = false
+    private var pendingCreateFood: Boolean
+        get() = savedStateHandle[KEY_PENDING_CREATE_FOOD] ?: false
+        set(value) {
+            savedStateHandle[KEY_PENDING_CREATE_FOOD] = value
+        }
 
     // --- Navigation & UI Events ---
     private val _navigateToEditFood = Channel<Int>(Channel.BUFFERED)
@@ -136,23 +143,33 @@ class DietDetailViewModel(
     init {
         loadDietDetails()
         observeUserProfile()
+        
+        // Recalculates from SSh
+        dietDetails.onEach { details ->
+            if (details != null) {
+                processDietItems(details.items)
+            }
+        }.launchIn(viewModelScope)
     }
 
     private fun loadDietDetails() {
         viewModelScope.launch {
             if (dietId == -1) {
-                val newDiet =
-                    Diet(name = "", creationDate = System.currentTimeMillis(), calorieGoals = 0.0)
-                val empty = DietWithItems(newDiet, emptyList())
-                _dietDetails.value = empty
-                processDietItems(empty.items)
-                _hasUnsavedChanges.value = true
-                _isEditMode.value = true
+                // Only initialize if not already present e.g from process death
+                if (dietDetails.value == null) {
+                    val newDiet =
+                        Diet(name = "", creationDate = System.currentTimeMillis(), calorieGoals = 0.0)
+                    val empty = DietWithItems(newDiet, emptyList())
+                    
+                    savedStateHandle[KEY_DIET_DETAILS] = empty
+                    savedStateHandle[KEY_HAS_UNSAVED] = true
+                    savedStateHandle[KEY_IS_EDIT_MODE] = true
+                }
             } else {
                 dietDao.getDietWithItemsById(dietId).collect { diet ->
-                    if (!_hasUnsavedChanges.value) {
-                        _dietDetails.value = diet
-                        diet?.let { processDietItems(it.items) }
+                    // Only update from DB if we don't have unsaved changes
+                    if (!hasUnsavedChanges.value) {
+                        savedStateHandle[KEY_DIET_DETAILS] = diet
                     }
                 }
             }
@@ -188,14 +205,14 @@ class DietDetailViewModel(
     }
 
     fun onDietNameChange(newName: String) {
-        val current = _dietDetails.value ?: return
+        val current = dietDetails.value ?: return
         if (current.diet.name != newName) {
             updateLocalState(current.copy(diet = current.diet.copy(name = newName)))
         }
     }
 
     fun onCalorieGoalChange(newGoal: Double) {
-        val current = _dietDetails.value ?: return
+        val current = dietDetails.value ?: return
         if (current.diet.calorieGoals != newGoal) {
             updateLocalState(current.copy(diet = current.diet.copy(calorieGoals = newGoal)))
         }
@@ -206,15 +223,15 @@ class DietDetailViewModel(
     }
 
     fun onStartCreateFood() {
-        _pendingCreateFood = true
+        pendingCreateFood = true
         viewModelScope.launch {
             _navigateToEditFood.send(0)
         }
     }
 
     fun addFoodToMeal(food: Food, quantity: Double = 100.0) {
-        val mealType = _focusedMealType.value ?: return
-        val currentDiet = _dietDetails.value ?: return
+        val mealType = focusedMealType.value ?: return
+        val currentDiet = dietDetails.value ?: return
 
         // Determine default time based on meal type or last item
         val existingInMeal = _groupedItems.value[mealType] ?: emptyList()
@@ -245,7 +262,7 @@ class DietDetailViewModel(
 
     // --- Clone Feature ---
     fun cloneItemToMeal(item: DietItemWithFood, targetMeal: String) {
-        val currentDiet = _dietDetails.value ?: return
+        val currentDiet = dietDetails.value ?: return
         val defaultTime = getDefaultTimeForMeal(targetMeal)
 
         val newItem = item.copy(
@@ -293,7 +310,7 @@ class DietDetailViewModel(
     }
 
     fun onConfirmScanResults(candidates: List<DietItemWithFood>) {
-        val currentDiet = _dietDetails.value ?: return
+        val currentDiet = dietDetails.value ?: return
         val newItems = currentDiet.items.toMutableList()
 
         candidates.forEach { candidate ->
@@ -318,7 +335,7 @@ class DietDetailViewModel(
     // --- CRUD ---
 
     fun updateItem(item: DietItem) {
-        val currentDiet = _dietDetails.value ?: return
+        val currentDiet = dietDetails.value ?: return
         val updatedItems = currentDiet.items.map {
             if (it.dietItem.id == item.id) it.copy(dietItem = item) else it
         }
@@ -326,13 +343,13 @@ class DietDetailViewModel(
     }
 
     fun deleteItem(item: DietItem) {
-        val currentDiet = _dietDetails.value ?: return
+        val currentDiet = dietDetails.value ?: return
         val updatedItems = currentDiet.items.filterNot { it.dietItem.id == item.id }
         updateLocalState(currentDiet.copy(items = updatedItems))
     }
 
     fun replaceFood(item: DietItemWithFood, newFood: Food) {
-        val currentDiet = _dietDetails.value ?: return
+        val currentDiet = dietDetails.value ?: return
         val updatedItems = currentDiet.items.map {
             if (it.dietItem.id == item.dietItem.id) {
                 it.copy(dietItem = it.dietItem.copy(foodId = newFood.id), food = newFood)
@@ -342,7 +359,7 @@ class DietDetailViewModel(
     }
 
     fun reorderFoodItemsInMeal(mealType: String, fromIndex: Int, toIndex: Int) {
-        val currentDiet = _dietDetails.value ?: return
+        val currentDiet = dietDetails.value ?: return
         val mealItems = _groupedItems.value[mealType]?.toMutableList() ?: return
 
         if (fromIndex !in mealItems.indices || toIndex !in mealItems.indices) return
@@ -384,7 +401,7 @@ class DietDetailViewModel(
         )
         val newId = foodDao.insertFood(clonedFood).toInt()
 
-        val currentDiet = _dietDetails.value ?: return
+        val currentDiet = dietDetails.value ?: return
         val updatedItems = currentDiet.items.map {
             if (it.dietItem.id == item.dietItem.id) {
                 it.copy(
@@ -401,7 +418,7 @@ class DietDetailViewModel(
 
     fun saveDiet() {
         viewModelScope.launch {
-            val currentDiet = _dietDetails.value ?: return@launch
+            val currentDiet = dietDetails.value ?: return@launch
             var dietToSave = currentDiet.diet
 
             if (dietToSave.name.isBlank()) {
@@ -420,7 +437,8 @@ class DietDetailViewModel(
                 dietItemDao.insertDietItems(itemsToSave)
             }
 
-            _hasUnsavedChanges.value = false
+            savedStateHandle[KEY_HAS_UNSAVED] = false
+            savedStateHandle[KEY_IS_EDIT_MODE] = false
 
             if (dietId == -1) {
                 // If it was new, we are done, navigate back
@@ -436,16 +454,15 @@ class DietDetailViewModel(
             viewModelScope.launch { _navigateBack.emit(Unit) }
         } else {
             loadDietDetails()
-            _hasUnsavedChanges.value = false
+            savedStateHandle[KEY_HAS_UNSAVED] = false
         }
     }
 
     // --- Helpers ---
 
     private fun updateLocalState(newDiet: DietWithItems) {
-        _dietDetails.value = newDiet
-        processDietItems(newDiet.items)
-        _hasUnsavedChanges.value = true
+        savedStateHandle[KEY_DIET_DETAILS] = newDiet
+        savedStateHandle[KEY_HAS_UNSAVED] = true
     }
 
     private fun processDietItems(items: List<DietItemWithFood>) {
@@ -583,21 +600,20 @@ class DietDetailViewModel(
         viewModelScope.launch {
             val updatedFood = foodDao.getFoodById(foodId).firstOrNull() ?: return@launch
 
-            if (_pendingCreateFood) {
-                if (_focusedMealType.value != null) {
+            if (pendingCreateFood) {
+                if (focusedMealType.value != null) {
                     addFoodToMeal(updatedFood)
                     setFocusedMealType(null)
                 }
-                _pendingCreateFood = false
+                pendingCreateFood = false
             }
 
-            val currentDiet = _dietDetails.value ?: return@launch
+            val currentDiet = dietDetails.value ?: return@launch
             val updatedList = currentDiet.items.map {
                 if (it.dietItem.foodId == foodId) it.copy(food = updatedFood) else it
             }
-            // We don't want to flag the user as unsaved unless structure realy changed
-            _dietDetails.value = currentDiet.copy(items = updatedList)
-            processDietItems(updatedList)
+            // Updates local state without flagging as unsaved if only food content changed
+             savedStateHandle[KEY_DIET_DETAILS] = currentDiet.copy(items = updatedList)
         }
     }
 }

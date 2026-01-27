@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -29,16 +30,13 @@ import com.mekki.taco.presentation.ui.diary.DiaryViewModel
 import com.mekki.taco.presentation.ui.diary.DiaryViewModelFactory
 import com.mekki.taco.presentation.ui.diet.DietDetailScreen
 import com.mekki.taco.presentation.ui.diet.DietDetailViewModel
-import com.mekki.taco.presentation.ui.diet.DietDetailViewModelFactory
 import com.mekki.taco.presentation.ui.diet.DietListScreen
 import com.mekki.taco.presentation.ui.diet.DietListViewModel
 import com.mekki.taco.presentation.ui.diet.DietListViewModelFactory
 import com.mekki.taco.presentation.ui.fooddetail.FoodDetailScreen
 import com.mekki.taco.presentation.ui.fooddetail.FoodDetailViewModel
-import com.mekki.taco.presentation.ui.fooddetail.FoodDetailViewModelFactory
 import com.mekki.taco.presentation.ui.home.HomeScreen
 import com.mekki.taco.presentation.ui.home.HomeViewModel
-import com.mekki.taco.presentation.ui.home.HomeViewModelFactory
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.profile.ProfileViewModelFactory
 import com.mekki.taco.presentation.ui.search.FoodSearchScreen
@@ -84,16 +82,8 @@ fun AppNavigation(
     val diaryRepository = DiaryRepository(dailyLogDao, dietItemDao, dailyWaterLogDao)
     val onboardingRepository = remember { OnboardingRepository(context) }
 
-    val homeViewModel: HomeViewModel = viewModel(
-        factory = HomeViewModelFactory(
-            dietDao,
-            foodDao,
-            dietItemDao,
-            dailyLogDao,
-            onboardingRepository,
-            userProfileRepository
-        )
-    )
+    val homeViewModel: HomeViewModel = hiltViewModel()
+
     val profileViewModel: ProfileViewModel = viewModel(
         factory = ProfileViewModelFactory(userProfileRepository)
     )
@@ -177,19 +167,8 @@ fun AppNavigation(
             route = "$DIET_DETAIL_ROUTE/{dietId}",
             arguments = listOf(navArgument("dietId") { type = NavType.IntType })
         ) { backStackEntry ->
-            val dietId = backStackEntry.arguments?.getInt("dietId") ?: -1
-
-            // userProfileRepository must be here for the updated DietDetailViewModelFactory
-            val dietDetailViewModel: DietDetailViewModel = viewModel(
-                factory = DietDetailViewModelFactory(
-                    dietId,
-                    dietDao,
-                    dietItemDao,
-                    foodDao,
-                    dailyLogDao,
-                    userProfileRepository
-                )
-            )
+            // Hilt ViewModel - dietId is automatically injected via SavedStateHandle
+            val dietDetailViewModel: DietDetailViewModel = hiltViewModel()
 
             // Observe updates from FoodDetailScreen
             val savedStateHandle = backStackEntry.savedStateHandle
@@ -238,9 +217,9 @@ fun AppNavigation(
                 backStackEntry.arguments?.getBoolean("addToDietContext") ?: false
             val dietName = backStackEntry.arguments?.getString("dietName")
 
-            val foodDetailViewModel: FoodDetailViewModel = viewModel(
-                factory = FoodDetailViewModelFactory(foodId, foodDao, dietDao, isEdit)
-            )
+            // Hilt ViewModel - foodId and edit are injected via SSH
+            val foodDetailViewModel: FoodDetailViewModel = hiltViewModel()
+            
             val uiState by foodDetailViewModel.uiState.collectAsState()
             val availableDiets by homeViewModel.availableDiets.collectAsState()
 

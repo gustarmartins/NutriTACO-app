@@ -42,11 +42,13 @@ import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.profile.ProfileViewModelFactory
 import com.mekki.taco.presentation.ui.theme.NutriTACOTheme
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 

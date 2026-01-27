@@ -1,20 +1,25 @@
 package com.mekki.taco.presentation.ui.fooddetail
 
+import android.os.Parcelable
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.db.dao.DietDao
 import com.mekki.taco.data.db.dao.FoodDao
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.db.entity.Lipidios
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.parcelize.Parcelize
 import java.util.UUID
+import javax.inject.Inject
 
+@Parcelize
 data class FoodDetailState(
     val isLoading: Boolean = true,
     val portion: String = "100",
@@ -26,23 +31,33 @@ data class FoodDetailState(
     val editName: String = "",
     val editPortionBase: String = "100",
     val editFields: Map<String, String> = emptyMap()
-)
+) : Parcelable
 
-class FoodDetailViewModel(
-    private val alimentoId: Int,
+private const val KEY_PORTION = "portion"
+private const val KEY_IS_EDIT_MODE = "is_edit_mode"
+private const val KEY_EDIT_STATE = "edit_state"
+
+@HiltViewModel
+class FoodDetailViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle,
     private val foodDao: FoodDao,
-    private val dietDao: DietDao,
-    initialEditMode: Boolean = false
+    private val dietDao: DietDao
 ) : ViewModel() {
+
+    private val alimentoId: Int = savedStateHandle.get<Int>("foodId") ?: 0
+    private val initialEditMode: Boolean = savedStateHandle.get<Boolean>("edit") ?: false
 
     val availableDiets = dietDao.getAllDiets()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _portion = MutableStateFlow("100")
+    private val portion = savedStateHandle.getStateFlow(KEY_PORTION, "100")
     private val _baseFood = MutableStateFlow<Food?>(null)
 
-    private val _isEditMode = MutableStateFlow(initialEditMode)
-    private val _editState = MutableStateFlow(FoodDetailState())
+    // Edit mode flow
+    private val isEditMode = savedStateHandle.getStateFlow(KEY_IS_EDIT_MODE, initialEditMode)
+    
+    // Persist edit state (saves user draft)
+    private val editState = savedStateHandle.getStateFlow(KEY_EDIT_STATE, FoodDetailState())
 
     init {
         loadFood()
@@ -66,45 +81,50 @@ class FoodDetailViewModel(
                 vitaminaC = 0.0, umidade = 0.0, lipidios = null, aminoacidos = null
             )
             _baseFood.value = newFood
-            _isEditMode.value = true
-            _editState.update {
-                it.copy(
-                    editName = "",
-                    editPortionBase = "100",
-                    editFields = emptyMap()
-                )
+            
+            // Only initialize edit state if it's empty/default (not restored)
+            if (editState.value.editName.isEmpty() && editState.value.editFields.isEmpty()) {
+                savedStateHandle[KEY_IS_EDIT_MODE] = true
+                updateEditState {
+                    it.copy(
+                        editName = "",
+                        editPortionBase = "100",
+                        editFields = emptyMap()
+                    )
+                }
             }
         } else {
             viewModelScope.launch {
                 foodDao.getFoodById(alimentoId).collect { food ->
                     _baseFood.value = food
-                    food?.let { f ->
-                        _editState.update {
+                    
+                    if (editState.value.editName.isEmpty() && food != null) {
+                         updateEditState {
                             it.copy(
-                                editName = f.name,
+                                editName = food.name,
                                 editPortionBase = "100",
                                 editFields = mapOf(
-                                    "kcal" to f.energiaKcal.formatDouble(),
-                                    "protein" to f.proteina.formatDouble(),
-                                    "carbs" to f.carboidratos.formatDouble(),
-                                    "fat" to f.lipidios?.total.formatDouble(),
-                                    "fiber" to f.fibraAlimentar.formatDouble(),
-                                    "colest" to f.colesterol.formatDouble(),
-                                    "sodio" to f.sodio.formatDouble(),
-                                    "calcio" to f.calcio.formatDouble(),
-                                    "magnesio" to f.magnesio.formatDouble(),
-                                    "manganes" to f.manganes.formatDouble(),
-                                    "fosforo" to f.fosforo.formatDouble(),
-                                    "ferro" to f.ferro.formatDouble(),
-                                    "potassio" to f.potassio.formatDouble(),
-                                    "cobre" to f.cobre.formatDouble(),
-                                    "zinco" to f.zinco.formatDouble(),
-                                    "vitc" to f.vitaminaC.formatDouble(),
-                                    "retinol" to f.retinol.formatDouble(),
-                                    "tiamina" to f.tiamina.formatDouble(),
-                                    "riboflavina" to f.riboflavina.formatDouble(),
-                                    "niacina" to f.niacina.formatDouble(),
-                                    "piridoxina" to f.piridoxina.formatDouble()
+                                    "kcal" to food.energiaKcal.formatDouble(),
+                                    "protein" to food.proteina.formatDouble(),
+                                    "carbs" to food.carboidratos.formatDouble(),
+                                    "fat" to food.lipidios?.total.formatDouble(),
+                                    "fiber" to food.fibraAlimentar.formatDouble(),
+                                    "colest" to food.colesterol.formatDouble(),
+                                    "sodio" to food.sodio.formatDouble(),
+                                    "calcio" to food.calcio.formatDouble(),
+                                    "magnesio" to food.magnesio.formatDouble(),
+                                    "manganes" to food.manganes.formatDouble(),
+                                    "fosforo" to food.fosforo.formatDouble(),
+                                    "ferro" to food.ferro.formatDouble(),
+                                    "potassio" to food.potassio.formatDouble(),
+                                    "cobre" to food.cobre.formatDouble(),
+                                    "zinco" to food.zinco.formatDouble(),
+                                    "vitc" to food.vitaminaC.formatDouble(),
+                                    "retinol" to food.retinol.formatDouble(),
+                                    "tiamina" to food.tiamina.formatDouble(),
+                                    "riboflavina" to food.riboflavina.formatDouble(),
+                                    "niacina" to food.niacina.formatDouble(),
+                                    "piridoxina" to food.piridoxina.formatDouble()
                                 )
                             )
                         }
@@ -112,6 +132,11 @@ class FoodDetailViewModel(
                 }
             }
         }
+    }
+
+    private fun updateEditState(transform: (FoodDetailState) -> FoodDetailState) {
+        val current = savedStateHandle.get<FoodDetailState>(KEY_EDIT_STATE) ?: FoodDetailState()
+        savedStateHandle[KEY_EDIT_STATE] = transform(current)
     }
 
     private fun Double?.formatDouble(): String {
@@ -130,14 +155,14 @@ class FoodDetailViewModel(
     val uiState: StateFlow<FoodDetailState> =
         combine(
             _baseFood,
-            _portion,
-            _isEditMode,
-            _editState
-        ) { base, portion, isEditing, editState ->
+            portion,
+            isEditMode,
+            editState
+        ) { base, portionVal, isEditing, editStateVal ->
             if (base == null) {
                 FoodDetailState(isLoading = true)
             } else {
-                val newPortion = portion.toDoubleOrNull() ?: 100.0
+                val newPortion = portionVal.toDoubleOrNull() ?: 100.0
                 val ratio = newPortion / 100.0
                 val recalculatedAlimento = base.copy(
                     energiaKcal = base.energiaKcal?.times(ratio),
@@ -170,9 +195,9 @@ class FoodDetailViewModel(
 
                 // Checks for unsaved changes
                 val hasChanges = isEditing && (
-                        editState.editName != base.name ||
-                                editState.editPortionBase != "100" ||
-                                editState.editFields.any { (key, value) ->
+                        editStateVal.editName != base.name ||
+                                editStateVal.editPortionBase != "100" ||
+                                editStateVal.editFields.any { (key, value) ->
                                     val original = when (key) {
                                         "kcal" -> base.energiaKcal.formatDouble()
                                         "protein" -> base.proteina.formatDouble()
@@ -203,13 +228,13 @@ class FoodDetailViewModel(
 
                 FoodDetailState(
                     isLoading = false,
-                    portion = portion,
+                    portion = portionVal,
                     displayFood = recalculatedAlimento,
                     isEditMode = isEditing,
                     hasUnsavedChanges = hasChanges,
-                    editName = editState.editName,
-                    editPortionBase = editState.editPortionBase,
-                    editFields = editState.editFields
+                    editName = editStateVal.editName,
+                    editPortionBase = editStateVal.editPortionBase,
+                    editFields = editStateVal.editFields
                 )
             }
         }.stateIn(
@@ -220,16 +245,53 @@ class FoodDetailViewModel(
 
     fun updatePortion(newPortion: String) {
         if (newPortion.all { it.isDigit() || it == '.' } && newPortion.length <= 5) {
-            _portion.value = newPortion
+            savedStateHandle[KEY_PORTION] = newPortion
         }
     }
 
     fun onEditToggle() {
-        _isEditMode.value = !_isEditMode.value
+        // Toggle edit mode
+        savedStateHandle[KEY_IS_EDIT_MODE] = !isEditMode.value
+        
+        // If entering edit mode and edit state is empty, populate it
+        if (isEditMode.value) {
+            val base = _baseFood.value
+            if (base != null && editState.value.editName.isEmpty()) {
+                 updateEditState {
+                    it.copy(
+                        editName = base.name,
+                        editPortionBase = "100",
+                        editFields = mapOf(
+                            "kcal" to base.energiaKcal.formatDouble(),
+                            "protein" to base.proteina.formatDouble(),
+                            "carbs" to base.carboidratos.formatDouble(),
+                            "fat" to base.lipidios?.total.formatDouble(),
+                            "fiber" to base.fibraAlimentar.formatDouble(),
+                            "colest" to base.colesterol.formatDouble(),
+                            "sodio" to base.sodio.formatDouble(),
+                            "calcio" to base.calcio.formatDouble(),
+                            "magnesio" to base.magnesio.formatDouble(),
+                            "manganes" to base.manganes.formatDouble(),
+                            "fosforo" to base.fosforo.formatDouble(),
+                            "ferro" to base.ferro.formatDouble(),
+                            "potassio" to base.potassio.formatDouble(),
+                            "cobre" to base.cobre.formatDouble(),
+                            "zinco" to base.zinco.formatDouble(),
+                            "vitc" to base.vitaminaC.formatDouble(),
+                            "retinol" to base.retinol.formatDouble(),
+                            "tiamina" to base.tiamina.formatDouble(),
+                            "riboflavina" to base.riboflavina.formatDouble(),
+                            "niacina" to base.niacina.formatDouble(),
+                            "piridoxina" to base.piridoxina.formatDouble()
+                        )
+                    )
+                }
+            }
+        }
     }
 
     fun onEditFieldChange(field: String, value: String) {
-        _editState.update {
+        updateEditState {
             if (field == "name") {
                 it.copy(editName = value)
             } else if (field == "portionBase") {
@@ -245,7 +307,7 @@ class FoodDetailViewModel(
     fun saveChanges(onSuccess: (Int) -> Unit = {}) {
         viewModelScope.launch {
             val currentBase = _baseFood.value ?: return@launch
-            val editData = _editState.value
+            val editData = editState.value
 
             val baseQty = editData.editPortionBase.toDoubleOrNull() ?: 100.0
             if (baseQty <= 0.0) return@launch
@@ -288,7 +350,7 @@ class FoodDetailViewModel(
             } else {
                 // UPDATE EXISTING
                 foodDao.updateFood(updatedFood)
-                _isEditMode.value = false
+                savedStateHandle[KEY_IS_EDIT_MODE] = false
                 onSuccess(updatedFood.id)
             }
         }

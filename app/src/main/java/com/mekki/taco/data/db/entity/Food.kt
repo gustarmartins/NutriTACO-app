@@ -1,10 +1,12 @@
 package com.mekki.taco.data.db.entity
 
+import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.parcelize.Parcelize
 
 @Entity(
     tableName = "foods",
@@ -15,7 +17,7 @@ import androidx.room.PrimaryKey
         Index(value = ["uuid"], unique = true)
     ]
 )
-
+@Parcelize
 data class Food(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
@@ -65,15 +67,17 @@ data class Food(
 
     @Embedded(prefix = "aminoacidos_")
     val aminoacidos: Aminoacidos?
-)
+) : Parcelable
 
+@Parcelize
 data class Lipidios(
     val total: Double?,
     val saturados: Double?,
     val monoinsaturados: Double?,
     val poliinsaturados: Double?
-)
+) : Parcelable
 
+@Parcelize
 data class Aminoacidos(
     val triptofano: Double?,
     val treonina: Double?,
@@ -93,6 +97,6 @@ data class Aminoacidos(
     val glicina: Double?,
     val prolina: Double?,
     val serina: Double?
-)
+) : Parcelable
 
 
