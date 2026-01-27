@@ -30,10 +30,13 @@ sealed class ImportResult {
 enum class ConflictResolution {
     /** Keep local version, ignore incoming */
     KEEP_LOCAL,
+
     /** Replace local with incoming */
     REPLACE_WITH_INCOMING,
+
     /** Keep both (incoming gets new UUID) */
     KEEP_BOTH,
+
     /** Ask user for each conflict */
     ASK_USER
 }

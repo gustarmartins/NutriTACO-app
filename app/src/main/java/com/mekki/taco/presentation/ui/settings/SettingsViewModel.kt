@@ -2,17 +2,15 @@ package com.mekki.taco.presentation.ui.settings
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.manager.BackupManager
 import com.mekki.taco.data.model.UserProfile
 import com.mekki.taco.data.repository.UserProfileRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
 data class SettingsUiState(

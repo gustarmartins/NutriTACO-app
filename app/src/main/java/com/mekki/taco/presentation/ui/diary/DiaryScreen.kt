@@ -532,7 +532,7 @@ fun DiarySearchSheetContent(
                 Text("Horário: ${selectedTime.format(DateTimeFormatter.ofPattern("HH:mm"))}")
             }
         }
-        
+
         if (showTimePicker) {
             TimePickerDialog(
                 onDismissRequest = { showTimePicker = false },

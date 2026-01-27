@@ -23,7 +23,6 @@ import com.mekki.taco.presentation.ui.search.FoodSearchManager
 import com.mekki.taco.utils.BMRCalculator
 import com.mekki.taco.utils.NutrientCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -143,7 +142,7 @@ class DietDetailViewModel @Inject constructor(
     init {
         loadDietDetails()
         observeUserProfile()
-        
+
         // Recalculates from SSh
         dietDetails.onEach { details ->
             if (details != null) {
@@ -158,9 +157,13 @@ class DietDetailViewModel @Inject constructor(
                 // Only initialize if not already present e.g from process death
                 if (dietDetails.value == null) {
                     val newDiet =
-                        Diet(name = "", creationDate = System.currentTimeMillis(), calorieGoals = 0.0)
+                        Diet(
+                            name = "",
+                            creationDate = System.currentTimeMillis(),
+                            calorieGoals = 0.0
+                        )
                     val empty = DietWithItems(newDiet, emptyList())
-                    
+
                     savedStateHandle[KEY_DIET_DETAILS] = empty
                     savedStateHandle[KEY_HAS_UNSAVED] = true
                     savedStateHandle[KEY_IS_EDIT_MODE] = true
@@ -321,7 +324,7 @@ class DietDetailViewModel @Inject constructor(
         }
 
         updateLocalState(currentDiet.copy(items = newItems))
-        
+
         viewModelScope.launch {
             candidates.forEach { foodDao.incrementUsageCount(it.food.id) }
         }
@@ -618,7 +621,7 @@ class DietDetailViewModel @Inject constructor(
                 if (it.dietItem.foodId == foodId) it.copy(food = updatedFood) else it
             }
             // Updates local state without flagging as unsaved if only food content changed
-             savedStateHandle[KEY_DIET_DETAILS] = currentDiet.copy(items = updatedList)
+            savedStateHandle[KEY_DIET_DETAILS] = currentDiet.copy(items = updatedList)
         }
     }
 }

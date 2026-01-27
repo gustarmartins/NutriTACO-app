@@ -170,7 +170,7 @@ fun AppNavigation(
 
             // Hilt ViewModel - foodId and edit are injected via SSH
             val foodDetailViewModel: FoodDetailViewModel = hiltViewModel()
-            
+
             val uiState by foodDetailViewModel.uiState.collectAsState()
             val availableDiets by homeViewModel.availableDiets.collectAsState()
 

@@ -31,10 +31,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.mekki.taco.presentation.navigation.AppNavigation
 import com.mekki.taco.presentation.navigation.FOOD_DATABASE_ROUTE
 import com.mekki.taco.presentation.navigation.SETTINGS_ROUTE

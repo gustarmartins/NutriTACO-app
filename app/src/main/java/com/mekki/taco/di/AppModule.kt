@@ -7,8 +7,6 @@ import com.mekki.taco.data.db.dao.DietDao
 import com.mekki.taco.data.db.dao.DietItemDao
 import com.mekki.taco.data.db.dao.FoodDao
 import com.mekki.taco.data.db.database.AppDatabase
-import com.mekki.taco.data.repository.OnboardingRepository
-import com.mekki.taco.data.repository.UserProfileRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

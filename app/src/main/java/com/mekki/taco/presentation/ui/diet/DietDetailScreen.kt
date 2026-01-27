@@ -4,11 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import com.mekki.taco.presentation.ui.search.FoodSearchState
-import com.mekki.taco.presentation.ui.search.FoodSortOption
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +23,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -108,6 +106,8 @@ import com.mekki.taco.presentation.ui.components.ScanResultDialog
 import com.mekki.taco.presentation.ui.components.SearchItem
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
+import com.mekki.taco.presentation.ui.search.FoodSearchState
+import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.utils.NutrientCalculator
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
@@ -231,35 +231,35 @@ fun DietDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                Text(
-                    text = if (isEditMode && dietDetails?.diet?.name?.isBlank() == true) "Nova Dieta" else dietDetails?.diet?.name
-                        ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-            }, colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = if (isEditMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
-                titleContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                navigationIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                actionIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
-            ), navigationIcon = {
-                IconButton(onClick = handleBackPress) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
-                }
-            }, actions = {
-                if (!isEditMode) {
-                    IconButton(onClick = viewModel::onStartScan) {
-                        Icon(Icons.Default.CameraAlt, "Escanear")
+                    Text(
+                        text = if (isEditMode && dietDetails?.diet?.name?.isBlank() == true) "Nova Dieta" else dietDetails?.diet?.name
+                            ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }, colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isEditMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
+                    titleContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                ), navigationIcon = {
+                    IconButton(onClick = handleBackPress) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
                     }
-                    IconButton(onClick = { viewModel.setEditMode(true) }) {
-                        Icon(Icons.Default.Edit, "Editar")
-                    }
-                } else {
-                    if (hasUnsavedChanges) {
-                        IconButton(onClick = { viewModel.saveDiet() }) {
-                            Icon(Icons.Default.Check, "Salvar")
+                }, actions = {
+                    if (!isEditMode) {
+                        IconButton(onClick = viewModel::onStartScan) {
+                            Icon(Icons.Default.CameraAlt, "Escanear")
+                        }
+                        IconButton(onClick = { viewModel.setEditMode(true) }) {
+                            Icon(Icons.Default.Edit, "Editar")
+                        }
+                    } else {
+                        if (hasUnsavedChanges) {
+                            IconButton(onClick = { viewModel.saveDiet() }) {
+                                Icon(Icons.Default.Check, "Salvar")
+                            }
                         }
                     }
-                }
-            })
+                })
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
@@ -624,7 +624,7 @@ fun CompactFoodItemRow(
                 )
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
-        ){
+        ) {
             if (isEditMode) {
                 Icon(
                     Icons.Default.MoreVert,
@@ -1175,7 +1175,9 @@ fun ReplaceFoodSheetContent(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                        alpha = 0.5f
+                                    )
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -1344,7 +1346,7 @@ fun SearchFoodSheetContent(
                 }
             }
         }
-        
+
         Spacer(Modifier.height(8.dp))
 
         // Search Field

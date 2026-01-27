@@ -8,8 +8,9 @@
 
 > [!IMPORTANT]
 > O projeto NutriTACO foi construído por mim de forma voluntária, é distribuído "as-is" (como
-> está), e se tornou possível graças aos dados da Tabela Brasileira de Composição de Alimentos (TACO).
-> 
+> está), e se tornou possível graças aos dados da Tabela Brasileira de Composição de Alimentos (
+> TACO).
+>
 > Todos os dados do arquivo `@taco_preload.sql` são fiéis à mesma.
 >
 > Para saber mais sobre a importância e a metodologia da Tabela TACO, consulte:
@@ -23,13 +24,14 @@
 ## Sobre
 
 O NutriTACO é um aplicativo nativo para a plataforma Android (em breve disponível na Play Store)
-feito **por um brasileiro, para brasileiros.** 
+feito **por um brasileiro, para brasileiros.**
 
 O objetivo é garantir uma interface moderna, sem
 anúncios e bastante funcional para atender ao objetivo proposto - o planejamento de dietas e
 consulta rápida de alimentos, garantindo a completa confiabilidade dos dados disponibilizados.
 
 ---
+
 ## Funcionalidades
 
 O aplicativo está em processo de desenvolvimento. Atualmente, as seguintes funcionalidades estão
@@ -40,12 +42,14 @@ implementadas, com muito mais a vir no futuro:
 | 🔎 **Busca Inteligente**    | Pesquise todos os alimentos da TACO com FTS (Full-Text Search), sinônimos e stemming.                                                  |
 | 📊 **Dashboards Dinâmico**  | Visualize os macronutrientes da sua dieta com gráficos interativos e cartões modernos e elegantes.                                     |
 | 🍽️ **Criação de Dietas**   | Monte planos alimentares personalizados com metas calóricas baseadas no seu perfil.                                                    
-| **Personalize Alimentos** | Não se limite aos dados pré-existentes. Você pode criar e modificar alimentos conforme desejado.                                       |
-| **Tela de Alimentos** | Veja e ordene todos os alimentos pré-existentes e customizados por seus valores nutricionais ou ordem alfabética em uma tela dedicada. |
+| **Personalize Alimentos**   | Não se limite aos dados pré-existentes. Você pode criar e modificar alimentos conforme desejado.                                       |
+| **Tela de Alimentos**       | Veja e ordene todos os alimentos pré-existentes e customizados por seus valores nutricionais ou ordem alfabética em uma tela dedicada. |
 | 📝 **Diário Alimentar**     | Registre o que você consumiu ao longo do dia.                                                                                          |
 | 📷 **Scanner de Alimentos** | Use a câmera para escanear rótulos e tabelas nutricionais com OCR + IA. (Necessita configurar a sua chave API no momento.)             |
 | 🌙 **Tema Escuro**          | Suporte completo ao tema escuro e cores apropriadas para um aplicativo de nutrição.                                                    |
+
 ---
+
 ## Tecnologias
 
 Apesar de ser um projeto (pt-BR), a base de código foi refatorada para
@@ -55,17 +59,18 @@ projeto.
 
 O projeto utiliza o que há de mais moderno no desenvolvimento Android, como:
 
-| Categoria | Tecnologia |
-|-----------|------------|
-| **Linguagem** | [Kotlin](https://kotlinlang.org/) |
-| **UI** | [Jetpack Compose](https://developer.android.com/jetpack/compose) + Material Design 3 |
-| **Arquitetura** | MVVM + Clean Architecture |
-| **Banco de Dados** | [Room](https://developer.android.com/training/data-storage/room) (SQLite) com FTS4 |
-| **IA - OCR** | [ML Kit](https://developers.google.com/ml-kit) (Text Recognition) |
-| **IA - LLM** | [Vertex AI (Firebase)](https://firebase.google.com/docs/vertex-ai) |
-| **Injeção de Dependência** | Factory Pattern |
+| Categoria                  | Tecnologia                                                                           |
+|----------------------------|--------------------------------------------------------------------------------------|
+| **Linguagem**              | [Kotlin](https://kotlinlang.org/)                                                    |
+| **UI**                     | [Jetpack Compose](https://developer.android.com/jetpack/compose) + Material Design 3 |
+| **Arquitetura**            | MVVM + Clean Architecture                                                            |
+| **Banco de Dados**         | [Room](https://developer.android.com/training/data-storage/room) (SQLite) com FTS4   |
+| **IA - OCR**               | [ML Kit](https://developers.google.com/ml-kit) (Text Recognition)                    |
+| **IA - LLM**               | [Vertex AI (Firebase)](https://firebase.google.com/docs/vertex-ai)                   |
+| **Injeção de Dependência** | Factory Pattern                                                                      |
 
 ---
+
 ## A Tabela TACO
 
 Este projeto tem como diferencial o uso exclusivo da **Tabela Brasileira de Composição de
@@ -74,13 +79,15 @@ Alimentos (TACO)** como sua base de verdade.
 A Tabela TACO é um projeto de pesquisa amplo, coordenado pelo **Núcleo de Estudos e Pesquisas em
 Alimentação (NEPA) da UNICAMP**. Fornece dados detalhados sobre a composição química e
 nutricional dos principais alimentos consumidos no país, garantindo informações precisas
-e relevantes para a nossa população. 
+e relevantes para a nossa população.
 
-> * Tabela Brasileira de Composição de Alimentos (TACO). 4. ed. rev. e ampl. Campinas: NEPA-UNICAMP, 2011. 161 p.
+> * Tabela Brasileira de Composição de Alimentos (TACO). 4. ed. rev. e ampl. Campinas: NEPA-UNICAMP,
+    2011. 161 p.
 
 ## Licença
 
 Este projeto está sob a licença **GPLv3**.
-Isso significa que você é livre para usar, estudar, modificar e distribuir este software, desde que mantenha o espírito gratuito, voluntário e de código aberto do NutriTACO.
+Isso significa que você é livre para usar, estudar, modificar e distribuir este software, desde que
+mantenha o espírito gratuito, voluntário e de código aberto do NutriTACO.
 
 Consulte o arquivo `LICENSE` para mais detalhes.

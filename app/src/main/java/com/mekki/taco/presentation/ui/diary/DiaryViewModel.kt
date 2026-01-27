@@ -13,7 +13,6 @@ import com.mekki.taco.data.repository.DiaryRepository
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.utils.NutrientCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +32,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
 data class DiaryTotals(
     val consumedKcal: Double = 0.0,
@@ -284,7 +284,7 @@ class DiaryViewModel @Inject constructor(
 
     fun addFoodToLog(food: Food, mealType: String, customTime: LocalTime? = null) {
         val amount = _quickAddAmount.value.toDoubleOrNull() ?: 100.0
-        
+
         val date = _currentDate.value
         val time = customTime ?: LocalTime.now()
         val dateTime = LocalDateTime.of(date, time)

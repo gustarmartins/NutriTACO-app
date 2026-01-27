@@ -7,12 +7,12 @@ import com.mekki.taco.data.model.UserProfile
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.utils.BMRCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
+import javax.inject.Inject
 
 data class ProfileUiState(
     val userProfile: UserProfile = UserProfile(),

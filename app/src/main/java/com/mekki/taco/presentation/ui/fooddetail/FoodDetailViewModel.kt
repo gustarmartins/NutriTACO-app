@@ -55,7 +55,7 @@ class FoodDetailViewModel @Inject constructor(
 
     // Edit mode flow
     private val isEditMode = savedStateHandle.getStateFlow(KEY_IS_EDIT_MODE, initialEditMode)
-    
+
     // Persist edit state (saves user draft)
     private val editState = savedStateHandle.getStateFlow(KEY_EDIT_STATE, FoodDetailState())
 
@@ -81,7 +81,7 @@ class FoodDetailViewModel @Inject constructor(
                 vitaminaC = 0.0, umidade = 0.0, lipidios = null, aminoacidos = null
             )
             _baseFood.value = newFood
-            
+
             // Only initialize edit state if it's empty/default (not restored)
             if (editState.value.editName.isEmpty() && editState.value.editFields.isEmpty()) {
                 savedStateHandle[KEY_IS_EDIT_MODE] = true
@@ -97,9 +97,9 @@ class FoodDetailViewModel @Inject constructor(
             viewModelScope.launch {
                 foodDao.getFoodById(alimentoId).collect { food ->
                     _baseFood.value = food
-                    
+
                     if (editState.value.editName.isEmpty() && food != null) {
-                         updateEditState {
+                        updateEditState {
                             it.copy(
                                 editName = food.name,
                                 editPortionBase = "100",
@@ -252,12 +252,12 @@ class FoodDetailViewModel @Inject constructor(
     fun onEditToggle() {
         // Toggle edit mode
         savedStateHandle[KEY_IS_EDIT_MODE] = !isEditMode.value
-        
+
         // If entering edit mode and edit state is empty, populate it
         if (isEditMode.value) {
             val base = _baseFood.value
             if (base != null && editState.value.editName.isEmpty()) {
-                 updateEditState {
+                updateEditState {
                     it.copy(
                         editName = base.name,
                         editPortionBase = "100",

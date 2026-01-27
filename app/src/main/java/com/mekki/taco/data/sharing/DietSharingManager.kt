@@ -9,17 +9,14 @@ import com.google.gson.GsonBuilder
 import com.mekki.taco.data.db.database.AppDatabase
 import com.mekki.taco.data.db.entity.Diet
 import com.mekki.taco.data.db.entity.DietItem
-import com.mekki.taco.data.db.entity.Food
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.util.UUID
-import kotlin.jvm.java
-
 import javax.inject.Inject
-import dagger.hilt.android.qualifiers.ApplicationContext
 
 /**
  * exporting and importing diets for sharing between users.
@@ -61,7 +58,10 @@ class DietSharingManager @Inject constructor(
             val customFoods = foods.filter { it.isCustom }
             val officialFoods = foods.filter { !it.isCustom }
 
-            Log.d(TAG, "Diet has ${foods.size} foods: ${customFoods.size} custom, ${officialFoods.size} official")
+            Log.d(
+                TAG,
+                "Diet has ${foods.size} foods: ${customFoods.size} custom, ${officialFoods.size} official"
+            )
 
             // 4. Build shared diet entries
             val entries = dietWithItems.items.map { item ->
@@ -86,7 +86,8 @@ class DietSharingManager @Inject constructor(
 
             // 6. Serialize to JSON
             val json = gson.toJson(sharedDiet)
-            val fileName = "${sanitizeFileName(dietWithItems.diet.name)}.${SharedDiet.FILE_EXTENSION}"
+            val fileName =
+                "${sanitizeFileName(dietWithItems.diet.name)}.${SharedDiet.FILE_EXTENSION}"
 
             Log.d(TAG, "Export successful: ${json.length} bytes")
             ExportResult.Success(json, fileName)
@@ -114,6 +115,7 @@ class DietSharingManager @Inject constructor(
                     ExportResult.Error("Erro ao salvar arquivo: ${e.message}", e)
                 }
             }
+
             is ExportResult.Error -> result
         }
     }
@@ -140,7 +142,10 @@ class DietSharingManager @Inject constructor(
             val sharedDiet = parseSharedDiet(json)
                 ?: return@withContext ImportResult.Error("Formato de arquivo inválido")
 
-            Log.d(TAG, "Parsed diet: ${sharedDiet.diet.name} with ${sharedDiet.entries.size} entries")
+            Log.d(
+                TAG,
+                "Parsed diet: ${sharedDiet.diet.name} with ${sharedDiet.entries.size} entries"
+            )
 
             // 2. Import in a transaction
             var importedDiet: Diet? = null
@@ -164,6 +169,7 @@ class DietSharingManager @Inject constructor(
                                 customFoodsSkipped++
                                 Log.d(TAG, "Keeping local food: ${existingFood.name}")
                             }
+
                             ConflictResolution.REPLACE_WITH_INCOMING -> {
                                 val updatedFood = sharedFood.toFood().copy(id = existingFood.id)
                                 db.foodDao().updateFood(updatedFood)
@@ -171,6 +177,7 @@ class DietSharingManager @Inject constructor(
                                 customFoodsImported++
                                 Log.d(TAG, "Replaced food: ${sharedFood.name}")
                             }
+
                             ConflictResolution.KEEP_BOTH -> {
                                 // Insert as new with different UUID
                                 val newUuid = UUID.randomUUID().toString()
@@ -184,6 +191,7 @@ class DietSharingManager @Inject constructor(
                                 customFoodsImported++
                                 Log.d(TAG, "Created duplicate: ${newFood.name}")
                             }
+
                             ConflictResolution.ASK_USER -> {
                                 uuidToLocalId[sharedFood.uuid] = existingFood.id
                                 customFoodsSkipped++

@@ -158,7 +158,8 @@ class HomeViewModel @Inject constructor(
             _showRegistrarTutorial
         )
     ) { args ->
-        val dashboard = args[0] as Triple<List<DietSummary>, DashboardMealGroup?, List<DashboardMealGroup>>
+        val dashboard =
+            args[0] as Triple<List<DietSummary>, DashboardMealGroup?, List<DashboardMealGroup>>
         val term = args[1] as String
         val isLoading = args[2] as Boolean
         val rawResults = args[3] as List<Food>

@@ -16,10 +16,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 
 enum class FoodSortOption(val label: String) {
     RELEVANCE("Relevância"),
@@ -57,10 +55,15 @@ class FoodSearchManager(
     private val _localSortOption = MutableStateFlow(FoodSortOption.RELEVANCE)
     private val _localExpandedId = MutableStateFlow<Int?>(null)
 
-    private val searchTermFlow = savedStateHandle?.getStateFlow(KEY_SM_TERM, "") ?: _localSearchTerm.asStateFlow()
-    private val quickAddFlow = savedStateHandle?.getStateFlow(KEY_SM_QUICK_ADD, "100") ?: _localQuickAdd.asStateFlow()
-    private val sortOptionFlow = savedStateHandle?.getStateFlow(KEY_SM_SORT, FoodSortOption.RELEVANCE) ?: _localSortOption.asStateFlow()
-    private val expandedIdFlow = savedStateHandle?.getStateFlow<Int?>(KEY_SM_EXPANDED, null) ?: _localExpandedId.asStateFlow()
+    private val searchTermFlow =
+        savedStateHandle?.getStateFlow(KEY_SM_TERM, "") ?: _localSearchTerm.asStateFlow()
+    private val quickAddFlow =
+        savedStateHandle?.getStateFlow(KEY_SM_QUICK_ADD, "100") ?: _localQuickAdd.asStateFlow()
+    private val sortOptionFlow =
+        savedStateHandle?.getStateFlow(KEY_SM_SORT, FoodSortOption.RELEVANCE)
+            ?: _localSortOption.asStateFlow()
+    private val expandedIdFlow = savedStateHandle?.getStateFlow<Int?>(KEY_SM_EXPANDED, null)
+        ?: _localExpandedId.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     private val _rawResults = MutableStateFlow<List<Food>>(emptyList())

@@ -173,7 +173,8 @@ fun ScanDietScreen(
                                         val bitmap = image.toBitmap()
                                         // we want to make sure device rotation is respected
                                         val rotation = image.imageInfo.rotationDegrees
-                                        val correctedBitmap = rotateBitmap(bitmap, rotation.toFloat())
+                                        val correctedBitmap =
+                                            rotateBitmap(bitmap, rotation.toFloat())
 
                                         image.close()
                                         // Pass back to ViewModel on Main Thread

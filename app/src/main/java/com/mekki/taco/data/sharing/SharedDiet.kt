@@ -272,8 +272,10 @@ data class SharedLipidios(
     val poliinsaturados: Double?
 ) {
     companion object {
-        fun fromLipidios(l: Lipidios) = SharedLipidios(l.total, l.saturados, l.monoinsaturados, l.poliinsaturados)
+        fun fromLipidios(l: Lipidios) =
+            SharedLipidios(l.total, l.saturados, l.monoinsaturados, l.poliinsaturados)
     }
+
     fun toLipidios() = Lipidios(total, saturados, monoinsaturados, poliinsaturados)
 }
 
@@ -305,6 +307,7 @@ data class SharedAminoacidos(
             a.glicina, a.prolina, a.serina
         )
     }
+
     fun toAminoacidos() = Aminoacidos(
         triptofano, treonina, isoleucina, leucina, lisina,
         metionina, cistina, fenilalanina, tirosina, valina,

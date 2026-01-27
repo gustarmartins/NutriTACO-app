@@ -61,13 +61,30 @@ abstract class AppDatabase : RoomDatabase() {
 
                 // 1.2 Add potentially missing nutritional columns (RE, RAE, lipids, amino acids)
                 val missingColumns = listOf(
-                    "RE", "RAE",
-                    "lipidios_total", "lipidios_saturados", "lipidios_monoinsaturados", "lipidios_poliinsaturados",
-                    "aminoacidos_triptofano", "aminoacidos_treonina", "aminoacidos_isoleucina", "aminoacidos_leucina",
-                    "aminoacidos_lisina", "aminoacidos_metionina", "aminoacidos_cistina", "aminoacidos_fenilalanina",
-                    "aminoacidos_tirosina", "aminoacidos_valina", "aminoacidos_arginina", "aminoacidos_histidina",
-                    "aminoacidos_alanina", "aminoacidos_acidoAspartico", "aminoacidos_acidoGlutamico",
-                    "aminoacidos_glicina", "aminoacidos_prolina", "aminoacidos_serina"
+                    "RE",
+                    "RAE",
+                    "lipidios_total",
+                    "lipidios_saturados",
+                    "lipidios_monoinsaturados",
+                    "lipidios_poliinsaturados",
+                    "aminoacidos_triptofano",
+                    "aminoacidos_treonina",
+                    "aminoacidos_isoleucina",
+                    "aminoacidos_leucina",
+                    "aminoacidos_lisina",
+                    "aminoacidos_metionina",
+                    "aminoacidos_cistina",
+                    "aminoacidos_fenilalanina",
+                    "aminoacidos_tirosina",
+                    "aminoacidos_valina",
+                    "aminoacidos_arginina",
+                    "aminoacidos_histidina",
+                    "aminoacidos_alanina",
+                    "aminoacidos_acidoAspartico",
+                    "aminoacidos_acidoGlutamico",
+                    "aminoacidos_glicina",
+                    "aminoacidos_prolina",
+                    "aminoacidos_serina"
                 )
 
                 for (column in missingColumns) {
@@ -87,7 +104,12 @@ abstract class AppDatabase : RoomDatabase() {
                 cursor.close()
             }
 
-            private fun safeAddColumn(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
+            private fun safeAddColumn(
+                db: SupportSQLiteDatabase,
+                table: String,
+                column: String,
+                type: String
+            ) {
                 var exists = false
                 val cursor = db.query("PRAGMA table_info($table)")
                 try {

@@ -9,6 +9,7 @@ import com.mekki.taco.data.db.entity.Diet
 import com.mekki.taco.data.db.entity.DietItem
 import com.mekki.taco.data.model.DietItemWithFood
 import com.mekki.taco.data.sharing.DietSharingManager
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -17,8 +18,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
-
-import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
 @HiltViewModel
@@ -43,7 +42,7 @@ class DietListViewModel @Inject constructor(
 
     private val _dietaSalvaEvent = MutableSharedFlow<Unit>()
     val dietaSalvaEvent: SharedFlow<Unit> = _dietaSalvaEvent.asSharedFlow()
-    
+
     private val _sharingStatus = MutableStateFlow<String?>(null)
     val sharingStatus: StateFlow<String?> = _sharingStatus.asStateFlow()
 
@@ -63,6 +62,7 @@ class DietListViewModel @Inject constructor(
                 is com.mekki.taco.data.sharing.ExportResult.Success -> {
                     _sharingStatus.value = "Dieta exportada com sucesso!"
                 }
+
                 is com.mekki.taco.data.sharing.ExportResult.Error -> {
                     _sharingStatus.value = "Erro ao exportar: ${result.message}"
                 }
@@ -79,10 +79,13 @@ class DietListViewModel @Inject constructor(
                     _sharingStatus.value = "Dieta '${result.diet.name}' importada com sucesso!"
                     carregarDietas() // Refresh list
                 }
+
                 is com.mekki.taco.data.sharing.ImportResult.Error -> {
                     _sharingStatus.value = "Erro ao importar: ${result.message}"
                 }
-                else -> { /* Preview not handled here */ }
+
+                else -> { /* Preview not handled here */
+                }
             }
         }
     }

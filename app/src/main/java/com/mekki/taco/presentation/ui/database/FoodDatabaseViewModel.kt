@@ -3,19 +3,18 @@ package com.mekki.taco.presentation.ui.database
 import android.content.Context
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.db.dao.FoodDao
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.utils.normalizeForSearch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import javax.inject.Inject
 
 enum class FoodSource(val displayName: String) {
     ALL(displayName = "TODOS"),
