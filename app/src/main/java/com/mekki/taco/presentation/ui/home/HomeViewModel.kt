@@ -231,6 +231,7 @@ class HomeViewModel @Inject constructor(
                 consumptionTime = time
             )
             dietItemDao.insertDietItem(item)
+            foodDao.incrementUsageCount(foodId)
             _effects.send(
                 HomeEffect.ShowSnackbar(
                     "Adicionado à dieta com sucesso.", "Ver", SnackbarAction.GoToDiet(dietId)
@@ -250,6 +251,7 @@ class HomeViewModel @Inject constructor(
                 isConsumed = true
             )
             dailyLogDao.insertLog(log)
+            foodDao.incrementUsageCount(food.id)
             _effects.send(
                 HomeEffect.ShowSnackbar(
                     "Adicionado ao diário com sucesso.", "Ver", SnackbarAction.GoToDiary
@@ -279,6 +281,7 @@ class HomeViewModel @Inject constructor(
                     isConsumed = true
                 )
                 dailyLogDao.insertLog(log)
+                foodDao.incrementUsageCount(item.food.id)
             }
             _effects.send(
                 HomeEffect.ShowSnackbar(

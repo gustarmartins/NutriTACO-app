@@ -15,7 +15,8 @@ import java.time.ZoneId
 class DiaryRepository(
     private val dailyLogDao: DailyLogDao,
     private val dietItemDao: DietItemDao,
-    private val dailyWaterLogDao: DailyWaterLogDao
+    private val dailyWaterLogDao: DailyWaterLogDao,
+    private val foodDao: com.mekki.taco.data.db.dao.FoodDao
 ) {
     fun getDailyLogs(date: String): Flow<List<DailyLogWithFood>> {
         return dailyLogDao.getLogsForDate(date)
@@ -31,6 +32,7 @@ class DiaryRepository(
 
     suspend fun addLog(log: DailyLog) {
         dailyLogDao.insertLog(log)
+        foodDao.incrementUsageCount(log.foodId)
     }
 
     suspend fun importDietPlanToDate(dietId: Int, dateStr: String) {
@@ -63,6 +65,9 @@ class DiaryRepository(
         }
 
         dailyLogDao.insertAll(newLogs)
+        newLogs.forEach { log ->
+            foodDao.incrementUsageCount(log.foodId)
+        }
     }
 
     suspend fun updateTimestamp(log: DailyLog, newTimestamp: Long) {

@@ -254,6 +254,7 @@ class DietDetailViewModel @Inject constructor(
         updateLocalState(currentDiet.copy(items = newItems))
 
         viewModelScope.launch {
+            foodDao.incrementUsageCount(food.id)
             _snackbarMessages.send("${food.name} adicionado ao $mealType")
         }
     }
@@ -320,6 +321,11 @@ class DietDetailViewModel @Inject constructor(
         }
 
         updateLocalState(currentDiet.copy(items = newItems))
+        
+        viewModelScope.launch {
+            candidates.forEach { foodDao.incrementUsageCount(it.food.id) }
+        }
+
         _showScanReview.value = false
         _scannedCandidates.value = emptyList()
     }
@@ -589,6 +595,7 @@ class DietDetailViewModel @Inject constructor(
                 isConsumed = true
             )
             dailyLogDao.insertLog(log)
+            foodDao.incrementUsageCount(item.food.id)
             _snackbarMessages.send("Adicionado ao diário.")
         }
     }
