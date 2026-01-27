@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -150,8 +151,13 @@ fun DiaryScreen(
                 },
                 actions = {
                     if (!showImportInList) {
-                        IconButton(onClick = { showImportDialog = true }) {
-                            Icon(Icons.Default.Download, contentDescription = "Importar Dieta")
+                        TextButton(
+                            onClick = { showImportDialog = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Importar", fontWeight = FontWeight.Bold)
                         }
                     }
                 },
@@ -205,8 +211,14 @@ fun DiaryScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Download, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Importar de uma Dieta")
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "Importar de uma dieta",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                     Spacer(Modifier.height(16.dp))
                 }

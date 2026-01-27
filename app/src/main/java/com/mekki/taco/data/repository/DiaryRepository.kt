@@ -3,6 +3,7 @@ package com.mekki.taco.data.repository
 import com.mekki.taco.data.db.dao.DailyLogDao
 import com.mekki.taco.data.db.dao.DailyWaterLogDao
 import com.mekki.taco.data.db.dao.DietItemDao
+import com.mekki.taco.data.db.dao.FoodDao
 import com.mekki.taco.data.db.entity.DailyLog
 import com.mekki.taco.data.db.entity.DailyWaterLog
 import com.mekki.taco.data.model.DailyLogWithFood
@@ -16,7 +17,7 @@ class DiaryRepository(
     private val dailyLogDao: DailyLogDao,
     private val dietItemDao: DietItemDao,
     private val dailyWaterLogDao: DailyWaterLogDao,
-    private val foodDao: com.mekki.taco.data.db.dao.FoodDao
+    private val foodDao: FoodDao,
 ) {
     fun getDailyLogs(date: String): Flow<List<DailyLogWithFood>> {
         return dailyLogDao.getLogsForDate(date)

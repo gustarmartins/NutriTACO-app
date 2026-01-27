@@ -7,7 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -79,7 +79,7 @@ fun AppNavigation(
     val userProfileRepository = remember { UserProfileRepository(context) }
     val backupManager = remember { BackupManager(context, database, userProfileRepository) }
     val dietSharingManager = remember { DietSharingManager(context, database) }
-    val diaryRepository = DiaryRepository(dailyLogDao, dietItemDao, dailyWaterLogDao)
+    val diaryRepository = DiaryRepository(dailyLogDao, dietItemDao, dailyWaterLogDao, foodDao)
     val onboardingRepository = remember { OnboardingRepository(context) }
 
     val homeViewModel: HomeViewModel = hiltViewModel()
