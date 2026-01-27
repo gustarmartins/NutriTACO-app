@@ -184,9 +184,15 @@ fun DietDetailScreen(
 
     val dietId = dietDetails?.diet?.id ?: -1
     val handleBackPress = {
-        if (isEditMode && dietId != -1) viewModel.setEditMode(false)
-        else if (hasUnsavedChanges) showExitDialog = true
-        else onNavigateBack()
+        if (isEditMode) {
+            if (hasUnsavedChanges) {
+                showExitDialog = true
+            } else {
+                if (dietId != -1) viewModel.setEditMode(false) else onNavigateBack()
+            }
+        } else {
+            onNavigateBack()
+        }
     }
     BackHandler(onBack = handleBackPress)
 
@@ -374,6 +380,9 @@ fun DietDetailScreen(
                 onAddFood = { food, qty ->
                     viewModel.addFoodToMeal(food, qty)
                 },
+                onRemoveItem = { item ->
+                    viewModel.deleteItem(item.dietItem)
+                },
                 onNavigateToDetail = onViewFood,
                 onNavigateToCreate = { viewModel.onStartCreateFood() }
             )
@@ -460,6 +469,9 @@ fun DietDetailScreen(
         DiscardChangesDialog(onDismissRequest = { showExitDialog = false }, onConfirmDiscard = {
             viewModel.discardChanges()
             showExitDialog = false
+            if (isEditMode && dietId != -1) {
+                viewModel.setEditMode(false)
+            }
         })
     }
 
@@ -1254,11 +1266,20 @@ fun SearchFoodSheetContent(
     onFoodToggled: (Int) -> Unit,
     onAmountChange: (String) -> Unit,
     onAddFood: (Food, Double) -> Unit,
+    onRemoveItem: (DietItemWithFood) -> Unit,
     onNavigateToDetail: (Int) -> Unit,
     onNavigateToCreate: () -> Unit
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    val scrollState = rememberScrollState()
+
+    // Auto-scroll to end when item is added
+    LaunchedEffect(addedItems.size) {
+        if (addedItems.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
 
     Column(
         Modifier
@@ -1274,7 +1295,7 @@ fun SearchFoodSheetContent(
         if (addedItems.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "Já na refeição:",
+                "Já na refeição (toque para remover):",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -1282,7 +1303,7 @@ fun SearchFoodSheetContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScroll(scrollState),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 addedItems.forEach { item ->
@@ -1290,7 +1311,8 @@ fun SearchFoodSheetContent(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.clickable { onRemoveItem(item) }
                     ) {
                         Row(
                             Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -1309,6 +1331,13 @@ fun SearchFoodSheetContent(
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Remover",
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.error
                             )
                         }
                     }
