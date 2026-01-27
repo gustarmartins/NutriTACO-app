@@ -34,13 +34,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.mekki.taco.data.repository.UserProfileRepository
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.mekki.taco.presentation.navigation.AppNavigation
 import com.mekki.taco.presentation.navigation.FOOD_DATABASE_ROUTE
 import com.mekki.taco.presentation.navigation.SETTINGS_ROUTE
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
-import com.mekki.taco.presentation.ui.profile.ProfileViewModelFactory
 import com.mekki.taco.presentation.ui.theme.NutriTACOTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -65,9 +64,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = LocalContext.current
-            val profileRepository = remember { UserProfileRepository(context) }
-            val profileViewModel: ProfileViewModel =
-                viewModel(factory = ProfileViewModelFactory(profileRepository))
+            val profileViewModel: ProfileViewModel = hiltViewModel()
             val uiState by profileViewModel.uiState.collectAsState()
 
             NutriTACOTheme(darkTheme = uiState.userProfile.isDarkMode) {

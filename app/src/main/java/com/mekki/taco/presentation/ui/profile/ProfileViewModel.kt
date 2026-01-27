@@ -6,6 +6,8 @@ import com.mekki.taco.data.model.ActivityLevel
 import com.mekki.taco.data.model.UserProfile
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.utils.BMRCalculator
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -22,7 +24,8 @@ data class ProfileUiState(
     val ageInput: String = ""
 )
 
-class ProfileViewModel(
+@HiltViewModel
+class ProfileViewModel @Inject constructor(
     private val repository: UserProfileRepository
 ) : ViewModel() {
 

@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
 data class SettingsUiState(
     val userProfile: UserProfile = UserProfile(),
     val isBackupLoading: Boolean = false,
@@ -20,7 +23,8 @@ data class SettingsUiState(
     val pendingImportUri: Uri? = null
 )
 
-class SettingsViewModel(
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
     private val repository: UserProfileRepository,
     private val backupManager: BackupManager
 ) : ViewModel() {
@@ -87,18 +91,5 @@ class SettingsViewModel(
                 pendingImportUri = null
             )
         }
-    }
-}
-
-class SettingsViewModelFactory(
-    private val repository: UserProfileRepository,
-    private val backupManager: BackupManager
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
-            return SettingsViewModel(repository, backupManager) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

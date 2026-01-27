@@ -19,8 +19,12 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-class FoodViewModel(private val foodDao: FoodDao) : ViewModel() {
+@HiltViewModel
+class FoodViewModel @Inject constructor(private val foodDao: FoodDao) : ViewModel() {
 
     companion object {
         private const val TAG = "Search Food module"

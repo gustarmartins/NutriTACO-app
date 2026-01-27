@@ -11,14 +11,17 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.mekki.taco.data.model.ActivityLevel
 import com.mekki.taco.data.model.UserProfile
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
+import javax.inject.Inject
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_profile")
 
-class UserProfileRepository(context: Context) {
+
+class UserProfileRepository @Inject constructor(@ApplicationContext context: Context) {
 
     private val dataStore = context.dataStore
 

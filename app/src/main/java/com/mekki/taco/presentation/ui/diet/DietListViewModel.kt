@@ -18,7 +18,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
-class DietListViewModel(
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
+@HiltViewModel
+class DietListViewModel @Inject constructor(
     private val dietDao: DietDao,
     private val dietItemDao: DietItemDao,
     private val dietSharingManager: DietSharingManager

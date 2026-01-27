@@ -12,6 +12,8 @@ import com.mekki.taco.data.model.UserProfile
 import com.mekki.taco.data.repository.DiaryRepository
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.utils.NutrientCalculator
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,7 +47,8 @@ data class DiaryTotals(
 )
 
 @OptIn(FlowPreview::class)
-class DiaryViewModel(
+@HiltViewModel
+class DiaryViewModel @Inject constructor(
     private val repository: DiaryRepository,
     private val dietDao: DietDao,
     private val foodDao: FoodDao,

@@ -8,6 +8,9 @@ import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.db.dao.FoodDao
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.utils.normalizeForSearch
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,7 +50,8 @@ data class FoodDatabaseState(
                 sortOption != SortOption.NAME
 }
 
-class FoodDatabaseViewModel(
+@HiltViewModel
+class FoodDatabaseViewModel @Inject constructor(
     private val foodDao: FoodDao,
     private val filterPreferences: FilterPreferences
 ) : ViewModel() {
@@ -187,7 +191,7 @@ class FoodDatabaseViewModel(
 /**
  * Handles persistence of filter preferences using SharedPreferences
  */
-class FilterPreferences(context: Context) {
+class FilterPreferences @Inject constructor(@ApplicationContext context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     var searchQuery: String
@@ -235,18 +239,5 @@ class FilterPreferences(context: Context) {
         private const val KEY_CATEGORIES = "selected_categories"
         private const val KEY_SOURCE = "selected_source"
         private const val KEY_SORT = "sort_option"
-    }
-}
-
-class FoodDatabaseViewModelFactory(
-    private val foodDao: FoodDao,
-    private val filterPreferences: FilterPreferences
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(FoodDatabaseViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return FoodDatabaseViewModel(foodDao, filterPreferences) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

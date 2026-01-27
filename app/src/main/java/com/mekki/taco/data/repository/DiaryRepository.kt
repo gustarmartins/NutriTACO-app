@@ -13,7 +13,9 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
-class DiaryRepository(
+import javax.inject.Inject
+
+class DiaryRepository @Inject constructor(
     private val dailyLogDao: DailyLogDao,
     private val dietItemDao: DietItemDao,
     private val dailyWaterLogDao: DailyWaterLogDao,

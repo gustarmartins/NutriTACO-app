@@ -18,11 +18,14 @@ import java.io.OutputStreamWriter
 import java.util.UUID
 import kotlin.jvm.java
 
+import javax.inject.Inject
+import dagger.hilt.android.qualifiers.ApplicationContext
+
 /**
  * exporting and importing diets for sharing between users.
  */
-class DietSharingManager(
-    private val context: Context,
+class DietSharingManager @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val db: AppDatabase
 ) {
     private val gson: Gson = GsonBuilder()
@@ -154,7 +157,7 @@ class DietSharingManager(
 
                     if (existingFood != null) {
                         // Food already exists locally
-                        // (much unlikely in all cases, but possible in case user tries to import their own diet)
+                        // (Highly unlikely in most cases, but possible if the user tries to import their own previously exported diet)
                         when (conflictResolution) {
                             ConflictResolution.KEEP_LOCAL -> {
                                 uuidToLocalId[sharedFood.uuid] = existingFood.id

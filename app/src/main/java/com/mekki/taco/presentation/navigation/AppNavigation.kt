@@ -5,49 +5,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.mekki.taco.data.db.database.AppDatabase
-import com.mekki.taco.data.manager.BackupManager
-import com.mekki.taco.data.repository.DiaryRepository
-import com.mekki.taco.data.repository.OnboardingRepository
-import com.mekki.taco.data.repository.UserProfileRepository
-import com.mekki.taco.data.sharing.DietSharingManager
-import com.mekki.taco.presentation.ui.database.FilterPreferences
 import com.mekki.taco.presentation.ui.database.FoodDatabaseScreen
 import com.mekki.taco.presentation.ui.database.FoodDatabaseViewModel
-import com.mekki.taco.presentation.ui.database.FoodDatabaseViewModelFactory
 import com.mekki.taco.presentation.ui.diary.DiaryScreen
 import com.mekki.taco.presentation.ui.diary.DiaryViewModel
-import com.mekki.taco.presentation.ui.diary.DiaryViewModelFactory
 import com.mekki.taco.presentation.ui.diet.DietDetailScreen
 import com.mekki.taco.presentation.ui.diet.DietDetailViewModel
 import com.mekki.taco.presentation.ui.diet.DietListScreen
 import com.mekki.taco.presentation.ui.diet.DietListViewModel
-import com.mekki.taco.presentation.ui.diet.DietListViewModelFactory
 import com.mekki.taco.presentation.ui.fooddetail.FoodDetailScreen
 import com.mekki.taco.presentation.ui.fooddetail.FoodDetailViewModel
 import com.mekki.taco.presentation.ui.home.HomeScreen
 import com.mekki.taco.presentation.ui.home.HomeViewModel
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
-import com.mekki.taco.presentation.ui.profile.ProfileViewModelFactory
 import com.mekki.taco.presentation.ui.search.FoodSearchScreen
 import com.mekki.taco.presentation.ui.search.FoodViewModel
-import com.mekki.taco.presentation.ui.search.FoodViewModelFactory
 import com.mekki.taco.presentation.ui.settings.SettingsScreen
 import com.mekki.taco.presentation.ui.settings.SettingsViewModel
-import com.mekki.taco.presentation.ui.settings.SettingsViewModelFactory
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 
 const val HOME_ROUTE = "home"
 const val DIET_LIST_ROUTE = "diet_list"
@@ -67,34 +49,10 @@ fun AppNavigation(
     onActionsChange: (@Composable (() -> Unit)?) -> Unit,
     onTitleChange: (String) -> Unit
 ) {
-    val appScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
-    val database = AppDatabase.getDatabase(context, appScope)
-
-    val foodDao = database.foodDao()
-    val dietDao = database.dietDao()
-    val dietItemDao = database.dietItemDao()
-    val dailyLogDao = database.dailyLogDao()
-    val dailyWaterLogDao = database.dailyWaterLogDao()
-
-    val userProfileRepository = remember { UserProfileRepository(context) }
-    val backupManager = remember { BackupManager(context, database, userProfileRepository) }
-    val dietSharingManager = remember { DietSharingManager(context, database) }
-    val diaryRepository = DiaryRepository(dailyLogDao, dietItemDao, dailyWaterLogDao, foodDao)
-    val onboardingRepository = remember { OnboardingRepository(context) }
-
     val homeViewModel: HomeViewModel = hiltViewModel()
-
-    val profileViewModel: ProfileViewModel = viewModel(
-        factory = ProfileViewModelFactory(userProfileRepository)
-    )
-    val dietListViewModel: DietListViewModel = viewModel(
-        factory = DietListViewModelFactory(dietDao, dietItemDao, dietSharingManager)
-    )
-    val settingsViewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModelFactory(userProfileRepository, backupManager)
-    )
-
-    val filterPreferences = remember { FilterPreferences(context) }
+    val profileViewModel: ProfileViewModel = hiltViewModel()
+    val dietListViewModel: DietListViewModel = hiltViewModel()
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
 
     NavHost(
         modifier = modifier,
@@ -130,14 +88,7 @@ fun AppNavigation(
 
         composable(DIARY_ROUTE) {
             onFabChange(null)
-            val diaryViewModel: DiaryViewModel = viewModel(
-                factory = DiaryViewModelFactory(
-                    diaryRepository,
-                    dietDao,
-                    foodDao,
-                    userProfileRepository
-                )
-            )
+            val diaryViewModel: DiaryViewModel = hiltViewModel()
             DiaryScreen(
                 viewModel = diaryViewModel,
                 onNavigateBack = { navController.popBackStack() },
@@ -283,9 +234,7 @@ fun AppNavigation(
             onTitleChange("Buscar Alimentos")
             val initialTerm = backStackEntry.arguments?.getString("term") ?: ""
 
-            val foodViewModel: FoodViewModel = viewModel(
-                factory = FoodViewModelFactory(foodDao)
-            )
+            val foodViewModel: FoodViewModel = hiltViewModel()
 
             // Initializes search if term provided
             androidx.compose.runtime.LaunchedEffect(initialTerm) {
@@ -305,9 +254,7 @@ fun AppNavigation(
 
         composable(FOOD_DATABASE_ROUTE) {
             onFabChange(null)
-            val viewModel: FoodDatabaseViewModel = viewModel(
-                factory = FoodDatabaseViewModelFactory(foodDao, filterPreferences)
-            )
+            val viewModel: FoodDatabaseViewModel = hiltViewModel()
             FoodDatabaseScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },

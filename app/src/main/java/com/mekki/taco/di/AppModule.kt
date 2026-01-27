@@ -67,16 +67,4 @@ object AppModule {
     fun provideDailyWaterLogDao(database: AppDatabase): DailyWaterLogDao {
         return database.dailyWaterLogDao()
     }
-
-    @Provides
-    @Singleton
-    fun provideUserProfileRepository(@ApplicationContext context: Context): UserProfileRepository {
-        return UserProfileRepository(context)
-    }
-
-    @Provides
-    @Singleton
-    fun provideOnboardingRepository(@ApplicationContext context: Context): OnboardingRepository {
-        return OnboardingRepository(context)
-    }
 }

@@ -6,12 +6,15 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
 
 private val Context.onboardingDataStore: DataStore<Preferences> by preferencesDataStore(name = "onboarding_prefs")
 
-class OnboardingRepository(context: Context) {
+
+class OnboardingRepository @Inject constructor(@ApplicationContext context: Context) {
     private val dataStore = context.onboardingDataStore
 
     fun hasSeenTutorial(key: String): Flow<Boolean> {
