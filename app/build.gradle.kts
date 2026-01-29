@@ -53,13 +53,13 @@ android {
     productFlavors {
         create("standard") {
             dimension = "version"
-            versionNameSuffix = "-standard"
+            versionNameSuffix = ""
             isDefault = true
         }
 
         create("ai") {
             dimension = "version"
-            versionNameSuffix = "-ai"
+            versionNameSuffix = "-AIunsupportedBuild"
         }
     }
 
