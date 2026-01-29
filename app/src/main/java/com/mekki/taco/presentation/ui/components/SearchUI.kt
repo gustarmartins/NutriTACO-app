@@ -2,6 +2,7 @@ package com.mekki.taco.presentation.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -81,7 +82,7 @@ fun SearchItem(
     LaunchedEffect(isExpanded) {
         if (isExpanded) {
             coroutineScope.launch {
-                delay(100)
+                delay(50)
                 try {
                     bringIntoViewRequester.bringIntoView()
                 } catch (e: Exception) {
@@ -94,7 +95,7 @@ fun SearchItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .animateContentSize()
+            .animateContentSize(animationSpec = tween(150))
             .bringIntoViewRequester(bringIntoViewRequester),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),

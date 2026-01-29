@@ -15,6 +15,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -35,7 +37,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mekki.taco.presentation.navigation.AppNavigation
+import com.mekki.taco.presentation.navigation.BottomNavItem
 import com.mekki.taco.presentation.navigation.FOOD_DATABASE_ROUTE
+import com.mekki.taco.presentation.navigation.HOME_ROUTE
 import com.mekki.taco.presentation.navigation.SETTINGS_ROUTE
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
@@ -89,6 +93,10 @@ class MainActivity : ComponentActivity() {
                     else -> true
                 }
 
+                val shouldShowBottomBar = currentRoute in listOf(
+                    "home", "diet_list", "diary", FOOD_DATABASE_ROUTE
+                )
+
                 val canNavigateBack = navController.previousBackStackEntry != null
 
                 DisposableEffect(navBackStackEntry) {
@@ -114,7 +122,7 @@ class MainActivity : ComponentActivity() {
                                 colors = TopAppBarDefaults.topAppBarColors(
                                     containerColor = MaterialTheme.colorScheme.background,
                                     titleContentColor = MaterialTheme.colorScheme.onBackground,
-                                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
                                     actionIconContentColor = MaterialTheme.colorScheme.onBackground
                                 ),
                                 navigationIcon = {
@@ -141,6 +149,33 @@ class MainActivity : ComponentActivity() {
                     },
                     floatingActionButton = {
                         fab?.invoke()
+                    },
+                    bottomBar = {
+                        if (shouldShowBottomBar) {
+                            NavigationBar {
+                                BottomNavItem.items.forEach { item ->
+                                    NavigationBarItem(
+                                        selected = currentRoute == item.route,
+                                        onClick = {
+                                            if (currentRoute != item.route) {
+                                                navController.navigate(item.route) {
+                                                    popUpTo(HOME_ROUTE) { saveState = true }
+                                                    launchSingleTop = true
+                                                    restoreState = true
+                                                }
+                                            }
+                                        },
+                                        icon = {
+                                            Icon(
+                                                imageVector = item.icon,
+                                                contentDescription = item.label
+                                            )
+                                        },
+                                        label = { Text(item.label) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 ) { innerPadding ->
                     val contentPadding =

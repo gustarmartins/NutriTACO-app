@@ -1,18 +1,24 @@
 package com.mekki.taco.presentation.ui.home
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,13 +32,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,33 +49,25 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.NoteAdd
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.EditCalendar
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -76,7 +77,6 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -87,57 +87,54 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mekki.taco.data.db.entity.Food
-import com.mekki.taco.presentation.ui.components.ChartType
-import com.mekki.taco.presentation.ui.components.MacroBarChart
-import com.mekki.taco.presentation.ui.components.MacroPieChart
-import com.mekki.taco.presentation.ui.components.PieChartData
-import com.mekki.taco.presentation.ui.components.SearchItem
+import com.mekki.taco.data.model.DietItemWithFood
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val COLOR_CARBS = Color(0xFFDCC48E)
+// Custom Colors based on the image/requirements (approximations)
 private val COLOR_PROTEIN = Color(0xFF2E7A7A)
-private val COLOR_FAT = Color(0xFFC97C4A)
-
+private val COLOR_CARBS = Color(0xFF4F9FDF) // Slightly lighter blue/cyan
+private val COLOR_FAT = Color(0xFFECA345)   // Orange/Gold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     homeViewModel: HomeViewModel,
     profileViewModel: ProfileViewModel,
-    onNavigateToDietList: () -> Unit,
     onNavigateToCreateDiet: () -> Unit,
     onNavigateToDiary: () -> Unit,
-    onNavigateToDetail: (Int) -> Unit,
+    onNavigateToDetail: (foodId: Int, initialPortion: String?) -> Unit,
     onNavigateToEdit: (Int) -> Unit,
     onNavigateToDietDetail: (Int) -> Unit,
     onNavigateToSearch: (String) -> Unit,
-    onNavigateToDatabase: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
     val state by homeViewModel.state.collectAsState()
@@ -148,11 +145,52 @@ fun HomeScreen(
     var foodToAddToDiet by remember { mutableStateOf<Food?>(null) }
     var quantityToAddToDiet by remember { mutableStateOf("100") }
     val scrollState = rememberScrollState()
+    val searchResultsListState = rememberLazyListState()
 
-    var isFabExpanded by remember { mutableStateOf(false) }
-    var isSearchExpanded by remember { mutableStateOf(false) }
+    // auto-scroll implementation:
+    // When the user expands "Ver mais" results and had an item already expanded, we scroll to
+    // keep that item in view. This uses a flag-based approach because scrolling directly in the
+    // first LaunchedEffect was causing issues I was not able to handle across different devices.
+    var prevShowAllResults by remember { mutableStateOf(state.showAllResults) }
+    var shouldScrollToExpanded by remember { mutableStateOf(false) }
 
+    LaunchedEffect(state.showAllResults) {
+        val justExpanded = state.showAllResults && !prevShowAllResults
+        prevShowAllResults = state.showAllResults
+
+        if (justExpanded && state.expandedAlimentoId != null) {
+            val index = state.searchResults.indexOfFirst { it.id == state.expandedAlimentoId }
+            if (index > 2) {
+                shouldScrollToExpanded = true
+            }
+        }
+    }
+
+    LaunchedEffect(shouldScrollToExpanded, state.expandedAlimentoId) {
+        if (shouldScrollToExpanded && state.expandedAlimentoId != null) {
+            val index = state.searchResults.indexOfFirst { it.id == state.expandedAlimentoId }
+            if (index >= 0) {
+                searchResultsListState.animateScrollToItem(index)
+            }
+            shouldScrollToExpanded = false
+        }
+    }
+
+    var mealToLog by remember { mutableStateOf<DashboardMealGroup?>(null) }
+
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    BackHandler(enabled = state.isSearchExpanded) {
+        if (state.expandedAlimentoId != null) {
+            homeViewModel.onAlimentoToggled(state.expandedAlimentoId!!)
+        } else {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            homeViewModel.setSearchExpanded(false)
+        }
+    }
 
     LaunchedEffect(Unit) {
         homeViewModel.effects
@@ -182,119 +220,33 @@ fun HomeScreen(
         contentWindowInsets = WindowInsets(0.dp),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            HomeExpandableFab(
-                isExpanded = isFabExpanded,
-                onToggle = { isFabExpanded = !isFabExpanded },
-                onActionDiet = {
-                    isFabExpanded = false
-                    onNavigateToCreateDiet()
-                },
-                onActionDiary = {
-                    isFabExpanded = false
-                    onNavigateToDiary()
-                },
-                onActionFood = {
-                    isFabExpanded = false
-                    onNavigateToDetail(0)
-                }
-            )
-        }
-        // start of dashboard items
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            val showCollapseFab =
+                state.isSearchExpanded && state.showAllResults && state.searchResults.size > 3
+            val showScrollFab = scrollState.value > 600 && !state.isSearchExpanded
+
+            AnimatedVisibility(
+                visible = showCollapseFab,
+                enter = fadeIn(tween(200)) + scaleIn(tween(200)),
+                exit = fadeOut(tween(150)) + scaleOut(tween(150))
             ) {
-                HomeHeader(
-                    username = "Usuário", // UserProfile lacks name field for now
-                    onNavigateToDiary = onNavigateToDiary,
-                    onSettingsClick = onNavigateToSettings,
-                    onProfileClick = { showBottomSheet = true }
-                )
-                QuickSearchCard(
-                    state = state,
-                    viewModel = homeViewModel,
-                    onNavigateToDetail = onNavigateToDetail,
-                    onNavigateToEdit = onNavigateToEdit,
-                    isExpanded = isSearchExpanded,
-                    onExpandChange = { isSearchExpanded = it },
-                    onAddToDietRequest = { food ->
-                        foodToAddToDiet = food
-                        quantityToAddToDiet = state.quickAddAmount
-                    }
-                )
-
-                // Charts (Plano Atual)
-                val mainDiet = state.dietSummaries.find { it.diet.isMain }
-                    ?: state.dietSummaries.firstOrNull()
-
-                MainPlanSection(
-                    mainDiet = mainDiet,
-                    onNavigateToCreateDiet = onNavigateToCreateDiet,
-                    onNavigateToDietDetail = onNavigateToDietDetail,
-                    onUpdateChartPreference = { dietId, type ->
-                        homeViewModel.updateDietChartPreference(
-                            dietId,
-                            type
-                        )
-                    }
-                )
-
-                // Next Meal
-                state.nextMeal?.let { nextMealGroup ->
-                    Box(Modifier.padding(horizontal = 16.dp)) {
-                        NextMealHeroCard(
-                            meal = nextMealGroup,
-                            onLogMeal = { homeViewModel.addMealToLog(nextMealGroup) }
-                        )
-                    }
-                }
-
-                // Quick Access
-                Column {
-                    PaddingHeader(title = "Acesso Rápido", onClick = { })
-                    QuickAccessRow(
-                        onNavigateToDietList = onNavigateToDietList,
-                        onNavigateToDiary = onNavigateToDiary,
-                        onNavigateToDatabase = onNavigateToDatabase
+                SmallFloatingActionButton(
+                    onClick = {
+                        homeViewModel.setShowAllResults(false)
+                        scope.launch { scrollState.animateScrollTo(0) }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = CircleShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Mostrar menos"
                     )
                 }
-
-                // Timeline
-                if (state.dailyTimeline.isNotEmpty()) {
-                    DayTimelineSection(
-                        timeline = state.dailyTimeline,
-                        onMealClick = { }
-                    )
-                }
-
-                // Other Plans
-                val otherDiets = if (mainDiet != null) {
-                    state.dietSummaries.filter { it.diet.id != mainDiet.diet.id }
-                } else {
-                    emptyList()
-                }
-
-                if (otherDiets.isNotEmpty()) {
-                    OtherPlansSection(
-                        otherDiets = otherDiets,
-                        onNavigateToDietDetail = onNavigateToDietDetail,
-                        onSetDietAsDefault = { dietId -> homeViewModel.setMainDiet(dietId) }
-                    )
-                }
-
-                Spacer(Modifier.height(80.dp))
             }
 
             AnimatedVisibility(
-                visible = scrollState.value > 600,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 100.dp),
+                visible = showScrollFab && !showCollapseFab,
                 enter = fadeIn() + expandVertically(expandFrom = Alignment.CenterVertically),
                 exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.CenterVertically)
             ) {
@@ -310,21 +262,138 @@ fun HomeScreen(
                     )
                 }
             }
-
-            if (isFabExpanded) {
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+            ) {
+                // Combined Header Section (Green Background) + Hero Card
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                            indication = null
-                        ) { isFabExpanded = false }
+                    modifier = Modifier.animateContentSize(tween(300))
+                ) {
+                    // Green Background (Dynamically sized based on search state)
+                    val headerHeight by animateDpAsState(
+                        targetValue = if (state.isSearchExpanded) 400.dp else 280.dp,
+                        animationSpec = tween(300),
+                        label = "headerHeight"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(headerHeight)
+                            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+
+                    Column(
+                        modifier = Modifier.animateContentSize(tween(300))
+                    ) {
+                        HomeTopBarWithSearch(
+                            isSearchActive = state.isSearchExpanded,
+                            searchTerm = state.searchTerm,
+                            sortOption = state.sortOption,
+                            onSearchClick = { homeViewModel.setSearchExpanded(true) },
+                            onSearchClose = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                                homeViewModel.setSearchExpanded(false)
+                            },
+                            onSearchTermChange = homeViewModel::onSearchTermChange,
+                            onSortOptionChange = homeViewModel::onSortOptionSelected,
+                            onClearSearch = homeViewModel::cleanSearch,
+                            onProfileClick = { showBottomSheet = true },
+                            onSettingsClick = onNavigateToSettings
+                        )
+
+                        // Hero Card
+                        Box(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            DailyProgressHeroCard(
+                                progress = state.dailyProgress,
+                                onClick = {
+                                    val mainDiet = state.dietSummaries.find { it.diet.isMain }
+                                    mainDiet?.diet?.id?.let { onNavigateToDietDetail(it) }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Inline Search Results Card (appears when search is active and has results)
+                AnimatedVisibility(
+                    visible = state.isSearchExpanded && state.searchTerm.length >= 2,
+                    enter = slideInVertically(tween(200)) { -it / 2 } + fadeIn(tween(200)),
+                    exit = slideOutVertically(tween(150)) { -it / 2 } + fadeOut(tween(150))
+                ) {
+                    InlineSearchResultsCard(
+                        state = state,
+                        showAllResults = state.showAllResults,
+                        lazyListState = searchResultsListState,
+                        onToggleShowAll = { homeViewModel.setShowAllResults(!state.showAllResults) },
+                        onItemToggle = homeViewModel::onAlimentoToggled,
+                        onAmountChange = homeViewModel::onQuickAddAmountChange,
+                        onNavigateToDetail = { foodId ->
+                            onNavigateToDetail(
+                                foodId,
+                                state.quickAddAmount
+                            )
+                        },
+                        onCloneAndEdit = { food ->
+                            if (!food.isCustom) {
+                                homeViewModel.cloneAndEdit(food) { newId ->
+                                    onNavigateToEdit(newId)
+                                }
+                            } else {
+                                onNavigateToEdit(food.id)
+                            }
+                        },
+                        onLog = { food ->
+                            val qty = state.quickAddAmount.toDoubleOrNull() ?: 100.0
+                            homeViewModel.addFoodToLog(food, qty)
+                        },
+                        onAddToDiet = { food ->
+                            foodToAddToDiet = food
+                            quantityToAddToDiet = state.quickAddAmount
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Meals & Water
+                MealsAndWaterRow(
+                    nextMeal = state.nextMeal,
+                    waterIntake = state.waterIntake,
+                    onAddWater = { homeViewModel.addWater(250) },
+                    onLogNextMeal = { state.nextMeal?.let { homeViewModel.addMealToLog(it) } },
+                    onEditNextMeal = {
+                        state.nextMeal?.let { mealToLog = it }
+                    }
                 )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Timeline
+                TimelineSection(
+                    timeline = state.dailyTimeline,
+                    onNavigateToDiary = onNavigateToDiary
+                )
+
+                Spacer(modifier = Modifier.height(80.dp))
             }
         }
     }
 
+    // Dialogs
     if (foodToAddToDiet != null) {
         com.mekki.taco.presentation.ui.components.AddToDietDialog(
             food = foodToAddToDiet!!,
@@ -334,6 +403,23 @@ fun HomeScreen(
             onConfirm = { dietId, qty, meal, time ->
                 homeViewModel.addFoodToDiet(dietId, foodToAddToDiet!!.id, qty, meal, time)
                 foodToAddToDiet = null
+            }
+        )
+    }
+
+
+    // for now it only shows a confirmation dialog that lists items.
+    if (mealToLog != null) {
+        ConfirmLogDialog(
+            meal = mealToLog!!,
+            onDismiss = { mealToLog = null },
+            onConfirm = { selectedItems ->
+                if (selectedItems.isNotEmpty()) {
+                    // Create a copy of the meal with only the selected items
+                    val mealToLogWithItems = mealToLog!!.copy(items = selectedItems)
+                    homeViewModel.addMealToLog(mealToLogWithItems)
+                }
+                mealToLog = null
             }
         )
     }
@@ -359,532 +445,670 @@ fun HomeScreen(
 }
 
 @Composable
-fun HomeHeader(
-    username: String,
-    onNavigateToDiary: () -> Unit,
-    onSettingsClick: () -> Unit,
-    onProfileClick: () -> Unit
+fun HomeTopBarWithSearch(
+    isSearchActive: Boolean,
+    searchTerm: String,
+    sortOption: FoodSortOption,
+    onSearchClick: () -> Unit,
+    onSearchClose: () -> Unit,
+    onSearchTermChange: (String) -> Unit,
+    onSortOptionChange: (FoodSortOption) -> Unit,
+    onClearSearch: () -> Unit,
+    onProfileClick: () -> Unit,
+    onSettingsClick: () -> Unit
 ) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var wasSearchActive by remember { mutableStateOf(isSearchActive) }
+
     val dateStr = remember {
         val now = LocalDate.now()
-        val formatter = DateTimeFormatter.ofPattern("EEE, d MMM", Locale("pt", "BR"))
-        now.format(formatter).replaceFirstChar { it.uppercase() }
+        val locale = Locale("pt", "BR")
+        val formatter =
+            DateTimeFormatter.ofPattern("EEE, d 'de' MMM", locale)
+        "Hoje, " + now.format(formatter).replaceFirstChar { it.uppercase() }
     }
 
-    val greeting = remember {
-        val hour = LocalTime.now().hour
-        when (hour) {
-            in 5..11 -> "Bom dia"
-            in 12..18 -> "Boa tarde"
-            else -> "Boa noite"
+    LaunchedEffect(isSearchActive) {
+        if (isSearchActive && !wasSearchActive) {
+            focusRequester.requestFocus()
         }
+        wasSearchActive = isSearchActive
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .statusBarsPadding()
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .animateContentSize(tween(300))
     ) {
-        Column(
-            modifier = Modifier.clickable(onClick = onNavigateToDiary)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = dateStr,
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.Gray
-            )
-            Text(
-                text = "$greeting, $username",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
+            AnimatedContent(
+                targetState = isSearchActive,
+                transitionSpec = {
+                    fadeIn(tween(200)) togetherWith fadeOut(tween(150))
+                },
+                label = "topBarContent"
+            ) { searchActive ->
+                if (searchActive) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = searchTerm,
+                            onValueChange = onSearchTermChange,
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(focusRequester),
+                            placeholder = {
+                                Text(
+                                    "Buscar alimento...",
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            },
+                            trailingIcon = if (searchTerm.isNotEmpty()) {
+                                {
+                                    IconButton(onClick = onClearSearch) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            "Limpar",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                }
+                            } else null,
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onPrimary.copy(
+                                    alpha = 0.3f
+                                ),
+                                cursorColor = MaterialTheme.colorScheme.onPrimary,
+                                focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                focusedContainerColor = MaterialTheme.colorScheme.onPrimary.copy(
+                                    alpha = 0.1f
+                                ),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.onPrimary.copy(
+                                    alpha = 0.05f
+                                )
+                            ),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(
+                                onSearch = { keyboardController?.hide() }
+                            )
+                        )
+                        IconButton(
+                            onClick = onSearchClose
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Fechar busca",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = dateStr,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Busca",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = onSearchClick
+                                    )
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Configurações",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = onSettingsClick
+                                    )
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Perfil",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = onProfileClick
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
         }
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        AnimatedVisibility(
+            visible = isSearchActive,
+            enter = expandVertically(tween(200)) + fadeIn(tween(200)),
+            exit = shrinkVertically(tween(150)) + fadeOut(tween(150))
         ) {
-            IconButton(onClick = onSettingsClick) {
-                Icon(Icons.Default.Settings, contentDescription = "Configurações")
-            }
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable(onClick = onProfileClick),
-                contentAlignment = Alignment.Center
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = "Perfil",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(20.dp)
+                items(FoodSortOption.entries.toTypedArray()) { option ->
+                    FilterChip(
+                        selected = sortOption == option,
+                        onClick = { onSortOptionChange(option) },
+                        label = {
+                            Text(
+                                option.label,
+                                color = if (sortOption == option)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                            )
+                        },
+                        leadingIcon = if (sortOption == option) {
+                            {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        } else null,
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
+                            selectedContainerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.95f)
+                        ),
+                        border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = sortOption == option,
+                            borderColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f),
+                            selectedBorderColor = Color.Transparent
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DailyProgressHeroCard(
+    progress: DailyProgress,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Progresso Do Dia",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Box(contentAlignment = Alignment.Center) {
+                val consumedRatio =
+                    (progress.consumedKcal / progress.targetKcal).coerceIn(0.0, 1.0).toFloat()
+                val primaryColor = MaterialTheme.colorScheme.primary
+                val trackColor = MaterialTheme.colorScheme.outlineVariant
+
+                Canvas(modifier = Modifier.size(200.dp, 100.dp)) {
+                    // Background Arc
+                    drawArc(
+                        color = trackColor.copy(alpha = 0.3f),
+                        startAngle = 180f,
+                        sweepAngle = 180f,
+                        useCenter = false,
+                        style = Stroke(width = 40f, cap = StrokeCap.Round),
+                        size = Size(size.width, size.height * 2)
+                    )
+                    // Progress Arc
+                    drawArc(
+                        color = primaryColor, // Green
+                        startAngle = 180f,
+                        sweepAngle = 180f * consumedRatio,
+                        useCenter = false,
+                        style = Stroke(width = 40f, cap = StrokeCap.Round),
+                        size = Size(size.width, size.height * 2)
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.offset(y = 20.dp)
+                ) {
+                    val remaining = (progress.targetKcal - progress.consumedKcal).coerceAtLeast(0.0)
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = progress.consumedKcal.toInt().toString(),
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = " / ${progress.targetKcal.toInt()} kcal",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
+                    Text(
+                        text = "Consumido • Restam ${remaining.toInt()} kcal",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Macros
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                MacroProgressItem(
+                    label = "Proteínas",
+                    value = progress.consumedProtein,
+                    target = progress.targetProtein,
+                    color = COLOR_PROTEIN,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                MacroProgressItem(
+                    label = "Carboidratos",
+                    value = progress.consumedCarbs,
+                    target = progress.targetCarbs,
+                    color = COLOR_CARBS,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                MacroProgressItem(
+                    label = "Gorduras",
+                    value = progress.consumedFat,
+                    target = progress.targetFat,
+                    color = COLOR_FAT,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
     }
 }
 
+@Composable
+fun MacroProgressItem(
+    label: String,
+    value: Double,
+    target: Double,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Text(
+            text = "${value.toInt()}g / ${target.toInt()}g",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.Gray,
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Visible
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+        LinearProgressIndicator(
+            progress = { (value / target).coerceIn(0.0, 1.0).toFloat() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = color,
+            trackColor = color.copy(alpha = 0.2f),
+        )
+    }
+}
 
 @Composable
-fun QuickSearchCard(
-    state: HomeState,
-    viewModel: HomeViewModel,
-    onNavigateToDetail: (Int) -> Unit,
-    onNavigateToEdit: (Int) -> Unit,
-    isExpanded: Boolean,
-    onExpandChange: (Boolean) -> Unit,
-    onAddToDietRequest: (Food) -> Unit
+fun MealsAndWaterRow(
+    nextMeal: DashboardMealGroup?,
+    waterIntake: WaterIntake,
+    onAddWater: () -> Unit,
+    onLogNextMeal: () -> Unit,
+    onEditNextMeal: () -> Unit
 ) {
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        Text(
+            text = "Refeições e Água",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
 
-    // We want to make sure expansion is reset in case it does not apply for new search
-    LaunchedEffect(state.searchTerm) {
-        if (state.searchTerm.isEmpty()) {
-            onExpandChange(false)
-        }
-    }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Next Meal Card
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    if (nextMeal != null) {
+                        Column {
+                            Text(
+                                text = "Próxima: ${nextMeal.mealType}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = nextMeal.items.joinToString(", ") { it.food.name },
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${nextMeal.time} • ${nextMeal.items.sumOf { it.food.energiaKcal?.toInt() ?: 0 }} kcal",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
 
-    Card(
-        elevation = CardDefaults.cardElevation(0.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize()
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            OutlinedTextField(
-                value = state.searchTerm,
-                onValueChange = viewModel::onSearchTermChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Buscar um alimento") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Pesquisar") },
-                singleLine = true,
-                trailingIcon = {
-                    if (state.searchTerm.isNotEmpty()) {
-                        IconButton(onClick = {
-                            viewModel.cleanSearch()
-                            focusManager.clearFocus()
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Limpar Busca")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Editar",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clickable(onClick = onEditNextMeal)
+                            )
+
+                            Button(
+                                onClick = onLogNextMeal,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .height(32.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    "Registrar",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "Nada restante por hoje",
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                     }
-                },
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = {
-                    keyboardController?.hide()
-                    focusManager.clearFocus()
-                }),
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                )
-            )
+                }
+            }
 
-            if (state.searchTerm.length >= 2) {
-                Row(
+            // Water Card
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            ) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 8.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    FoodSortOption.values().forEach { option ->
-                        FilterChip(
-                            selected = state.sortOption == option,
-                            onClick = { viewModel.onSortOptionSelected(option) },
-                            label = { Text(option.label) },
-                            leadingIcon = if (state.sortOption == option) {
-                                {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else null
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(
+                            imageVector = Icons.Default.LocalDrink,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "Consumo de Água",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val ptBr = Locale("pt", "BR")
+                            val litters =
+                                String.format(ptBr, "%.1fL", waterIntake.currentMl / 1000f)
+                            val targetL =
+                                String.format(ptBr, "%.0fL", waterIntake.targetMl / 1000f)
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                                        append(
+                                            litters
+                                        )
+                                    }
+                                    append(" / $targetL")
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = onAddWater,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.secondary
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(36.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        //TODO: should be customizable a glass a bottle etc.
+                        Text(
+                            "Registrar Copo (300ml)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
+        }
+    }
+}
 
-            AnimatedVisibility(visible = state.searchTerm.isNotEmpty()) {
-                Column(modifier = Modifier.padding(top = 4.dp)) {
-                    when {
-                        state.searchIsLoading -> {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                            }
-                        }
+@Composable
+fun TimelineSection(
+    timeline: List<DashboardMealGroup>,
+    onNavigateToDiary: () -> Unit
+) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        Text(
+            text = "Cronograma do Dia",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
 
-                        state.searchResults.isEmpty() && state.searchTerm.length >= 2 -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Info,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.outline
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "Nenhum resultado encontrado.",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-
-                        else -> {
-                            val results = state.searchResults
-                            val PREVIEW_COUNT = 5
-                            val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-                            val configuration = LocalConfiguration.current
-                            val screenHeight = configuration.screenHeightDp.dp
-
-                            LaunchedEffect(isExpanded) {
-                                if (isExpanded) {
-                                    val expandedId = state.expandedAlimentoId
-                                    val selectedIndex = if (expandedId != null) {
-                                        results.indexOfFirst { it.id == expandedId }
-                                    } else -1
-
-                                    val scrollTarget =
-                                        if (selectedIndex >= 0) selectedIndex else PREVIEW_COUNT
-                                    try {
-                                        listState.animateScrollToItem(scrollTarget)
-                                    } catch (e: Exception) {
-                                    }
-                                }
-                            }
-
-                            if (!isExpanded && results.size > PREVIEW_COUNT) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    results.take(PREVIEW_COUNT).forEach { alimento ->
-                                        SearchItem(
-                                            food = alimento,
-                                            isExpanded = state.expandedAlimentoId == alimento.id,
-                                            onToggle = {
-                                                viewModel.onAlimentoToggled(alimento.id)
-                                                keyboardController?.hide()
-                                            },
-                                            onNavigateToDetail = {
-                                                onNavigateToDetail(alimento.id)
-                                            },
-                                            onFastEdit = {
-                                                // upon editing a food, we must check if it belongs to TACO preload so it can get cloned first
-                                                // original taco db should never be editable
-                                                if (!alimento.isCustom) {
-                                                    viewModel.cloneAndEdit(alimento) { newId ->
-                                                        onNavigateToEdit(newId)
-                                                    }
-                                                } else {
-                                                    onNavigateToEdit(alimento.id)
-                                                }
-                                            },
-                                            currentAmount = state.quickAddAmount,
-                                            onAmountChange = viewModel::onQuickAddAmountChange,
-                                            onLog = {
-                                                val qty =
-                                                    state.quickAddAmount.toDoubleOrNull() ?: 100.0
-                                                viewModel.addFoodToLog(alimento, qty)
-                                            },
-                                            onAddToDiet = { onAddToDietRequest(alimento) },
-                                            showLogTutorial = state.showRegistrarTutorial,
-                                            onDismissLogTutorial = viewModel::dismissRegistrarTutorial
-                                        )
-                                    }
-
-                                    HorizontalDivider(
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(
-                                            alpha = 0.5f
-                                        )
-                                    )
-
-                                    TextButton(
-                                        onClick = { onExpandChange(true) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text("Ver mais ${results.size - PREVIEW_COUNT} resultados")
-                                        Spacer(Modifier.width(4.dp))
-                                        Icon(Icons.Default.KeyboardArrowDown, null)
-                                    }
-                                }
-                            } else {
-                                Column {
-                                    LazyColumn(
-                                        state = listState,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(max = screenHeight),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        items(results.size) { index ->
-                                            val alimento = results[index]
-                                            SearchItem(
-                                                food = alimento,
-                                                isExpanded = state.expandedAlimentoId == alimento.id,
-                                                onToggle = {
-                                                    viewModel.onAlimentoToggled(alimento.id)
-                                                    keyboardController?.hide()
-                                                },
-                                                onNavigateToDetail = {
-                                                    onNavigateToDetail(alimento.id)
-                                                },
-                                                onFastEdit = {
-                                                    if (!alimento.isCustom) {
-                                                        viewModel.cloneAndEdit(alimento) { newId ->
-                                                            onNavigateToEdit(newId)
-                                                        }
-                                                    } else {
-                                                        onNavigateToEdit(alimento.id)
-                                                    }
-                                                },
-                                                currentAmount = state.quickAddAmount,
-                                                onAmountChange = viewModel::onQuickAddAmountChange,
-                                                onLog = {
-                                                    val qty = state.quickAddAmount.toDoubleOrNull()
-                                                        ?: 100.0
-                                                    viewModel.addFoodToLog(alimento, qty)
-                                                },
-                                                onAddToDiet = { onAddToDietRequest(alimento) },
-                                                showLogTutorial = state.showRegistrarTutorial,
-                                                onDismissLogTutorial = viewModel::dismissRegistrarTutorial
-                                            )
-                                        }
-                                    }
-
-                                    if (results.size > PREVIEW_COUNT) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { onExpandChange(false) }
-                                                .padding(vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.KeyboardArrowUp,
-                                                contentDescription = "Ver menos",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                if (timeline.isEmpty()) {
+                    Text(
+                        text = "Nenhuma refeição agendada para hoje.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    timeline.forEachIndexed { index, meal ->
+                        TimelineRow(
+                            meal = meal,
+                            isLast = index == timeline.lastIndex
+                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
 }
 
 @Composable
-fun QuickAccessRow(
-    onNavigateToDietList: () -> Unit,
-    onNavigateToDiary: () -> Unit,
-    onNavigateToDatabase: () -> Unit
-) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item { QuickAccessCard("Gerenciar\nDietas", Icons.Default.Book, onNavigateToDietList) }
-        item { QuickAccessCard("Diário", Icons.Default.EditCalendar, onNavigateToDiary) }
-        item { QuickAccessCard("Banco de\nAlimentos", Icons.Default.Search, onNavigateToDatabase) }
-    }
-}
-
-@Composable
-fun QuickAccessCard(title: String, icon: ImageVector, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = Modifier.size(110.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-fun NextMealHeroCard(
+fun TimelineRow(
     meal: DashboardMealGroup,
-    onLogMeal: () -> Unit
+    isLast: Boolean
 ) {
-    val summary = remember(meal.items) {
-        meal.items.joinToString(", ") { it.food.name }
-    }
-
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    Icons.Default.Alarm,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = meal.time,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = meal.mealType,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.weight(1f))
-                Icon(
-                    Icons.Outlined.Edit,
-                    contentDescription = "Editar",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Button(
-                onClick = onLogMeal,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp),
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                Text("Registrar Refeição")
-            }
-        }
-    }
-}
-
-@Composable
-fun DayTimelineSection(
-    timeline: List<DashboardMealGroup>,
-    onMealClick: (DashboardMealGroup) -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(0.dp)
-    ) {
-        PaddingHeader(title = "Cronograma de Hoje", onClick = { })
-
-        Column(Modifier.padding(horizontal = 24.dp)) {
-            timeline.forEachIndexed { index, meal ->
-                TimelineItem(
-                    meal = meal,
-                    isLast = index == timeline.lastIndex,
-                    onClick = { onMealClick(meal) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun TimelineItem(
-    meal: DashboardMealGroup,
-    isLast: Boolean,
-    onClick: () -> Unit
-) {
-    val alpha = if (meal.isPassed) 0.5f else 1f
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(alpha)
-            .clickable(onClick = onClick)
             .height(IntrinsicSize.Min)
     ) {
-        Text(
-            text = meal.time,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .width(50.dp)
-                .padding(top = 4.dp)
-        )
-
+        // Time & Line
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(20.dp)
+            modifier = Modifier.width(40.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(12.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
-                    .background(if (meal.isPassed) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary)
-                    .padding(top = 4.dp)
-            )
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                val color = when (meal.mealType.lowercase()) {
+                    "café da manhã" -> Color(0xFFFFCC80)
+                    "almoço" -> Color(0xFFA5D6A7)
+                    "jantar" -> Color(0xFF90CAF9)
+                    else -> Color(0xFFCE93D8)
+                }
+                Box(
+                    Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                )
+            }
+
             if (!isLast) {
                 Box(
                     modifier = Modifier
                         .width(2.dp)
                         .fillMaxHeight()
                         .background(MaterialTheme.colorScheme.outlineVariant)
+                        .padding(vertical = 4.dp)
                 )
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
-        Column(modifier = Modifier.padding(bottom = 24.dp, top = 0.dp)) {
+        // Content
+        Column(
+            modifier = Modifier.padding(bottom = 24.dp, top = 4.dp)
+        ) {
+            val summary = meal.items.joinToString(", ") { it.food.name }
+            val calories = meal.items.sumOf { it.food.energiaKcal?.toInt() ?: 0 }
+
             Text(
-                text = meal.mealType,
-                style = MaterialTheme.typography.titleMedium,
+                text = "${meal.mealType}: $summary - $calories kcal",
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "${meal.items.size} itens • ${meal.items.sumOf { it.food.energiaKcal?.toInt() ?: 0 }} kcal",
+                text = meal.time, // e.g. "12:30"
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -893,379 +1117,220 @@ fun TimelineItem(
 }
 
 @Composable
-fun MainPlanSection(
-    mainDiet: DietSummary?,
-    onNavigateToCreateDiet: () -> Unit,
-    onNavigateToDietDetail: (Int) -> Unit,
-    onUpdateChartPreference: (Int, ChartType) -> Unit
+fun InlineSearchResultsCard(
+    state: HomeState,
+    showAllResults: Boolean,
+    lazyListState: LazyListState,
+    onToggleShowAll: () -> Unit,
+    onItemToggle: (Int) -> Unit,
+    onAmountChange: (String) -> Unit,
+    onNavigateToDetail: (Int) -> Unit,
+    onCloneAndEdit: (Food) -> Unit,
+    onLog: (Food) -> Unit,
+    onAddToDiet: (Food) -> Unit
 ) {
-    Column {
-        PaddingHeader(title = "Plano Atual", onClick = { })
-
-        if (mainDiet == null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
-                        alpha = 0.5f
-                    )
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "Você ainda não criou nenhuma dieta.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = onNavigateToCreateDiet) {
-                        Icon(Icons.Default.Add, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Criar Dieta")
-                    }
-                }
-            }
-        } else {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            ) {
-                DietGraphicCard(
-                    title = mainDiet.diet.name,
-                    food = mainDiet.totalNutrition,
-                    chartType = mainDiet.chartType,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { mainDiet.diet.id?.let { onNavigateToDietDetail(it) } },
-                    onToggleChartType = {
-                        val newType =
-                            if (mainDiet.chartType == ChartType.PIE) ChartType.BAR else ChartType.PIE
-                        mainDiet.diet.id?.let { id -> onUpdateChartPreference(id, newType) }
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun OtherPlansSection(
-    otherDiets: List<DietSummary>,
-    onNavigateToDietDetail: (Int) -> Unit,
-    onSetDietAsDefault: (Int) -> Unit
-) {
-    Column {
-        PaddingHeader(title = "Outros Planos", onClick = { })
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(otherDiets) { summary ->
-                CompactDietCard(
-                    summary = summary,
-                    onClick = { summary.diet.id?.let { onNavigateToDietDetail(it) } },
-                    onSetDefault = { summary.diet.id?.let { onSetDietAsDefault(it) } }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun CompactDietCard(
-    summary: DietSummary,
-    onClick: () -> Unit,
-    onSetDefault: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = Modifier.width(180.dp)
-    ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = summary.diet.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${summary.totalNutrition.energiaKcal?.toInt() ?: 0} kcal",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                IconButton(
-                    onClick = onSetDefault,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.StarOutline,
-                        contentDescription = "Definir como padrão",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            val total = summary.totalNutrition.energiaKcal ?: 1.0
-            val p = (summary.totalNutrition.proteina ?: 0.0) * 4
-            val c = (summary.totalNutrition.carboidratos ?: 0.0) * 4
-            val f = (summary.totalNutrition.lipidios?.total ?: 0.0) * 9
-
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                if (total > 0) {
-                    Box(
-                        Modifier
-                            .weight((p / total).toFloat())
-                            .fillMaxSize()
-                            .background(COLOR_PROTEIN)
-                    )
-                    Box(
-                        Modifier
-                            .weight((c / total).toFloat())
-                            .fillMaxSize()
-                            .background(COLOR_CARBS)
-                    )
-                    Box(
-                        Modifier
-                            .weight((f / total).toFloat())
-                            .fillMaxSize()
-                            .background(COLOR_FAT)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-fun DietGraphicCard(
-    title: String,
-    food: Food,
-    chartType: ChartType,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    onToggleChartType: () -> Unit
-) {
-    var showTip by rememberSaveable { mutableStateOf(true) }
-
-    val pieData = listOf(
-        PieChartData(food.carboidratos?.toFloat() ?: 0f, COLOR_CARBS, "Carboidratos"),
-        PieChartData(food.proteina?.toFloat() ?: 0f, COLOR_PROTEIN, "Proteínas"),
-        PieChartData(food.lipidios?.total?.toFloat() ?: 0f, COLOR_FAT, "Gorduras")
-    )
-    val totalKcal = food.energiaKcal ?: 0.0
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val previewCount = 3
 
     Card(
-        modifier = modifier
-            .animateContentSize()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = {
-                    onToggleChartType()
-                    showTip = false
-                }
-            ),
-        elevation = CardDefaults.cardElevation(2.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (showTip) {
-                            Text(
-                                text = "Segure para alterar visualização",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Crossfade(targetState = chartType, label = "ChartSwitcher") { type ->
-                    when (type) {
-                        ChartType.PIE -> {
-                            MacroPieChart(
-                                data = pieData,
-                                totalValue = totalKcal,
-                                totalUnit = "kcal",
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        ChartType.BAR -> {
-                            MacroBarChart(
-                                data = pieData,
-                                totalValue = totalKcal,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun HomeExpandableFab(
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
-    onActionDiet: () -> Unit,
-    onActionDiary: () -> Unit,
-    onActionFood: () -> Unit
-) {
-    val rotation by animateFloatAsState(
-        targetValue = if (isExpanded) 45f else 0f,
-        label = "fab_rotation"
-    )
-
-    Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
-            exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
-        ) {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                FabActionRow(
-                    text = "Novo Alimento",
-                    icon = Icons.Default.RestaurantMenu,
-                    onClick = onActionFood,
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-                FabActionRow(
-                    text = "Registrar no Diário",
-                    icon = Icons.Default.EditCalendar,
-                    onClick = onActionDiary,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                FabActionRow(
-                    text = "Criar Nova Dieta",
-                    icon = Icons.AutoMirrored.Filled.NoteAdd,
-                    onClick = onActionDiet,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-
-        FloatingActionButton(
-            onClick = onToggle,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Menu de Ações",
-                modifier = Modifier.rotate(rotation)
-            )
-        }
-    }
-}
-
-@Composable
-fun FabActionRow(
-    text: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    containerColor: Color,
-    contentColor: Color
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(end = 4.dp)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 2.dp,
-            modifier = Modifier.padding(end = 12.dp)
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-
-        SmallFloatingActionButton(
-            onClick = onClick,
-            containerColor = containerColor,
-            contentColor = contentColor
-        ) {
-            Icon(icon, contentDescription = null)
-        }
-    }
-}
-
-@Composable
-fun PaddingHeader(title: String, onClick: () -> Unit) {
-    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .animateContentSize(tween(250)),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        IconButton(onClick = onClick) {
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Ver todos",
-                tint = MaterialTheme.colorScheme.primary
-            )
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp)
+        ) {
+            when {
+                state.searchIsLoading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                state.searchResults.isEmpty() -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp),
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            "Nenhum alimento encontrado",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                else -> {
+                    val itemsToShow = if (showAllResults) state.searchResults
+                    else state.searchResults.take(previewCount)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${state.searchResults.size} resultados",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+
+                    LazyColumn(
+                        state = lazyListState,
+                        modifier = Modifier
+                            .heightIn(max = 400.dp)
+                            .padding(horizontal = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(itemsToShow, key = { it.id }) { food ->
+                            val isExpanded = state.expandedAlimentoId == food.id
+                            com.mekki.taco.presentation.ui.components.SearchItem(
+                                food = food,
+                                isExpanded = isExpanded,
+                                onToggle = {
+                                    onItemToggle(food.id)
+                                    keyboardController?.hide()
+                                },
+                                onNavigateToDetail = { onNavigateToDetail(it.id) },
+                                currentAmount = state.quickAddAmount,
+                                onAmountChange = onAmountChange,
+                                onLog = { onLog(food) },
+                                onAddToDiet = { onAddToDiet(food) },
+                                onFastEdit = { onCloneAndEdit(it) },
+                                showLogTutorial = state.showRegistrarTutorial
+                            )
+                        }
+                    }
+
+                    if (state.searchResults.size > previewCount) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        TextButton(
+                            onClick = onToggleShowAll,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp)
+                        ) {
+                            Text(
+                                text = if (showAllResults)
+                                    "Mostrar menos"
+                                else
+                                    "Ver mais resultados (${state.searchResults.size - previewCount})",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+fun ConfirmLogDialog(
+    meal: DashboardMealGroup,
+    onDismiss: () -> Unit,
+    onConfirm: (List<DietItemWithFood>) -> Unit
+) {
+    val itemsToLog = remember(meal) { meal.items.toMutableStateList() }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Registrar ${meal.mealType}?") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Isso adicionará os seguintes itens ao seu diário de hoje:")
+                Spacer(Modifier.height(16.dp))
+
+                if (itemsToLog.isEmpty()) {
+                    Text(
+                        text = "Nenhum item selecionado para registro.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    itemsToLog.forEach { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.food.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${item.dietItem.quantityGrams.toInt()}g • ${item.food.energiaKcal?.toInt() ?: 0} kcal",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(
+                                onClick = { itemsToLog.remove(item) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remover item",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(itemsToLog.toList()) },
+                enabled = itemsToLog.isNotEmpty()
+            ) {
+                Text("Confirmar")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }

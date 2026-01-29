@@ -46,11 +46,12 @@ class FoodDetailViewModel @Inject constructor(
 
     private val alimentoId: Int = savedStateHandle.get<Int>("foodId") ?: 0
     private val initialEditMode: Boolean = savedStateHandle.get<Boolean>("edit") ?: false
+    private val initialPortion: String = savedStateHandle.get<String>("initialPortion") ?: "100"
 
     val availableDiets = dietDao.getAllDiets()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val portion = savedStateHandle.getStateFlow(KEY_PORTION, "100")
+    private val portion = savedStateHandle.getStateFlow(KEY_PORTION, initialPortion)
     private val _baseFood = MutableStateFlow<Food?>(null)
 
     // Edit mode flow

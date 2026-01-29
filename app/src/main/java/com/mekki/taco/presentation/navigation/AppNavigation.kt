@@ -2,6 +2,7 @@ package com.mekki.taco.presentation.navigation
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -59,18 +60,28 @@ fun AppNavigation(
         navController = navController,
         startDestination = HOME_ROUTE
     ) {
-        composable(HOME_ROUTE) {
+        composable(HOME_ROUTE) { backStackEntry ->
             onFabChange(null)
             onActionsChange(null)
             onTitleChange("NutriTACO")
+
+            val returnedPortion = backStackEntry.savedStateHandle.get<String>("returned_portion")
+            LaunchedEffect(returnedPortion) {
+                returnedPortion?.let { portion ->
+                    homeViewModel.onQuickAddAmountChange(portion)
+                    backStackEntry.savedStateHandle.remove<String>("returned_portion")
+                }
+            }
+
             HomeScreen(
                 homeViewModel = homeViewModel,
                 profileViewModel = profileViewModel,
-                onNavigateToDietList = { navController.navigate(DIET_LIST_ROUTE) },
                 onNavigateToCreateDiet = { navController.navigate("$DIET_DETAIL_ROUTE/-1") },
                 onNavigateToDiary = { navController.navigate(DIARY_ROUTE) },
-                onNavigateToDetail = { foodId ->
-                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
+                onNavigateToDetail = { foodId, initialPortion ->
+                    val portionArg =
+                        if (initialPortion != null) "?initialPortion=$initialPortion" else ""
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId$portionArg")
                 },
                 onNavigateToEdit = { foodId ->
                     navController.navigate("$FOOD_DETAIL_ROUTE/$foodId?edit=true")
@@ -81,7 +92,6 @@ fun AppNavigation(
                 onNavigateToSearch = { searchTerm ->
                     navController.navigate("$FOOD_SEARCH_ROUTE?term=$searchTerm")
                 },
-                onNavigateToDatabase = { navController.navigate(FOOD_DATABASE_ROUTE) },
                 onNavigateToSettings = { navController.navigate(SETTINGS_ROUTE) }
             )
         }
@@ -102,12 +112,12 @@ fun AppNavigation(
         composable(DIET_LIST_ROUTE) {
             DietListScreen(
                 viewModel = dietListViewModel,
-                onNavigateToCreateDiet = { navController.navigate("$DIET_DETAIL_ROUTE/-1") },
+                onNavigateToCreateDiet = { navController.navigate("$DIET_DETAIL_ROUTE/-1?edit=true") },
                 onNavigateToDietDetail = { dietId ->
                     navController.navigate("$DIET_DETAIL_ROUTE/$dietId")
                 },
                 onEditDiet = { dietId ->
-                    navController.navigate("$DIET_DETAIL_ROUTE/$dietId")
+                    navController.navigate("$DIET_DETAIL_ROUTE/$dietId?edit=true")
                 },
                 onFabChange = onFabChange,
                 onActionsChange = onActionsChange
@@ -115,11 +125,20 @@ fun AppNavigation(
         }
 
         composable(
-            route = "$DIET_DETAIL_ROUTE/{dietId}",
-            arguments = listOf(navArgument("dietId") { type = NavType.IntType })
+            route = "$DIET_DETAIL_ROUTE/{dietId}?edit={edit}",
+            arguments = listOf(
+                navArgument("dietId") { type = NavType.IntType },
+                navArgument("edit") { type = NavType.BoolType; defaultValue = false }
+            )
         ) { backStackEntry ->
-            // Hilt ViewModel - dietId is automatically injected via SavedStateHandle
             val dietDetailViewModel: DietDetailViewModel = hiltViewModel()
+            val isEdit = backStackEntry.arguments?.getBoolean("edit") ?: false
+
+            androidx.compose.runtime.LaunchedEffect(isEdit) {
+                if (isEdit) {
+                    dietDetailViewModel.setEditMode(true)
+                }
+            }
 
             // Observe updates from FoodDetailScreen
             val savedStateHandle = backStackEntry.savedStateHandle
@@ -151,12 +170,15 @@ fun AppNavigation(
         }
 
         composable(
-            route = "$FOOD_DETAIL_ROUTE/{foodId}?edit={edit}&addToDietContext={addToDietContext}&dietName={dietName}",
+            route = "$FOOD_DETAIL_ROUTE/{foodId}?edit={edit}&addToDietContext={addToDietContext}&dietName={dietName}&initialPortion={initialPortion}",
             arguments = listOf(
                 navArgument("foodId") { type = NavType.IntType },
                 navArgument("edit") { type = NavType.BoolType; defaultValue = false },
                 navArgument("addToDietContext") { type = NavType.BoolType; defaultValue = false },
                 navArgument("dietName") {
+                    type = NavType.StringType; nullable = true; defaultValue = null
+                },
+                navArgument("initialPortion") {
                     type = NavType.StringType; nullable = true; defaultValue = null
                 }
             )
@@ -178,7 +200,13 @@ fun AppNavigation(
                 uiState = uiState,
                 availableDiets = availableDiets,
                 onPortionChange = foodDetailViewModel::updatePortion,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    navController.previousBackStackEntry?.savedStateHandle?.set(
+                        "returned_portion",
+                        uiState.portion
+                    )
+                    navController.popBackStack()
+                },
                 onTitleChange = onTitleChange,
                 onEditToggle = foodDetailViewModel::onEditToggle,
                 onSave = {
