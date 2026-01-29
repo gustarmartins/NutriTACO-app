@@ -92,4 +92,8 @@ class DiaryRepository @Inject constructor(
     suspend fun deleteLog(log: DailyLog) {
         dailyLogDao.deleteLog(log)
     }
+
+    fun getLogsForDateRange(startDate: String, endDate: String): Flow<List<DailyLogWithFood>> {
+        return dailyLogDao.getLogsForDateRange(startDate, endDate)
+    }
 }

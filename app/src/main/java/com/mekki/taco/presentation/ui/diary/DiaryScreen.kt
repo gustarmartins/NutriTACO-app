@@ -1,10 +1,10 @@
 package com.mekki.taco.presentation.ui.diary
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Today
@@ -51,6 +52,8 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
@@ -64,6 +67,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -88,6 +94,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -113,9 +120,18 @@ fun DiaryScreen(
     onActionsChange: ((@Composable () -> Unit)?) -> Unit
 ) {
     val currentDate by viewModel.currentDate.collectAsState()
-    val dailyLogs by viewModel.dailyLogs.collectAsState()
+    val mealSections by viewModel.mealSections.collectAsState()
     val totals by viewModel.dailyTotals.collectAsState()
     val availableDiets by viewModel.availableDiets.collectAsState()
+
+    val selectedLogIds by viewModel.selectedLogIds.collectAsState()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+
+    val viewMode by viewModel.viewMode.collectAsState()
+    val weeklySummary by viewModel.weeklySummary.collectAsState()
+    val monthlySummary by viewModel.monthlySummary.collectAsState()
+    val weekStart by viewModel.weekStart.collectAsState()
+    val monthStart by viewModel.monthStart.collectAsState()
 
     var showImportDialog by remember { mutableStateOf(false) }
     var showSearchSheet by remember { mutableStateOf(false) }
@@ -123,151 +139,270 @@ fun DiaryScreen(
     var logToEditTime by remember { mutableStateOf<com.mekki.taco.data.db.entity.DailyLog?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    val showImportInList = dailyLogs.isEmpty()
+    val showImportInList = mealSections.isEmpty()
 
-    // Ensure we don't have duplicate actions from the global top bar
-    LaunchedEffect(Unit) {
-        onActionsChange(null)
+    // Top Bar Actions
+    LaunchedEffect(isSelectionMode, selectedLogIds.size) {
+        if (isSelectionMode) {
+            onActionsChange {
+                Row {
+                    IconButton(onClick = { viewModel.markSelectedAsConsumed(true) }) {
+                        Icon(Icons.Default.Check, contentDescription = "Marcar como consumido")
+                    }
+                    IconButton(onClick = { viewModel.deleteSelectedLogs() }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Excluir selecionados")
+                    }
+                }
+            }
+        } else {
+            onActionsChange {
+                if (!showImportInList) {
+                    TextButton(
+                        onClick = { showImportDialog = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Importar", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     }
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    DateSelectorTitle(
-                        date = currentDate,
-                        onPrev = { viewModel.changeDate(-1) },
-                        onNext = { viewModel.changeDate(1) },
-                        onClick = { showDatePicker = true }
+            if (isSelectionMode) {
+                CenterAlignedTopAppBar(
+                    title = { Text("${selectedLogIds.size} selecionado(s)") },
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.clearSelection() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancelar seleção")
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar"
-                        )
-                    }
-                },
-                actions = {
-                    if (!showImportInList) {
-                        TextButton(
-                            onClick = { showImportDialog = true },
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Icon(Icons.Default.Download, contentDescription = null)
-                            Spacer(Modifier.width(4.dp))
-                            Text("Importar", fontWeight = FontWeight.Bold)
+                )
+            } else {
+                CenterAlignedTopAppBar(
+                    title = {
+                        when (viewMode) {
+                            DiaryViewMode.DAILY -> DateSelectorTitle(
+                                date = currentDate,
+                                onPrev = { viewModel.changeDate(-1) },
+                                onNext = { viewModel.changeDate(1) },
+                                onClick = { showDatePicker = true }
+                            )
+
+                            DiaryViewMode.WEEKLY -> PeriodSelectorTitle(
+                                label = formatWeekLabel(weekStart),
+                                onPrev = { viewModel.changeWeek(-1) },
+                                onNext = { viewModel.changeWeek(1) },
+                                onToday = { viewModel.goToToday() }
+                            )
+
+                            DiaryViewMode.MONTHLY -> PeriodSelectorTitle(
+                                label = formatMonthLabel(monthStart),
+                                onPrev = { viewModel.changeMonth(-1) },
+                                onNext = { viewModel.changeMonth(1) },
+                                onToday = { viewModel.goToToday() }
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Voltar"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    ),
+                    actions = {
+                        if (!showImportInList) {
+                            TextButton(
+                                onClick = { showImportDialog = true },
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Importar", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        if (com.mekki.taco.BuildConfig.DEBUG) {
+                            var showMenu by remember { mutableStateOf(false) }
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("🧪 Carregar dados de teste") },
+                                    onClick = {
+                                        viewModel.loadMockData()
+                                        showMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
-            )
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showSearchSheet = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar Alimento")
+            if (!isSelectionMode) {
+                FloatingActionButton(
+                    onClick = { showSearchSheet = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Adicionar Alimento")
+                }
             }
         }
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = 100.dp)
         ) {
-            // 1. Summary Card
-            item {
-                DiarySummaryCard(
-                    totals = totals,
-                    onUpdateWeight = { showWeightDialog = true }
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            // 2. Water Tracker
-            item {
-                WaterTrackerCard(
-                    currentMl = totals.waterIntake,
-                    goalMl = totals.waterGoal,
-                    onAdd = { viewModel.addWater(it) }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // 3. Import Button
-            if (showImportInList) {
-                item {
-                    OutlinedButton(
-                        onClick = { showImportDialog = true },
-                        modifier = Modifier.fillMaxWidth()
+            @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                DiaryViewMode.entries.forEachIndexed { index, mode ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = DiaryViewMode.entries.size
+                        ),
+                        onClick = { viewModel.setViewMode(mode) },
+                        selected = viewMode == mode
                     ) {
-                        Icon(Icons.Default.Download, null)
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                "Importar de uma dieta",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                }
-            }
-
-            // 4. Meal Lists
-            if (dailyLogs.isEmpty()) {
-                item {
-                    EmptyStateMessage(onAddClick = { showSearchSheet = true })
-                }
-            } else {
-                val sortedGroups = dailyLogs.toSortedMap()
-
-                sortedGroups.forEach { (timeBlock, logs) ->
-                    item {
                         Text(
-                            text = timeBlock,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(vertical = 4.dp)
+                            when (mode) {
+                                DiaryViewMode.DAILY -> "Dia"
+                                DiaryViewMode.WEEKLY -> "Semana"
+                                DiaryViewMode.MONTHLY -> "Mês"
+                            }
                         )
                     }
-                    items(logs, key = { it.log.id }) { item ->
-                        DiaryLogItem(
-                            item = item,
-                            onToggle = { viewModel.toggleConsumed(item.log) },
-                            onQuantityChange = { newQty ->
-                                viewModel.updateQuantity(
-                                    item.log,
-                                    newQty
-                                )
-                            },
-                            onNotesChange = { newNotes ->
-                                viewModel.updateNotes(item.log, newNotes)
-                            },
-                            onDelete = { viewModel.deleteLog(item.log) },
-                            onTimeClick = { logToEditTime = item.log }
-                        )
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(
-                                alpha = 0.5f
-                            )
-                        )
-                    }
-                    item { Spacer(Modifier.height(12.dp)) }
                 }
             }
-        }
-    }
+
+            when (viewMode) {
+                DiaryViewMode.WEEKLY -> {
+                    DiarySummaryView(
+                        summary = weeklySummary,
+                        isMonthlyMode = false
+                    )
+                }
+
+                DiaryViewMode.MONTHLY -> {
+                    DiarySummaryView(
+                        summary = monthlySummary,
+                        isMonthlyMode = true
+                    )
+                }
+
+                DiaryViewMode.DAILY -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        contentPadding = PaddingValues(bottom = 100.dp)
+                    ) {
+                        // 1. Summary Card
+                        item {
+                            DiarySummaryCard(
+                                totals = totals,
+                                onUpdateWeight = { showWeightDialog = true }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        // 2. Water Tracker
+                        item {
+                            WaterTrackerCard(
+                                currentMl = totals.waterIntake,
+                                goalMl = totals.waterGoal,
+                                onAdd = { viewModel.addWater(it) }
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                        }
+
+                        // 3. Import Button
+                        if (showImportInList) {
+                            item {
+                                OutlinedButton(
+                                    onClick = { showImportDialog = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Download, null)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            "Importar de uma dieta",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(16.dp))
+                            }
+                        }
+
+                        // 4. Meal Lists
+                        if (mealSections.isEmpty()) {
+                            item {
+                                EmptyStateMessage(onAddClick = { showSearchSheet = true })
+                            }
+                        } else {
+                            mealSections.forEach { section ->
+                                item {
+                                    MealSectionHeader(section = section)
+                                }
+                                items(section.logs, key = { it.log.id }) { item ->
+                                    DiaryLogItem(
+                                        item = item,
+                                        isSelected = selectedLogIds.contains(item.log.id),
+                                        isSelectionMode = isSelectionMode,
+                                        onLongClick = { viewModel.toggleSelection(item.log.id) },
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                viewModel.toggleSelection(item.log.id)
+                                            }
+                                        },
+                                        onToggleConsumed = { viewModel.toggleConsumed(item.log) },
+                                        onQuantityChange = { newQty: Double ->
+                                            viewModel.updateQuantity(item.log, newQty)
+                                        },
+                                        onNotesChange = { newNotes: String ->
+                                            viewModel.updateNotes(item.log, newNotes)
+                                        },
+                                        onDelete = { viewModel.deleteLog(item.log) },
+                                        onTimeClick = { logToEditTime = item.log }
+                                    )
+                                    HorizontalDivider(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                                item { Spacer(Modifier.height(16.dp)) }
+                            }
+                        }
+                    } // LazyColumn
+                } // when DiaryViewMode.DAILY
+            } // when statement
+        } // Column
+    } // Scaffold
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
@@ -401,6 +536,49 @@ fun DateSelectorTitle(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = "Próximo Dia",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+
+@Composable
+fun PeriodSelectorTitle(
+    label: String,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onToday: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = 8.dp)
+    ) {
+        IconButton(onClick = onPrev) {
+            Icon(
+                imageVector = Icons.Rounded.ChevronLeft,
+                contentDescription = "Período Anterior",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+            textAlign = TextAlign.Center
+        )
+        IconButton(onClick = onNext) {
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = "Próximo Período",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onToday) {
+            Icon(
+                imageVector = Icons.Default.Today,
+                contentDescription = "Ir para Hoje",
+                tint = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -768,9 +946,36 @@ fun MacroMiniStat(label: String, value: Double, color: Color) {
 }
 
 @Composable
+fun MealSectionHeader(section: MealSection) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = section.title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "${section.totalKcal.toInt()} kcal",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 fun DiaryLogItem(
     item: DailyLogWithFood,
-    onToggle: () -> Unit,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onLongClick: () -> Unit,
+    onClick: () -> Unit,
+    onToggleConsumed: () -> Unit,
     onQuantityChange: (Double) -> Unit,
     onNotesChange: (String) -> Unit,
     onDelete: () -> Unit,
@@ -779,44 +984,72 @@ fun DiaryLogItem(
     var isExpanded by remember { mutableStateOf(false) }
     var sliderValue by remember(item.log.quantityGrams) { mutableFloatStateOf(item.log.quantityGrams.toFloat()) }
 
-    val strikeColor by animateColorAsState(
-        targetValue = if (item.log.isConsumed) Color.Gray else MaterialTheme.colorScheme.onSurface,
-        label = "color"
-    )
-
-    val timeStr = remember(item.log.entryTimestamp) {
-        val instant = Instant.ofEpochMilli(item.log.entryTimestamp)
-        LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
-            .format(DateTimeFormatter.ofPattern("HH:mm"))
+    // Visual State
+    val isConsumed = item.log.isConsumed
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+    } else {
+        Color.Transparent
     }
+
+    val contentAlpha = if (isConsumed) 0.6f else 1f
+    val textColor =
+        if (isConsumed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { isExpanded = !isExpanded }
-            .padding(vertical = 4.dp)
-            .background(Color.Transparent)
+            .clip(RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onLongPress = { onLongClick() },
+                    onTap = {
+                        if (isSelectionMode) onClick()
+                        else isExpanded = !isExpanded
+                    }
+                )
+            }
+            .padding(vertical = 8.dp, horizontal = 4.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // 1. Checkbox
-            IconButton(onClick = onToggle, modifier = Modifier.size(40.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(if (item.log.isConsumed) MaterialTheme.colorScheme.primary else Color.LightGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (item.log.isConsumed) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
+            // 1. Leading Icon (Checkbox or Toggle)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable {
+                        if (isSelectionMode) onClick() else onToggleConsumed()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelectionMode) {
+                    androidx.compose.material3.Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = null // Handled by parent click
+                    )
+                } else {
+                    // Custom Toggle for Consumed state
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isConsumed) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isConsumed) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -828,37 +1061,56 @@ fun DiaryLogItem(
                     .padding(horizontal = 8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = timeStr,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable { onTimeClick() }
-                            .padding(end = 6.dp)
-                    )
+                    if (!isSelectionMode) {
+                        // Time Badge (only when not selecting)
+                        val timeStr = remember(item.log.entryTimestamp) {
+                            val instant = Instant.ofEpochMilli(item.log.entryTimestamp)
+                            LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
+                                .format(DateTimeFormatter.ofPattern("HH:mm"))
+                        }
+                        Text(
+                            text = timeStr,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onTimeClick() }
+                                .padding(end = 6.dp)
+                        )
+                    }
+
                     Text(
                         text = item.food.name,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = strikeColor,
-                        maxLines = 1
+                        color = textColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                Text(
-                    text = "${item.log.quantityGrams.toInt()}g",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${item.log.quantityGrams.toInt()}g",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "${item.food.energiaKcal?.toInt() ?: 0} kcal",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
-        // 3. Slider Section (Expanded)
-        AnimatedVisibility(visible = isExpanded) {
+        // 3. Expanded Slider Section (Only when not selecting)
+        AnimatedVisibility(visible = isExpanded && !isSelectionMode) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 48.dp, end = 16.dp, top = 0.dp)
+                    .padding(start = 48.dp, end = 16.dp, top = 8.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

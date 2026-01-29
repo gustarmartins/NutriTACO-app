@@ -38,4 +38,8 @@ interface DailyLogDao {
 
     @Query("DELETE FROM daily_log")
     suspend fun deleteAllLogs()
+
+    @Transaction
+    @Query("SELECT * FROM daily_log WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC, entryTimestamp ASC")
+    fun getLogsForDateRange(startDate: String, endDate: String): Flow<List<DailyLogWithFood>>
 }

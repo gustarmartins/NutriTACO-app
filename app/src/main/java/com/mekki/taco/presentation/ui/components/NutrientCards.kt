@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.Food
+import com.mekki.taco.presentation.ui.theme.LocalNutrientColors
 
 @Composable
 fun DynamicMacroGrid(
@@ -48,6 +49,7 @@ fun DynamicMacroGrid(
     val p = proteinas ?: 0.0
     val c = carboidratos ?: 0.0
     val f = lipidios ?: 0.0
+    val nutrientColors = LocalNutrientColors.current
 
     data class MacroItem(
         val label: String,
@@ -57,9 +59,9 @@ fun DynamicMacroGrid(
     )
 
     val items = listOf(
-        MacroItem("Proteínas", p, Color(0xFFFFC107), Icons.Default.FitnessCenter), // Amber/Gold
-        MacroItem("Carbs", c, Color(0xFF00BCD4), Icons.Default.Grain), // Cyan
-        MacroItem("Gorduras", f, Color(0xFF8D6E63), Icons.Default.WaterDrop) // Brown
+        MacroItem("Proteínas", p, nutrientColors.protein, Icons.Default.FitnessCenter),
+        MacroItem("Carbs", c, nutrientColors.carbs, Icons.Default.Grain),
+        MacroItem("Gorduras", f, nutrientColors.fat, Icons.Default.WaterDrop)
     ).sortedByDescending { it.value }
 
     Row(
@@ -89,6 +91,7 @@ fun EditableMacroGrid(
     onFatChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val nutrientColors = LocalNutrientColors.current
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -98,7 +101,7 @@ fun EditableMacroGrid(
             value = protein,
             onValueChange = onProteinChange,
             unit = "g",
-            color = Color(0xFFFFC107),
+            color = nutrientColors.protein,
             icon = Icons.Default.FitnessCenter,
             modifier = Modifier.weight(1f)
         )
@@ -107,7 +110,7 @@ fun EditableMacroGrid(
             value = carbs,
             onValueChange = onCarbsChange,
             unit = "g",
-            color = Color(0xFF00BCD4),
+            color = nutrientColors.carbs,
             icon = Icons.Default.Grain,
             modifier = Modifier.weight(1f)
         )
@@ -116,7 +119,7 @@ fun EditableMacroGrid(
             value = fat,
             onValueChange = onFatChange,
             unit = "g",
-            color = Color(0xFF8D6E63),
+            color = nutrientColors.fat,
             icon = Icons.Default.WaterDrop,
             modifier = Modifier.weight(1f)
         )
@@ -125,6 +128,7 @@ fun EditableMacroGrid(
 
 @Composable
 fun SecondaryStatsGrid(fibra: Double?, colesterol: Double?, sodio: Double?) {
+    val nutrientColors = LocalNutrientColors.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -133,7 +137,7 @@ fun SecondaryStatsGrid(fibra: Double?, colesterol: Double?, sodio: Double?) {
             label = "Fibra",
             value = fibra,
             unit = "g",
-            color = Color(0xFF4CAF50),
+            color = nutrientColors.fiber,
             icon = Icons.Default.Spa,
             modifier = Modifier.weight(1f)
         )
@@ -141,7 +145,7 @@ fun SecondaryStatsGrid(fibra: Double?, colesterol: Double?, sodio: Double?) {
             label = "Colesterol",
             value = colesterol,
             unit = "mg",
-            color = Color(0xFFE91E63),
+            color = nutrientColors.cholesterol,
             icon = Icons.Default.Favorite,
             modifier = Modifier.weight(1f)
         )
@@ -149,7 +153,7 @@ fun SecondaryStatsGrid(fibra: Double?, colesterol: Double?, sodio: Double?) {
             label = "Sódio",
             value = sodio,
             unit = "mg",
-            color = Color(0xFF03A9F4),
+            color = nutrientColors.sodium,
             icon = Icons.Default.Waves,
             modifier = Modifier.weight(1f)
         )
@@ -165,6 +169,7 @@ fun EditableSecondaryStatsGrid(
     sodium: String,
     onSodiumChange: (String) -> Unit
 ) {
+    val nutrientColors = LocalNutrientColors.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -174,7 +179,7 @@ fun EditableSecondaryStatsGrid(
             value = fiber,
             onValueChange = onFiberChange,
             unit = "g",
-            color = Color(0xFF4CAF50),
+            color = nutrientColors.fiber,
             icon = Icons.Default.Spa,
             modifier = Modifier.weight(1f)
         )
@@ -183,7 +188,7 @@ fun EditableSecondaryStatsGrid(
             value = cholest,
             onValueChange = onCholestChange,
             unit = "mg",
-            color = Color(0xFFE91E63),
+            color = nutrientColors.cholesterol,
             icon = Icons.Default.Favorite,
             modifier = Modifier.weight(1f)
         )
@@ -192,7 +197,7 @@ fun EditableSecondaryStatsGrid(
             value = sodium,
             onValueChange = onSodiumChange,
             unit = "mg",
-            color = Color(0xFF03A9F4),
+            color = nutrientColors.sodium,
             icon = Icons.Default.Waves,
             modifier = Modifier.weight(1f)
         )
