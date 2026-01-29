@@ -110,7 +110,8 @@ class BackupManagerTest {
             diets = emptyList(),
             dietItems = emptyList(),
             dailyLogs = emptyList(),
-            waterLogs = emptyList()
+            waterLogs = emptyList(),
+            version = 1
         )
 
         val json = gson.toJson(backupData)
