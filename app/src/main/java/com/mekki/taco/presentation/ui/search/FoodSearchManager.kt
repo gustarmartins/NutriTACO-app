@@ -19,13 +19,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 
-enum class FoodSortOption(val label: String) {
-    RELEVANCE("Relevância"),
-    PROTEIN("Proteínas"),
-    CARBS("Carboidratos"),
-    FAT("Gorduras"),
-    CALORIES("Calorias")
-}
+// FoodSortOption is now in FilterModel.kt
 
 data class FoodSearchState(
     val searchTerm: String = "",
@@ -86,7 +80,7 @@ class FoodSearchManager(
         val sort = args[5] as FoodSortOption
 
         val sorted = when (sort) {
-            FoodSortOption.RELEVANCE -> raw
+            FoodSortOption.RELEVANCE, FoodSortOption.NAME -> raw
             FoodSortOption.PROTEIN -> raw.sortedByDescending { it.proteina ?: 0.0 }
             FoodSortOption.CARBS -> raw.sortedByDescending { it.carboidratos ?: 0.0 }
             FoodSortOption.FAT -> raw.sortedByDescending { it.lipidios?.total ?: 0.0 }

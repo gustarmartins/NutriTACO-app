@@ -92,6 +92,7 @@ abstract class FoodDao {
         JOIN foods_fts ON foods.id = foods_fts.rowid 
         WHERE foods_fts MATCH :ftsQuery
         ORDER BY 
+          CASE WHEN foods.isCustom = 1 THEN 1 ELSE 0 END DESC,
           CASE 
             WHEN foods_fts.normalized_data = :normalizedQuery THEN 3
             WHEN foods_fts.normalized_data LIKE :normalizedQuery || ' %' THEN 2
@@ -178,4 +179,16 @@ abstract class FoodDao {
 
     @Query("DELETE FROM foods WHERE isCustom = 1")
     abstract suspend fun deleteCustomFoods()
+
+    @Query(
+        """
+        SELECT * FROM foods 
+        ORDER BY 
+            usageCount DESC,
+            CASE WHEN isCustom = 1 THEN 1 ELSE 0 END DESC,
+            name ASC
+        LIMIT :limit
+        """
+    )
+    abstract fun getTopFoods(limit: Int = 10): Flow<List<Food>>
 }

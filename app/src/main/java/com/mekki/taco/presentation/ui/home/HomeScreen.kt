@@ -41,6 +41,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -1210,7 +1211,7 @@ fun InlineSearchResultsCard(
                             .padding(horizontal = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(itemsToShow, key = { it.id }) { food ->
+                        itemsIndexed(itemsToShow, key = { _, food -> food.id }) { index, food ->
                             val isExpanded = state.expandedAlimentoId == food.id
                             com.mekki.taco.presentation.ui.components.SearchItem(
                                 food = food,
@@ -1225,7 +1226,8 @@ fun InlineSearchResultsCard(
                                 onLog = { onLog(food) },
                                 onAddToDiet = { onAddToDiet(food) },
                                 onFastEdit = { onCloneAndEdit(it) },
-                                showLogTutorial = state.showRegistrarTutorial
+                                showLogTutorial = state.showRegistrarTutorial,
+                                resultIndex = index + 1
                             )
                         }
                     }

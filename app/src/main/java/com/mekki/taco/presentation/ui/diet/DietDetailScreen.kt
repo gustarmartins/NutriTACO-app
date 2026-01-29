@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -1167,7 +1168,7 @@ fun ReplaceFoodSheetContent(
 
             else -> {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(searchState.results) { food ->
+                    itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
                         val isCurrentFood = food.id == currentFood.id
 
                         if (isCurrentFood) {
@@ -1214,7 +1215,8 @@ fun ReplaceFoodSheetContent(
                                 onAmountChange = onAmountChange,
                                 onAddToDiet = { onSelectFood(food) },
                                 isAddToDietPrimary = true,
-                                actionButtonLabel = "Selecionar"
+                                actionButtonLabel = "Selecionar",
+                                resultIndex = index + 1
                             )
                         }
                     }
@@ -1422,7 +1424,7 @@ fun SearchFoodSheetContent(
 
             else -> {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(searchState.results) { food ->
+                    itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
                         SearchItem(
                             food = food,
                             isExpanded = searchState.expandedFoodId == food.id,
@@ -1438,7 +1440,8 @@ fun SearchFoodSheetContent(
                                 onAddFood(food, qty)
                             },
                             isAddToDietPrimary = true,
-                            actionButtonLabel = "Adicionar"
+                            actionButtonLabel = "Adicionar",
+                            resultIndex = index + 1
                         )
                     }
 

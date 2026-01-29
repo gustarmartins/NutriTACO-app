@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.db.dao.FoodDao
 import com.mekki.taco.data.db.entity.Food
+import com.mekki.taco.presentation.ui.search.FoodSortOption
+import com.mekki.taco.presentation.ui.search.FoodSource
 import com.mekki.taco.utils.normalizeForSearch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -16,19 +18,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
-enum class FoodSource(val displayName: String) {
-    ALL(displayName = "TODOS"),
-    TACO(displayName = "TACO"),
-    CUSTOM(displayName = "PERSONALIZADOS")
-}
-
-enum class SortOption(val displayName: String) {
-    NAME("Nome"),
-    CALORIES("Calorias"),
-    PROTEIN("Proteína"),
-    CARBS("Carboidratos"),
-    FAT("Gorduras")
-}
+// FoodSource and FoodSortOption are now in FilterModel.kt
+// Legacy SortOption alias for compatibility
+typealias SortOption = FoodSortOption
 
 data class FoodDatabaseState(
     val isLoading: Boolean = true,
@@ -107,7 +99,7 @@ class FoodDatabaseViewModel @Inject constructor(
         }.sortedWith(
             // 4. Sorting
             when (filters.sort) {
-                SortOption.NAME -> compareBy { it.name }
+                SortOption.NAME, SortOption.RELEVANCE -> compareBy { it.name }
                 SortOption.CALORIES -> compareByDescending { it.energiaKcal }
                 SortOption.PROTEIN -> compareByDescending { it.proteina }
                 SortOption.CARBS -> compareByDescending { it.carboidratos }

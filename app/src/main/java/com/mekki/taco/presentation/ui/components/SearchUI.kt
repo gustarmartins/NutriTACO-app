@@ -74,7 +74,8 @@ fun SearchItem(
     onDismissLogTutorial: () -> Unit = {},
     onFastEdit: ((Food) -> Unit)? = null,
     isAddToDietPrimary: Boolean = false,
-    actionButtonLabel: String = "Registrar"
+    actionButtonLabel: String = "Registrar",
+    resultIndex: Int? = null
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val coroutineScope = rememberCoroutineScope()
@@ -109,6 +110,25 @@ fun SearchItem(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (resultIndex != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                RoundedCornerShape(6.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = resultIndex.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = food.name,

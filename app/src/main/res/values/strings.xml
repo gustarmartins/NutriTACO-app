@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name" translatable="false">NutriTACO</string>
+    <string name="widget_search_hint">Busca de Alimentos</string>
+    <string name="widget_search_description">Busque Alimentos Rapidamente</string>
+    <string name="widget_search_name">Busca Rápida</string>
+    <string name="widget_food_list_name">Alimentos Frequentes</string>
+    <string name="widget_food_list_description">Veja Alimentos Frequentes</string>
+    <string name="widget_food_list_title">Alimentos Frequentes</string>
+    <string name="widget_food_list_loading">Carregando…</string>
 </resources>

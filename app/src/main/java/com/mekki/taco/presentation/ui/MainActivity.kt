@@ -56,6 +56,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity_TACO"
+        const val EXTRA_OPEN_SEARCH = "extra_open_search"
+        const val EXTRA_OPEN_FOOD_DETAIL = "extra_open_food_detail"
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -75,6 +77,38 @@ class MainActivity : ComponentActivity() {
                 var screenTitle by rememberSaveable { mutableStateOf("NutriTACO") }
                 var fab: @Composable (() -> Unit)? by remember { mutableStateOf(null) }
                 var extraActions: @Composable (() -> Unit) by remember { mutableStateOf({}) }
+
+                // We want to handle widget intents on fresh start, not restoration
+                // To avoid restoring to widget last state when kill
+                val isFromWidget = savedInstanceState == null && (
+                    intent?.getBooleanExtra(EXTRA_OPEN_SEARCH, false) == true ||
+                    (intent?.getIntExtra(EXTRA_OPEN_FOOD_DETAIL, -1) ?: -1) > 0
+                )
+
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    if (!isFromWidget) return@LaunchedEffect
+
+                    val openSearch = intent?.getBooleanExtra(EXTRA_OPEN_SEARCH, false) == true
+                    val openFoodId = intent?.getIntExtra(EXTRA_OPEN_FOOD_DETAIL, -1) ?: -1
+
+                    intent?.removeExtra(EXTRA_OPEN_SEARCH)
+                    intent?.removeExtra(EXTRA_OPEN_FOOD_DETAIL)
+
+                    when {
+                        openFoodId > 0 -> {
+                            navController.navigate("food_detail/$openFoodId") {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                            }
+                        }
+                        openSearch -> {
+                            navController.navigate("food_database") {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                }
 
                 val sheetState = rememberModalBottomSheetState()
                 val scope = rememberCoroutineScope()
