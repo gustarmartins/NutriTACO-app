@@ -57,8 +57,7 @@ class DietListViewModel @Inject constructor(
     fun exportDiet(dietId: Int, uri: android.net.Uri) {
         viewModelScope.launch {
             _sharingStatus.value = "Exportando..."
-            val result = dietSharingManager.exportDietToUri(dietId, uri)
-            when (result) {
+            when (val result = dietSharingManager.exportDietToUri(dietId, uri)) {
                 is com.mekki.taco.data.sharing.ExportResult.Success -> {
                     _sharingStatus.value = "Dieta exportada com sucesso!"
                 }
@@ -73,8 +72,7 @@ class DietListViewModel @Inject constructor(
     fun importDiet(uri: android.net.Uri) {
         viewModelScope.launch {
             _sharingStatus.value = "Importando..."
-            val result = dietSharingManager.importDiet(uri)
-            when (result) {
+            when (val result = dietSharingManager.importDiet(uri)) {
                 is com.mekki.taco.data.sharing.ImportResult.Success -> {
                     _sharingStatus.value = "Dieta '${result.diet.name}' importada com sucesso!"
                     carregarDietas() // Refresh list
@@ -151,9 +149,24 @@ class DietListViewModel @Inject constructor(
         }
     }
 
-    fun deletarDieta(diet: Diet) {
+    suspend fun deleteDietWithSnapshot(diet: Diet): Pair<Diet, List<DietItem>> {
+        val items = dietItemDao.getDietItemsList(diet.id)
+        dietDao.deleteDiet(diet)
+        return Pair(diet, items)
+    }
+
+    fun deleteDiet(diet: Diet) {
         viewModelScope.launch {
             dietDao.deleteDiet(diet)
+        }
+    }
+
+    fun restoreDiet(snapshot: Pair<Diet, List<DietItem>>) {
+        viewModelScope.launch {
+            val (diet, items) = snapshot
+            val newDietId = dietDao.insertOrReplaceDiet(diet.copy(id = 0)).toInt()
+            val restoredItems = items.map { it.copy(id = 0, dietId = newDietId) }
+            dietItemDao.insertAll(restoredItems)
         }
     }
 

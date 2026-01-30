@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import javax.inject.Inject
@@ -54,6 +56,11 @@ data class DailyLogBackup(
     val originalQuantityGrams: Double?
 )
 
+data class RevertPoint(
+    val file: File,
+    val timestamp: Long
+)
+
 
 class BackupManager @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -62,6 +69,7 @@ class BackupManager @Inject constructor(
 ) {
     private val gson = Gson()
     private val TAG = "BackupManager"
+    private val revertDir = File(context.filesDir, "revert_backups")
 
     suspend fun exportData(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -224,9 +232,16 @@ class BackupManager @Inject constructor(
                     // Restore Diets
                     Log.d(TAG, "Restoring diets...")
                     val oldDietIdToNewId = mutableMapOf<Int, Int>()
+                    val hasExistingMainDiet = if (merge) {
+                        db.dietDao().getAllDietsList().any { it.isMain }
+                    } else false
+
                     backup.diets.forEach { diet ->
                         val oldId = diet.id
-                        val newDiet = diet.copy(id = 0)
+                        val newDiet = diet.copy(
+                            id = 0,
+                            isMain = if (merge && hasExistingMainDiet) false else diet.isMain
+                        )
                         val newId = db.dietDao().insertOrReplaceDiet(newDiet).toInt()
                         oldDietIdToNewId[oldId] = newId
                     }
@@ -314,4 +329,163 @@ class BackupManager @Inject constructor(
                 Result.failure(e)
             }
         }
+
+    suspend fun createRevertPoint(): File? = withContext(Dispatchers.IO) {
+        try {
+            revertDir.mkdirs()
+            cleanOldRevertPoints()
+
+            val profile = userProfileRepository.userProfileFlow.firstOrNull()
+            val customFoods = db.foodDao().getAllCustomFoods()
+            val allFoods = db.foodDao().getAllFoods().first()
+            val diets = db.dietDao().getAllDietsList()
+            val rawDietItems = db.dietItemDao().getAllDietItems()
+            val rawLogs = db.dailyLogDao().getAllLogs()
+            val waterLogs = db.dailyWaterLogDao().getAllWaterLogs()
+
+            val foodIdToTacoId = allFoods.associate { it.id to it.tacoID }
+
+            val dietItemsBackup = rawDietItems.mapNotNull { item ->
+                val tacoId = foodIdToTacoId[item.foodId]
+                if (tacoId != null) {
+                    DietItemBackup(
+                        dietId = item.dietId,
+                        foodTacoId = tacoId,
+                        quantityGrams = item.quantityGrams,
+                        mealType = item.mealType,
+                        consumptionTime = item.consumptionTime
+                    )
+                } else null
+            }
+
+            val dailyLogsBackup = rawLogs.mapNotNull { log ->
+                val tacoId = foodIdToTacoId[log.foodId]
+                if (tacoId != null) {
+                    DailyLogBackup(
+                        foodTacoId = tacoId,
+                        date = log.date,
+                        quantityGrams = log.quantityGrams,
+                        mealType = log.mealType,
+                        isConsumed = log.isConsumed,
+                        originalQuantityGrams = log.originalQuantityGrams
+                    )
+                } else null
+            }
+
+            val backup = BackupData(
+                version = db.openHelper.readableDatabase.version,
+                userProfile = profile,
+                customFoods = customFoods,
+                diets = diets,
+                dietItems = dietItemsBackup,
+                dailyLogs = dailyLogsBackup,
+                waterLogs = waterLogs
+            )
+
+            val timestamp = System.currentTimeMillis()
+            val file = File(revertDir, "revert_$timestamp.json")
+            FileOutputStream(file).use { fos ->
+                OutputStreamWriter(fos).use { writer ->
+                    writer.write(gson.toJson(backup))
+                }
+            }
+
+            Log.d(TAG, "Revert point created: ${file.name}")
+            file
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create revert point", e)
+            null
+        }
+    }
+
+    fun getRevertPoints(): List<RevertPoint> {
+        if (!revertDir.exists()) return emptyList()
+        return revertDir.listFiles()
+            ?.filter { it.name.startsWith("revert_") && it.name.endsWith(".json") }
+            ?.mapNotNull { file ->
+                val timestamp = file.name
+                    .removePrefix("revert_")
+                    .removeSuffix(".json")
+                    .toLongOrNull()
+                timestamp?.let { RevertPoint(file, it) }
+            }
+            ?.sortedByDescending { it.timestamp }
+            ?: emptyList()
+    }
+
+    suspend fun restoreFromRevertPoint(file: File): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val json = file.readText()
+            val backup = gson.fromJson(json, BackupData::class.java)
+
+            db.withTransaction {
+                db.dailyLogDao().deleteAllLogs()
+                db.dailyWaterLogDao().deleteAllWaterLogs()
+                db.dietItemDao().deleteAllDietItems()
+                db.dietDao().deleteAllDiets()
+                db.foodDao().deleteCustomFoods()
+
+                backup.customFoods.forEach { food ->
+                    db.foodDao().insertFood(food.copy(id = 0, isCustom = true))
+                }
+
+                val allFoods = db.foodDao().getAllFoods().first()
+                val tacoIdToNewId = allFoods.associate { it.tacoID to it.id }
+
+                val oldDietIdToNewId = mutableMapOf<Int, Int>()
+                backup.diets.forEach { diet ->
+                    val oldId = diet.id
+                    val newId = db.dietDao().insertOrReplaceDiet(diet.copy(id = 0)).toInt()
+                    oldDietIdToNewId[oldId] = newId
+                }
+
+                backup.dietItems.mapNotNull { item ->
+                    val newDietId = oldDietIdToNewId[item.dietId]
+                    val newFoodId = tacoIdToNewId[item.foodTacoId]
+                    if (newDietId != null && newFoodId != null) {
+                        DietItem(
+                            id = 0, dietId = newDietId, foodId = newFoodId,
+                            quantityGrams = item.quantityGrams, mealType = item.mealType,
+                            consumptionTime = item.consumptionTime
+                        )
+                    } else null
+                }.let { if (it.isNotEmpty()) db.dietItemDao().insertDietItems(it) }
+
+                backup.dailyLogs.mapNotNull { log ->
+                    val newFoodId = tacoIdToNewId[log.foodTacoId]
+                    newFoodId?.let {
+                        DailyLog(
+                            id = 0,
+                            foodId = it,
+                            date = log.date,
+                            quantityGrams = log.quantityGrams,
+                            mealType = log.mealType,
+                            isConsumed = log.isConsumed,
+                            originalQuantityGrams = log.originalQuantityGrams
+                        )
+                    }
+                }.let { if (it.isNotEmpty()) db.dailyLogDao().insertAll(it) }
+
+                backup.waterLogs.forEach { db.dailyWaterLogDao().insertOrUpdate(it) }
+            }
+
+            if (backup.userProfile != null) {
+                userProfileRepository.saveProfile(backup.userProfile)
+            }
+
+            Log.d(TAG, "Restored from revert point: ${file.name}")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to restore from revert point", e)
+            Result.failure(e)
+        }
+    }
+
+    private fun cleanOldRevertPoints() {
+        val existing = getRevertPoints()
+        existing.drop(2).forEach { revertPoint ->
+            revertPoint.file.delete()
+            Log.d(TAG, "Deleted old revert point: ${revertPoint.file.name}")
+        }
+    }
 }

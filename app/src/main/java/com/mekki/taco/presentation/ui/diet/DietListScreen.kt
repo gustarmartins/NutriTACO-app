@@ -37,6 +37,9 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.Diet
+import com.mekki.taco.data.db.entity.DietItem
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -71,8 +77,12 @@ fun DietListScreen(
     val dietas by viewModel.dietas.collectAsState()
     val sharingStatus by viewModel.sharingStatus.collectAsState()
     var dietToSetMain by remember { mutableStateOf<Diet?>(null) }
+    var dietToDelete by remember { mutableStateOf<Diet?>(null) }
+    var deletedSnapshot by remember { mutableStateOf<Pair<Diet, List<DietItem>>?>(null) }
     var dietToExportId by remember { mutableIntStateOf(-1) }
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     // Launchers
     val exportLauncher = rememberLauncherForActivityResult(
@@ -146,7 +156,7 @@ fun DietListScreen(
                     onClick = { onNavigateToDietDetail(dieta.id) },
                     onLongClick = { dietToSetMain = dieta },
                     onEditClick = { onEditDiet(dieta.id) },
-                    onDeleteClick = { viewModel.deletarDieta(dieta) },
+                    onDeleteClick = { dietToDelete = dieta },
                     onExportClick = {
                         dietToExportId = dieta.id
                         exportLauncher.launch("${dieta.name}.json")
@@ -176,6 +186,49 @@ fun DietListScreen(
                     Text("Cancelar")
                 }
             }
+        )
+    }
+
+    if (dietToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { dietToDelete = null },
+            title = { Text("Excluir Dieta?") },
+            text = { Text("A dieta '${dietToDelete?.name}' será excluída.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val diet = dietToDelete ?: return@TextButton
+                        dietToDelete = null
+                        coroutineScope.launch {
+                            val snapshot = viewModel.deleteDietWithSnapshot(diet)
+                            deletedSnapshot = snapshot
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Dieta '${diet.name}' excluída",
+                                actionLabel = "Desfazer",
+                                withDismissAction = true
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                deletedSnapshot?.let { viewModel.restoreDiet(it) }
+                            }
+                            deletedSnapshot = null
+                        }
+                    }
+                ) {
+                    Text("Excluir", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dietToDelete = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }

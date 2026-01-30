@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.manager.BackupManager
+import com.mekki.taco.data.manager.RevertPoint
 import com.mekki.taco.data.model.UserProfile
 import com.mekki.taco.data.repository.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,7 +19,8 @@ data class SettingsUiState(
     val isBackupLoading: Boolean = false,
     val backupMessage: String? = null,
     val showImportDialog: Boolean = false,
-    val pendingImportUri: Uri? = null
+    val pendingImportUri: Uri? = null,
+    val revertPoints: List<RevertPoint> = emptyList()
 )
 
 @HiltViewModel
@@ -36,6 +38,11 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(userProfile = profile) }
             }
         }
+        loadRevertPoints()
+    }
+
+    fun loadRevertPoints() {
+        _uiState.update { it.copy(revertPoints = backupManager.getRevertPoints()) }
     }
 
     fun toggleTheme(isDark: Boolean) {
@@ -74,11 +81,19 @@ class SettingsViewModel @Inject constructor(
         dismissImportDialog()
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isBackupLoading = true, backupMessage = null) }
+            _uiState.update {
+                it.copy(
+                    isBackupLoading = true,
+                    backupMessage = "Criando ponto de restauração..."
+                )
+            }
+            backupManager.createRevertPoint()
+            _uiState.update { it.copy(backupMessage = "Importando...") }
             val result = backupManager.importData(uri, merge)
             val message =
                 if (result.isSuccess) "Dados importados com sucesso!" else "Erro ao importar: ${result.exceptionOrNull()?.message}"
             _uiState.update { it.copy(isBackupLoading = false, backupMessage = message) }
+            loadRevertPoints()
         }
     }
 
@@ -88,6 +103,16 @@ class SettingsViewModel @Inject constructor(
                 showImportDialog = false,
                 pendingImportUri = null
             )
+        }
+    }
+
+    fun restoreFromRevertPoint(revertPoint: RevertPoint) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBackupLoading = true, backupMessage = "Restaurando...") }
+            val result = backupManager.restoreFromRevertPoint(revertPoint.file)
+            val message =
+                if (result.isSuccess) "Dados restaurados com sucesso!" else "Erro ao restaurar: ${result.exceptionOrNull()?.message}"
+            _uiState.update { it.copy(isBackupLoading = false, backupMessage = message) }
         }
     }
 }

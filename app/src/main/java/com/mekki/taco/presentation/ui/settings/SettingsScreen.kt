@@ -15,17 +15,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -34,6 +40,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.R
+import com.mekki.taco.data.manager.RevertPoint
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -55,7 +65,7 @@ fun SettingsScreen(
     }
 
     if (uiState.showImportDialog) {
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { viewModel.dismissImportDialog() },
             title = { Text(text = "Importar Dados") },
             text = {
@@ -74,12 +84,12 @@ fun SettingsScreen(
             },
             dismissButton = {
                 Row {
-                    androidx.compose.material3.TextButton(
+                    TextButton(
                         onClick = { viewModel.dismissImportDialog() }
                     ) {
                         Text("Cancelar")
                     }
-                    androidx.compose.material3.TextButton(
+                    TextButton(
                         onClick = { viewModel.confirmImport(merge = false) },
                         colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
                             contentColor = MaterialTheme.colorScheme.error
@@ -156,6 +166,28 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            if (uiState.revertPoints.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Pontos de Restauração",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Restaure seus dados para o estado anterior a uma importação.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                uiState.revertPoints.forEach { revertPoint ->
+                    RevertPointItem(
+                        revertPoint = revertPoint,
+                        onRestore = { viewModel.restoreFromRevertPoint(revertPoint) }
+                    )
+                }
+            }
         }
 
         HorizontalDivider()
@@ -225,5 +257,61 @@ fun SettingsSection(
             color = MaterialTheme.colorScheme.primary
         )
         content()
+    }
+}
+
+@Composable
+private fun RevertPointItem(
+    revertPoint: RevertPoint,
+    onRestore: () -> Unit
+) {
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    val dateFormatter = remember {
+        SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+    }
+    val formattedDate = remember(revertPoint.timestamp) {
+        dateFormatter.format(Date(revertPoint.timestamp))
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = formattedDate,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        OutlinedButton(onClick = { showConfirmDialog = true }) {
+            Text("Restaurar")
+        }
+    }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("Restaurar Dados?") },
+            text = {
+                Text("Isso irá substituir TODOS os seus dados atuais pelos dados de $formattedDate. Esta ação não pode ser desfeita.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showConfirmDialog = false
+                        onRestore()
+                    }
+                ) {
+                    Text("Restaurar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
