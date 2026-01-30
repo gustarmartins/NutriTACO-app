@@ -1,5 +1,6 @@
 package com.mekki.taco.presentation.ui.diary
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,12 +30,15 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.MoreVert
@@ -70,12 +74,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -95,15 +101,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mekki.taco.data.db.entity.Diet
 import com.mekki.taco.data.model.DailyLogWithFood
+import com.mekki.taco.presentation.ui.components.FilterBottomSheet
 import com.mekki.taco.presentation.ui.components.MacroPieChart
 import com.mekki.taco.presentation.ui.components.PieChartData
+import com.mekki.taco.presentation.ui.components.PortionControlInput
 import com.mekki.taco.presentation.ui.components.SearchItem
 import com.mekki.taco.presentation.ui.components.TimePickerDialog
+import com.mekki.taco.presentation.ui.search.FoodFilterState
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -132,12 +142,24 @@ fun DiaryScreen(
     val monthlySummary by viewModel.monthlySummary.collectAsState()
     val weekStart by viewModel.weekStart.collectAsState()
     val monthStart by viewModel.monthStart.collectAsState()
+    val goalMode by viewModel.goalMode.collectAsState()
 
     var showImportDialog by remember { mutableStateOf(false) }
     var showSearchSheet by remember { mutableStateOf(false) }
     var showWeightDialog by remember { mutableStateOf(false) }
     var logToEditTime by remember { mutableStateOf<com.mekki.taco.data.db.entity.DailyLog?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showPeriodDatePicker by remember { mutableStateOf(false) }
+    var previousViewMode by remember { mutableStateOf<DiaryViewMode?>(null) }
+
+    BackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
+    }
+
+    BackHandler(enabled = viewMode == DiaryViewMode.DAILY && previousViewMode != null && !isSelectionMode) {
+        previousViewMode?.let { viewModel.setViewMode(it) }
+        previousViewMode = null
+    }
 
     val showImportInList = mealSections.isEmpty()
 
@@ -156,7 +178,7 @@ fun DiaryScreen(
             }
         } else {
             onActionsChange {
-                if (!showImportInList) {
+                if (!showImportInList && viewMode == DiaryViewMode.DAILY) {
                     TextButton(
                         onClick = { showImportDialog = true },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
@@ -170,6 +192,8 @@ fun DiaryScreen(
         }
     }
 
+    var showMoveDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             if (isSelectionMode) {
@@ -178,6 +202,20 @@ fun DiaryScreen(
                     navigationIcon = {
                         IconButton(onClick = { viewModel.clearSelection() }) {
                             Icon(Icons.Default.Close, contentDescription = "Cancelar seleção")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { viewModel.markSelectedAsConsumed(true) }) {
+                            Icon(Icons.Default.Check, contentDescription = "Marcar como consumido")
+                        }
+                        IconButton(onClick = { showMoveDialog = true }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "Mover para próximo dia"
+                            )
+                        }
+                        IconButton(onClick = { viewModel.deleteSelectedLogs() }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Excluir selecionados")
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -199,14 +237,14 @@ fun DiaryScreen(
                                 label = formatWeekLabel(weekStart),
                                 onPrev = { viewModel.changeWeek(-1) },
                                 onNext = { viewModel.changeWeek(1) },
-                                onToday = { viewModel.goToToday() }
+                                onLabelClick = { showPeriodDatePicker = true }
                             )
 
                             DiaryViewMode.MONTHLY -> PeriodSelectorTitle(
                                 label = formatMonthLabel(monthStart),
                                 onPrev = { viewModel.changeMonth(-1) },
                                 onNext = { viewModel.changeMonth(1) },
-                                onToday = { viewModel.goToToday() }
+                                onLabelClick = { showPeriodDatePicker = true }
                             )
                         }
                     },
@@ -272,7 +310,7 @@ fun DiaryScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+            @OptIn(ExperimentalMaterial3Api::class)
             SingleChoiceSegmentedButtonRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -284,7 +322,17 @@ fun DiaryScreen(
                             index = index,
                             count = DiaryViewMode.entries.size
                         ),
-                        onClick = { viewModel.setViewMode(mode) },
+                        onClick = {
+                            if (viewMode == mode) {
+                                when (mode) {
+                                    DiaryViewMode.DAILY -> viewModel.goToToday()
+                                    DiaryViewMode.WEEKLY -> viewModel.goToCurrentWeek()
+                                    DiaryViewMode.MONTHLY -> viewModel.goToCurrentMonth()
+                                }
+                            } else {
+                                viewModel.setViewMode(mode)
+                            }
+                        },
                         selected = viewMode == mode
                     ) {
                         Text(
@@ -300,16 +348,36 @@ fun DiaryScreen(
 
             when (viewMode) {
                 DiaryViewMode.WEEKLY -> {
+                    GoalModeSelector(
+                        selectedMode = goalMode,
+                        onModeSelected = { viewModel.setGoalMode(it) }
+                    )
                     DiarySummaryView(
                         summary = weeklySummary,
-                        isMonthlyMode = false
+                        isMonthlyMode = false,
+                        goalMode = goalMode,
+                        onDayClick = { date ->
+                            previousViewMode = DiaryViewMode.WEEKLY
+                            viewModel.setDate(date)
+                            viewModel.setViewMode(DiaryViewMode.DAILY)
+                        }
                     )
                 }
 
                 DiaryViewMode.MONTHLY -> {
+                    GoalModeSelector(
+                        selectedMode = goalMode,
+                        onModeSelected = { viewModel.setGoalMode(it) }
+                    )
                     DiarySummaryView(
                         summary = monthlySummary,
-                        isMonthlyMode = true
+                        isMonthlyMode = true,
+                        goalMode = goalMode,
+                        onDayClick = { date ->
+                            previousViewMode = DiaryViewMode.MONTHLY
+                            viewModel.setDate(date)
+                            viewModel.setViewMode(DiaryViewMode.DAILY)
+                        }
                     )
                 }
 
@@ -370,27 +438,102 @@ fun DiaryScreen(
                                 item {
                                     MealSectionHeader(section = section)
                                 }
-                                items(section.logs, key = { it.log.id }) { item ->
-                                    DiaryLogItem(
-                                        item = item,
-                                        isSelected = selectedLogIds.contains(item.log.id),
-                                        isSelectionMode = isSelectionMode,
-                                        onLongClick = { viewModel.toggleSelection(item.log.id) },
-                                        onClick = {
-                                            if (isSelectionMode) {
-                                                viewModel.toggleSelection(item.log.id)
+                                items(
+                                    items = section.logs,
+                                    key = { "${it.log.id}_${it.log.isConsumed}" }
+                                ) { item ->
+                                    val isConsumed = item.log.isConsumed
+                                    val dismissState = rememberSwipeToDismissBoxState(
+                                        confirmValueChange = { value ->
+                                            when (value) {
+                                                SwipeToDismissBoxValue.EndToStart -> {
+                                                    viewModel.deleteLog(item.log)
+                                                    true
+                                                }
+
+                                                SwipeToDismissBoxValue.StartToEnd -> {
+                                                    viewModel.toggleConsumed(item.log)
+                                                    false
+                                                }
+
+                                                else -> false
+                                            }
+                                        }
+                                    )
+
+                                    SwipeToDismissBox(
+                                        state = dismissState,
+                                        backgroundContent = {
+                                            val direction = dismissState.dismissDirection
+                                            val color = when (direction) {
+                                                SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+                                                SwipeToDismissBoxValue.StartToEnd -> if (isConsumed) {
+                                                    MaterialTheme.colorScheme.secondaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                }
+
+                                                else -> Color.Transparent
+                                            }
+                                            val icon = when (direction) {
+                                                SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                                                SwipeToDismissBoxValue.StartToEnd -> if (isConsumed) {
+                                                    Icons.Default.Clear
+                                                } else {
+                                                    Icons.Default.Check
+                                                }
+
+                                                else -> null
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(color)
+                                                    .padding(horizontal = 20.dp),
+                                                contentAlignment = when (direction) {
+                                                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                                    else -> Alignment.Center
+                                                }
+                                            ) {
+                                                icon?.let {
+                                                    Icon(
+                                                        imageVector = it,
+                                                        contentDescription = null,
+                                                        tint = when (direction) {
+                                                            SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.onErrorContainer
+                                                            else -> MaterialTheme.colorScheme.onPrimaryContainer
+                                                        }
+                                                    )
+                                                }
                                             }
                                         },
-                                        onToggleConsumed = { viewModel.toggleConsumed(item.log) },
-                                        onQuantityChange = { newQty: Double ->
-                                            viewModel.updateQuantity(item.log, newQty)
-                                        },
-                                        onNotesChange = { newNotes: String ->
-                                            viewModel.updateNotes(item.log, newNotes)
-                                        },
-                                        onDelete = { viewModel.deleteLog(item.log) },
-                                        onTimeClick = { logToEditTime = item.log }
-                                    )
+                                        enableDismissFromStartToEnd = !isSelectionMode,
+                                        enableDismissFromEndToStart = !isSelectionMode
+                                    ) {
+                                        Surface(color = MaterialTheme.colorScheme.background) {
+                                            DiaryLogItem(
+                                                item = item,
+                                                isSelected = selectedLogIds.contains(item.log.id),
+                                                isSelectionMode = isSelectionMode,
+                                                onLongClick = { viewModel.toggleSelection(item.log.id) },
+                                                onClick = {
+                                                    if (isSelectionMode) {
+                                                        viewModel.toggleSelection(item.log.id)
+                                                    }
+                                                },
+                                                onToggleConsumed = { viewModel.toggleConsumed(item.log) },
+                                                onQuantityChange = { newQty: Double ->
+                                                    viewModel.updateQuantity(item.log, newQty)
+                                                },
+                                                onNotesChange = { newNotes: String ->
+                                                    viewModel.updateNotes(item.log, newNotes)
+                                                },
+                                                onDelete = { viewModel.deleteLog(item.log) },
+                                                onTimeClick = { logToEditTime = item.log }
+                                            )
+                                        }
+                                    }
                                     HorizontalDivider(
                                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                     )
@@ -426,6 +569,46 @@ fun DiaryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showPeriodDatePicker) {
+        val initialMillis = when (viewMode) {
+            DiaryViewMode.WEEKLY -> weekStart.atStartOfDay(ZoneId.systemDefault()).toInstant()
+                .toEpochMilli()
+
+            DiaryViewMode.MONTHLY -> monthStart.atStartOfDay(ZoneId.systemDefault()).toInstant()
+                .toEpochMilli()
+
+            else -> currentDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showPeriodDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val selectedDate =
+                            Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        when (viewMode) {
+                            DiaryViewMode.WEEKLY -> viewModel.setWeekContaining(selectedDate)
+                            DiaryViewMode.MONTHLY -> viewModel.setMonthContaining(selectedDate)
+                            else -> {}
+                        }
+                    }
+                    showPeriodDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPeriodDatePicker = false }) {
                     Text("Cancelar")
                 }
             }
@@ -481,6 +664,21 @@ fun DiaryScreen(
             }
         )
     }
+
+    if (showMoveDialog) {
+        MoveSelectedDialog(
+            currentDate = currentDate,
+            onDismiss = { showMoveDialog = false },
+            onMoveToDate = { targetDate ->
+                viewModel.moveSelectedToDate(targetDate)
+                showMoveDialog = false
+            },
+            onCloneToMeal = { mealType ->
+                viewModel.cloneSelectedToMeal(mealType)
+                showMoveDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -497,10 +695,10 @@ fun DateSelectorTitle(
 
     var offsetX by remember { mutableFloatStateOf(0f) }
 
-    Box(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
@@ -514,16 +712,19 @@ fun DateSelectorTitle(
                     }
                 )
             }
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
             Icon(
                 imageVector = Icons.Rounded.ChevronLeft,
                 contentDescription = "Dia Anterior",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Box(
+            modifier = Modifier
+                .clickable { onClick() }
+                .padding(horizontal = 4.dp, vertical = 4.dp)
+        ) {
             Text(
                 text = dateText,
                 style = MaterialTheme.typography.titleMedium,
@@ -531,11 +732,12 @@ fun DateSelectorTitle(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.width(8.dp))
+        }
+        IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = "Próximo Dia",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -546,11 +748,27 @@ fun PeriodSelectorTitle(
     label: String,
     onPrev: () -> Unit,
     onNext: () -> Unit,
-    onToday: () -> Unit
+    onLabelClick: () -> Unit = {}
 ) {
+    var offsetX by remember { mutableFloatStateOf(0f) }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 8.dp)
+        modifier = Modifier
+            .padding(horizontal = 8.dp)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (offsetX > 50) onPrev()
+                        else if (offsetX < -50) onNext()
+                        offsetX = 0f
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        offsetX += dragAmount
+                    }
+                )
+            }
     ) {
         IconButton(onClick = onPrev) {
             Icon(
@@ -565,7 +783,11 @@ fun PeriodSelectorTitle(
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             softWrap = false,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onLabelClick() }
+                .padding(horizontal = 8.dp, vertical = 4.dp)
         )
         IconButton(onClick = onNext) {
             Icon(
@@ -574,11 +796,32 @@ fun PeriodSelectorTitle(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        IconButton(onClick = onToday) {
-            Icon(
-                imageVector = Icons.Default.Today,
-                contentDescription = "Ir para Hoje",
-                tint = MaterialTheme.colorScheme.primary
+    }
+}
+
+@Composable
+fun GoalModeSelector(
+    selectedMode: DiaryGoalMode,
+    onModeSelected: (DiaryGoalMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+    ) {
+        DiaryGoalMode.entries.forEach { mode ->
+            val label = when (mode) {
+                DiaryGoalMode.DEFICIT -> "Déficit"
+                DiaryGoalMode.MAINTAIN -> "Manter"
+                DiaryGoalMode.SURPLUS -> "Superávit"
+            }
+            FilterChip(
+                selected = selectedMode == mode,
+                onClick = { onModeSelected(mode) },
+                label = { Text(label) }
             )
         }
     }
@@ -625,7 +868,11 @@ fun WaterTrackerCard(
             ) {
                 FilledIconButton(
                     onClick = { onAdd(-100) },
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    enabled = currentMl >= 100,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
                 ) {
                     Icon(Icons.Default.Remove, null)
                 }
@@ -668,6 +915,7 @@ fun DiarySearchSheetContent(
     var selectedMealType by remember { mutableStateOf(mealTypes.first()) }
     var selectedTime by remember { mutableStateOf(java.time.LocalTime.now()) }
     var showTimePicker by remember { mutableStateOf(false) }
+    var showFilters by remember { mutableStateOf(false) }
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -744,6 +992,19 @@ fun DiarySearchSheetContent(
             })
         )
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            IconButton(onClick = { showFilters = true }) {
+                Icon(
+                    Icons.Default.FilterList,
+                    contentDescription = "Filtros",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
         if (isLoading) {
             Box(
                 Modifier
@@ -791,6 +1052,20 @@ fun DiarySearchSheetContent(
                 }
             }
         }
+    }
+
+    if (showFilters) {
+        FilterBottomSheet(
+            filterState = FoodFilterState.DEFAULT,
+            onDismiss = { showFilters = false },
+            onSourceChange = { },
+            onCategoryToggle = { },
+            onClearCategories = { },
+            onSortChange = { },
+            onResetFilters = { },
+            showCategories = false,
+            showAdvancedFilters = false
+        )
     }
 }
 
@@ -982,7 +1257,11 @@ fun DiaryLogItem(
     onTimeClick: () -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
-    var sliderValue by remember(item.log.quantityGrams) { mutableFloatStateOf(item.log.quantityGrams.toFloat()) }
+    var portionValue by remember(item.log.quantityGrams) {
+        mutableStateOf(
+            item.log.quantityGrams.toInt().toString()
+        )
+    }
 
     // Visual State
     val isConsumed = item.log.isConsumed
@@ -992,7 +1271,7 @@ fun DiaryLogItem(
         Color.Transparent
     }
 
-    val contentAlpha = if (isConsumed) 0.6f else 1f
+    if (isConsumed) 0.6f else 1f
     val textColor =
         if (isConsumed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
 
@@ -1016,41 +1295,18 @@ fun DiaryLogItem(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // 1. Leading Icon (Checkbox or Toggle)
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clickable {
-                        if (isSelectionMode) onClick() else onToggleConsumed()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSelectionMode) {
+            // 1. Leading Checkbox (selection mode only)
+            if (isSelectionMode) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable { onClick() },
+                    contentAlignment = Alignment.Center
+                ) {
                     androidx.compose.material3.Checkbox(
                         checked = isSelected,
-                        onCheckedChange = null // Handled by parent click
+                        onCheckedChange = null
                     )
-                } else {
-                    // Custom Toggle for Consumed state
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isConsumed) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isConsumed) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
                 }
             }
 
@@ -1062,21 +1318,37 @@ fun DiaryLogItem(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (!isSelectionMode) {
-                        // Time Badge (only when not selecting)
                         val timeStr = remember(item.log.entryTimestamp) {
                             val instant = Instant.ofEpochMilli(item.log.entryTimestamp)
                             LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
                                 .format(DateTimeFormatter.ofPattern("HH:mm"))
                         }
-                        Text(
-                            text = timeStr,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
+                                .padding(end = 8.dp)
                                 .clickable { onTimeClick() }
-                                .padding(end = 6.dp)
-                        )
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.AccessTime,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = timeStr,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
 
                     Text(
@@ -1085,7 +1357,8 @@ fun DiaryLogItem(
                         fontWeight = FontWeight.Medium,
                         color = textColor,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        textDecoration = if (isConsumed) TextDecoration.LineThrough else TextDecoration.None
                     )
                 }
 
@@ -1096,8 +1369,10 @@ fun DiaryLogItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.width(8.dp))
+                    val scaledKcal =
+                        ((item.food.energiaKcal ?: 0.0) * item.log.quantityGrams / 100).toInt()
                     Text(
-                        text = "${item.food.energiaKcal?.toInt() ?: 0} kcal",
+                        text = "$scaledKcal kcal",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1112,16 +1387,13 @@ fun DiaryLogItem(
                     .fillMaxWidth()
                     .padding(start = 48.dp, end = 16.dp, top = 8.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "Ajustar quantidade:",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    Spacer(Modifier.weight(1f))
                     IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                         Icon(
                             Icons.Default.Delete,
@@ -1131,18 +1403,18 @@ fun DiaryLogItem(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "${sliderValue.toInt()}g",
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.width(40.dp)
-                    )
-                    Slider(
-                        value = sliderValue,
-                        onValueChange = { sliderValue = it },
-                        onValueChangeFinished = { onQuantityChange(sliderValue.toDouble()) },
-                        valueRange = 0f..2000f,
-                        modifier = Modifier.weight(1f)
+                Spacer(Modifier.height(8.dp))
+
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    PortionControlInput(
+                        portion = portionValue,
+                        onPortionChange = { newValue ->
+                            portionValue = newValue
+                            newValue.toDoubleOrNull()?.let { onQuantityChange(it) }
+                        }
                     )
                 }
 
@@ -1159,7 +1431,7 @@ fun DiaryLogItem(
 
                 // 4. Comparison Graph (for imported diet items)
                 item.log.originalQuantityGrams?.let { target ->
-                    val current = sliderValue
+                    val current = portionValue.toFloatOrNull() ?: 0f
                     val diff = current - target.toFloat()
                     val maxScaleVal = 2000f
 
@@ -1177,7 +1449,11 @@ fun DiaryLogItem(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = if (diff == 0f) "Atingida" else if (diff > 0) "+${diff.toInt()}g" else "${diff.toInt()}g",
+                                text = when {
+                                    diff == 0f -> "Atingida"
+                                    diff > 0 -> "+${diff.toInt()}g (acima)"
+                                    else -> "${diff.toInt()}g (abaixo)"
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (kotlin.math.abs(diff) < 5) MaterialTheme.colorScheme.primary
                                 else if (diff > 0) MaterialTheme.colorScheme.error
@@ -1291,6 +1567,65 @@ fun ImportDietDialog(
                         Text(diet.name, style = MaterialTheme.typography.bodyLarge)
                     }
                     HorizontalDivider()
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
+}
+
+@Composable
+fun MoveSelectedDialog(
+    currentDate: LocalDate,
+    onDismiss: () -> Unit,
+    onMoveToDate: (LocalDate) -> Unit,
+    onCloneToMeal: (String) -> Unit
+) {
+    val mealTypes = listOf("Café da Manhã", "Almoço", "Lanche", "Jantar")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ações em lote") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Mover para:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { onMoveToDate(currentDate.minusDays(1)) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Dia anterior", maxLines = 1)
+                    }
+                    OutlinedButton(
+                        onClick = { onMoveToDate(currentDate.plusDays(1)) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Próximo dia", maxLines = 1)
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Text(
+                    text = "Clonar para refeição:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    mealTypes.forEach { meal ->
+                        TextButton(
+                            onClick = { onCloneToMeal(meal) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(meal)
+                        }
+                    }
                 }
             }
         },

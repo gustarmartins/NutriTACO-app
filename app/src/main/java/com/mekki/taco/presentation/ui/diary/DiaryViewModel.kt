@@ -80,6 +80,9 @@ class DiaryViewModel @Inject constructor(
     private val _availableDiets = MutableStateFlow<List<Diet>>(emptyList())
     val availableDiets = _availableDiets.asStateFlow()
 
+    // --- State: Main Diet Calorie Goal ---
+    private val _mainDietCalorieGoal = MutableStateFlow<Double?>(null)
+
     // --- State: User Profile ---
     private val _userProfile = MutableStateFlow(UserProfile())
 
@@ -100,6 +103,13 @@ class DiaryViewModel @Inject constructor(
 
     private val _isSelectionMode = MutableStateFlow(false)
     val isSelectionMode = _isSelectionMode.asStateFlow()
+
+    private val _goalMode = MutableStateFlow(DiaryGoalMode.DEFICIT)
+    val goalMode = _goalMode.asStateFlow()
+
+    fun setGoalMode(mode: DiaryGoalMode) {
+        _goalMode.value = mode
+    }
 
     // --- State: Search ---
     private val _searchTerm = MutableStateFlow("")
@@ -138,6 +148,11 @@ class DiaryViewModel @Inject constructor(
     private fun loadDiets() {
         viewModelScope.launch {
             dietDao.getAllDiets().collect { _availableDiets.value = it }
+        }
+        viewModelScope.launch {
+            dietDao.getLatestDietWithItems().collect { dietWithItems ->
+                _mainDietCalorieGoal.value = dietWithItems?.diet?.calorieGoals
+            }
         }
     }
 
@@ -212,20 +227,22 @@ class DiaryViewModel @Inject constructor(
     val dailyTotals: StateFlow<DiaryTotals> = combine(
         _currentDate.flatMapLatest { repository.getDailyLogs(it.toString()) },
         dailyWater,
-        _userProfile
-    ) { logs, waterLog, profile ->
-        calculateTotals(logs, waterLog?.quantityMl ?: 0, profile)
+        _userProfile,
+        _mainDietCalorieGoal
+    ) { logs, waterLog, profile, mainDietGoal ->
+        calculateTotals(logs, waterLog?.quantityMl ?: 0, profile, mainDietGoal)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DiaryTotals())
 
     private fun calculateTotals(
         logs: List<DailyLogWithFood>,
         waterMl: Int,
-        profile: UserProfile
+        profile: UserProfile,
+        mainDietGoal: Double?
     ): DiaryTotals {
-        var k = 0.0;
-        var p = 0.0;
-        var c = 0.0;
+        var k = 0.0
+        var p = 0.0
+        var c = 0.0
         var f = 0.0
 
         logs.filter { it.log.isConsumed }.forEach { item ->
@@ -242,7 +259,7 @@ class DiaryViewModel @Inject constructor(
         val weight = profile.weight ?: 0.0
         val pPerKg = if (weight > 0) p / weight else 0.0
         val waterGoal = if (weight > 0) (weight * profile.waterGoalPerMlPerKg).toInt() else 2000
-        val goalKcal = profile.calorieGoal ?: 2000.0
+        val goalKcal = mainDietGoal ?: profile.calorieGoal ?: 2000.0
 
         return DiaryTotals(
             consumedKcal = k,
@@ -264,9 +281,10 @@ class DiaryViewModel @Inject constructor(
             val end = start.plusDays(6)
             repository.getLogsForDateRange(start.toString(), end.toString())
         },
-        _userProfile
-    ) { logs, profile ->
-        calculatePeriodSummary(logs, profile, 7)
+        _userProfile,
+        _mainDietCalorieGoal
+    ) { logs, profile, mainDietGoal ->
+        calculatePeriodSummary(logs, profile, 7, mainDietGoal)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DiarySummary())
 
     // --- Monthly Summary ---
@@ -276,18 +294,20 @@ class DiaryViewModel @Inject constructor(
             val end = start.plusMonths(1).minusDays(1)
             repository.getLogsForDateRange(start.toString(), end.toString())
         },
-        _userProfile
-    ) { logs, profile ->
+        _userProfile,
+        _mainDietCalorieGoal
+    ) { logs, profile, mainDietGoal ->
         val daysInMonth = _monthStart.value.lengthOfMonth()
-        calculatePeriodSummary(logs, profile, daysInMonth)
+        calculatePeriodSummary(logs, profile, daysInMonth, mainDietGoal)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DiarySummary())
 
     private fun calculatePeriodSummary(
         logs: List<DailyLogWithFood>,
         profile: UserProfile,
-        periodDays: Int
+        periodDays: Int,
+        mainDietGoal: Double?
     ): DiarySummary {
-        val goalKcal = profile.calorieGoal ?: 2000.0
+        val goalKcal = mainDietGoal ?: profile.calorieGoal ?: 2000.0
         val weight = profile.weight ?: 70.0
 
         var totalKcal = 0.0
@@ -355,6 +375,11 @@ class DiaryViewModel @Inject constructor(
         val avgProteinPerKg =
             if (weight > 0 && daysLogged > 0) (totalProtein / daysLogged) / weight else 0.0
 
+        val currentStreak = dailyCalories
+            .sortedByDescending { it.date }
+            .takeWhile { it.isOnTarget }
+            .count()
+
         return DiarySummary(
             totalKcal = totalKcal,
             avgKcal = avgKcal,
@@ -379,7 +404,8 @@ class DiaryViewModel @Inject constructor(
             avgProteinPerKg = avgProteinPerKg,
             dailyCalories = dailyCalories,
             daysLogged = daysLogged,
-            daysOnTarget = daysOnTarget
+            daysOnTarget = daysOnTarget,
+            currentStreak = currentStreak
         )
     }
 
@@ -434,6 +460,44 @@ class DiaryViewModel @Inject constructor(
         }
     }
 
+    fun moveSelectedToDate(targetDate: LocalDate) {
+        val ids = _selectedLogIds.value
+        if (ids.isEmpty()) return
+
+        viewModelScope.launch {
+            val currentSections = mealSections.value
+            val allLogs = currentSections.flatMap { it.logs.map { l -> l.log } }
+            val logsToMove = allLogs.filter { ids.contains(it.id) }
+
+            logsToMove.forEach { log ->
+                val updatedLog = log.copy(date = targetDate.toString())
+                repository.updateLog(updatedLog)
+            }
+            clearSelection()
+        }
+    }
+
+    fun cloneSelectedToMeal(targetMealType: String) {
+        val ids = _selectedLogIds.value
+        if (ids.isEmpty()) return
+
+        viewModelScope.launch {
+            val currentSections = mealSections.value
+            val allLogs = currentSections.flatMap { it.logs }
+            val logsToClone = allLogs.filter { ids.contains(it.log.id) }
+
+            logsToClone.forEach { item ->
+                val newLog = item.log.copy(
+                    id = 0,
+                    mealType = targetMealType,
+                    isConsumed = false
+                )
+                repository.addLog(newLog)
+            }
+            clearSelection()
+        }
+    }
+
     // --- Actions ---
 
     fun changeDate(offset: Long) {
@@ -453,6 +517,14 @@ class DiaryViewModel @Inject constructor(
         clearSelection()
     }
 
+    fun goToCurrentWeek() {
+        _weekStart.value = LocalDate.now().with(java.time.DayOfWeek.MONDAY)
+    }
+
+    fun goToCurrentMonth() {
+        _monthStart.value = LocalDate.now().withDayOfMonth(1)
+    }
+
     fun setViewMode(mode: DiaryViewMode) {
         _viewMode.value = mode
     }
@@ -461,8 +533,16 @@ class DiaryViewModel @Inject constructor(
         _weekStart.value = _weekStart.value.plusWeeks(offset)
     }
 
+    fun setWeekContaining(date: LocalDate) {
+        _weekStart.value = date.with(java.time.DayOfWeek.MONDAY)
+    }
+
     fun changeMonth(offset: Long) {
         _monthStart.value = _monthStart.value.plusMonths(offset)
+    }
+
+    fun setMonthContaining(date: LocalDate) {
+        _monthStart.value = date.withDayOfMonth(1)
     }
 
     fun importDiet(dietId: Int) {

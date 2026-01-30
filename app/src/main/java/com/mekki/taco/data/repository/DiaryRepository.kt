@@ -89,6 +89,10 @@ class DiaryRepository @Inject constructor(
         dailyLogDao.updateLog(log.copy(notes = newNotes))
     }
 
+    suspend fun updateLog(log: DailyLog) {
+        dailyLogDao.updateLog(log)
+    }
+
     suspend fun deleteLog(log: DailyLog) {
         dailyLogDao.deleteLog(log)
     }

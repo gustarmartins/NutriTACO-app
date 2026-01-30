@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
@@ -27,15 +30,19 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Waves
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.model.DiarySummary
 import com.mekki.taco.presentation.ui.components.VerticalNutrientCard
@@ -57,6 +65,8 @@ import java.util.Locale
 fun DiarySummaryView(
     summary: DiarySummary,
     isMonthlyMode: Boolean = false,
+    goalMode: DiaryGoalMode = DiaryGoalMode.DEFICIT,
+    onDayClick: ((LocalDate) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showMacros by rememberSaveable { mutableStateOf(true) }
@@ -92,6 +102,22 @@ fun DiarySummaryView(
 
         AnimatedVisibility(
             visible = isVisible,
+            enter = fadeIn(tween(600, delayMillis = 150)) + slideInVertically(
+                tween(
+                    600,
+                    delayMillis = 150
+                )
+            ) { 40 }
+        ) {
+            DietInsightsCard(
+                summary = summary,
+                isMonthlyMode = isMonthlyMode,
+                goalMode = goalMode
+            )
+        }
+
+        AnimatedVisibility(
+            visible = isVisible,
             enter = fadeIn(tween(600, delayMillis = 200)) + slideInVertically(
                 tween(
                     600,
@@ -102,7 +128,9 @@ fun DiarySummaryView(
             WeeklyCalorieChart(
                 dailyCalories = summary.dailyCalories,
                 modifier = Modifier.fillMaxWidth(),
-                isMonthlyMode = isMonthlyMode
+                isMonthlyMode = isMonthlyMode,
+                goalMode = goalMode,
+                onDayClick = onDayClick
             )
         }
 
@@ -262,20 +290,27 @@ private fun SummaryStatsCard(summary: DiarySummary) {
                 )
             }
 
-            if (summary.daysOnTarget > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.LocalFireDepartment,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
+            if (summary.currentStreak > 0) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.LocalFireDepartment,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "${summary.currentStreak}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                     Text(
-                        text = "${summary.daysOnTarget}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        text = "Dias seguidos",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -424,6 +459,365 @@ private fun NutrientRow(label: String, value: Double, unit: String, modifier: Mo
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+@Composable
+private fun DietInsightsCard(
+    summary: DiarySummary,
+    isMonthlyMode: Boolean,
+    goalMode: DiaryGoalMode = DiaryGoalMode.DEFICIT,
+    modifier: Modifier = Modifier
+) {
+    val periodDays = if (isMonthlyMode) summary.dailyCalories.size.coerceAtLeast(1) else 7
+    val dailyGoal by remember(summary) {
+        derivedStateOf {
+            summary.dailyCalories.firstOrNull()?.goalKcal ?: 2000.0
+        }
+    }
+    val periodGoal = dailyGoal * periodDays
+    val deficit = periodGoal - summary.totalKcal
+    val deficitAbs = kotlin.math.abs(deficit)
+    val percentage =
+        if (periodGoal > 0) (summary.totalKcal / periodGoal * 100).coerceIn(0.0, 150.0) else 0.0
+
+    val estimatedKgChange = deficit / 7700.0
+    val projectedWeightIn5Weeks = estimatedKgChange * 5
+
+    val tolerance = dailyGoal * 0.1 * periodDays
+    val isOnTrack = deficitAbs < tolerance
+    val isUnder = deficit > 0
+    val isOver = deficit < 0
+
+    val expectedDays = if (isMonthlyMode) {
+        LocalDate.now().lengthOfMonth()
+    } else 7
+    val isIncomplete = summary.daysLogged < expectedDays
+
+    val (statusColor, statusIcon, statusText) = when (goalMode) {
+        DiaryGoalMode.DEFICIT -> when {
+            isOnTrack -> Triple(
+                MaterialTheme.colorScheme.primary,
+                Icons.Default.LocalFireDepartment,
+                "Você está no caminho certo!"
+            )
+
+            isUnder -> Triple(
+                MaterialTheme.colorScheme.tertiary,
+                Icons.AutoMirrored.Filled.TrendingDown,
+                "Você ficou ${deficitAbs.toInt()} kcal abaixo da meta"
+            )
+
+            else -> Triple(
+                MaterialTheme.colorScheme.error,
+                Icons.AutoMirrored.Filled.TrendingUp,
+                "Você excedeu ${deficitAbs.toInt()} kcal da meta"
+            )
+        }
+
+        DiaryGoalMode.SURPLUS -> when {
+            isOnTrack -> Triple(
+                MaterialTheme.colorScheme.primary,
+                Icons.Default.LocalFireDepartment,
+                "Você está no caminho certo!"
+            )
+
+            isOver -> Triple(
+                MaterialTheme.colorScheme.tertiary,
+                Icons.AutoMirrored.Filled.TrendingUp,
+                "Bom! Você consumiu ${deficitAbs.toInt()} kcal acima da meta"
+            )
+
+            else -> Triple(
+                MaterialTheme.colorScheme.error,
+                Icons.AutoMirrored.Filled.TrendingDown,
+                "Atenção: ${deficitAbs.toInt()} kcal abaixo da meta para ganho"
+            )
+        }
+
+        DiaryGoalMode.MAINTAIN -> when {
+            isOnTrack -> Triple(
+                MaterialTheme.colorScheme.primary,
+                Icons.Default.LocalFireDepartment,
+                "Você está mantendo o equilíbrio!"
+            )
+
+            isUnder -> Triple(
+                MaterialTheme.colorScheme.secondary,
+                Icons.AutoMirrored.Filled.TrendingDown,
+                "Você ficou ${deficitAbs.toInt()} kcal abaixo da meta"
+            )
+
+            else -> Triple(
+                MaterialTheme.colorScheme.secondary,
+                Icons.AutoMirrored.Filled.TrendingUp,
+                "Você excedeu ${deficitAbs.toInt()} kcal da meta"
+            )
+        }
+    }
+
+    // TODO Should probably get a few professional opinions on what to write here.
+    val motivationalMessage = when (goalMode) {
+        DiaryGoalMode.DEFICIT -> when {
+            isOnTrack -> "Continue assim! Consistência é a chave."
+            isUnder && deficitAbs > dailyGoal -> "Lembre-se de se nutrir adequadamente."
+            isUnder -> "Bom progresso! Cuide para não restringir demais."
+            deficitAbs < dailyGoal * 2 -> "Uma refeição livre por semana ajuda à adesão ao plano."
+            else -> "Considere revisar suas refeições com calma."
+        }
+
+        DiaryGoalMode.SURPLUS -> when {
+            isOnTrack -> "Continue assim! Consistência leva ao ganho."
+            isOver && deficitAbs > dailyGoal -> "Ótimo superávit! Foco nos treinos."
+            isOver -> "Bom progresso para ganho de massa!"
+            deficitAbs < dailyGoal -> "Tente consumir um pouco mais amanhã."
+            else -> "Lembre-se de comer o suficiente para seus objetivos."
+        }
+
+        DiaryGoalMode.MAINTAIN -> when {
+            isOnTrack -> "Perfeito equilíbrio! Continue assim."
+            else -> "Pequeno desvio, mas nada preocupante."
+        }
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Insights do Período",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            val minDaysRequired = if (isMonthlyMode) 5 else 2
+            val hasEnoughData = summary.daysLogged >= minDaysRequired
+
+            if (!hasEnoughData) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CalendarToday,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Text(
+                        text = "Registre suas refeições para ver insights precisos",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (summary.daysLogged > 0) {
+                        Text(
+                            text = "${summary.daysLogged} de $minDaysRequired dias mínimos registrados",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            } else {
+                if (isIncomplete) {
+                    val loggedDates = summary.dailyCalories.map { it.date }.toSet()
+                    val today = LocalDate.now()
+                    val periodStart =
+                        if (isMonthlyMode) today.withDayOfMonth(1) else today.with(java.time.DayOfWeek.MONDAY)
+                    val allDatesInPeriod =
+                        (0 until expectedDays).map { periodStart.plusDays(it.toLong()) }
+                            .filter { it <= today }
+                    val missingDates = allDatesInPeriod.filter { it !in loggedDates }
+                    val missingDaysText = if (missingDates.size <= 5) {
+                        missingDates.joinToString(", ") { it.dayOfMonth.toString() }
+                    } else {
+                        missingDates.take(4).joinToString(", ") { it.dayOfMonth.toString() } +
+                                " +${missingDates.size - 4}"
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Dados parciais: Apenas ${summary.daysLogged} de ${allDatesInPeriod.size} dias registrados",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                        // TODO improve so it can be clicked
+                        if (missingDates.isNotEmpty()) {
+                            Text(
+                                text = "Dias sem registro: $missingDaysText",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${periodGoal.toInt()}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Meta (kcal)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${summary.totalKcal.toInt()}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = statusColor
+                        )
+                        Text(
+                            text = "Real (kcal)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { (percentage / 100).toFloat().coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = statusColor,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = statusIcon,
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = statusColor
+                    )
+                }
+
+                if (kotlin.math.abs(projectedWeightIn5Weeks) >= 0.1) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "📈",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        val weightText = when (goalMode) {
+                            DiaryGoalMode.DEFICIT -> if (projectedWeightIn5Weeks > 0) {
+                                "Projeção 5 semanas: ~%.1f kg a menos".format(
+                                    projectedWeightIn5Weeks
+                                )
+                            } else {
+                                "Projeção 5 semanas: ~%.1f kg a mais".format(-projectedWeightIn5Weeks)
+                            }
+
+                            DiaryGoalMode.SURPLUS -> if (projectedWeightIn5Weeks < 0) {
+                                "Projeção 5 semanas: ~%.1f kg de ganho".format(-projectedWeightIn5Weeks)
+                            } else {
+                                "Projeção 5 semanas: ~%.1f kg a menos (déficit)".format(
+                                    projectedWeightIn5Weeks
+                                )
+                            }
+
+                            DiaryGoalMode.MAINTAIN -> "Variação projetada: ~%.1f kg".format(
+                                kotlin.math.abs(projectedWeightIn5Weeks)
+                            )
+                        }
+                        Text(
+                            text = weightText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "${summary.daysOnTarget} de ${summary.daysLogged} dias na meta",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "💡",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = motivationalMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -26,7 +26,8 @@ data class DiarySummary(
     val avgProteinPerKg: Double = 0.0,
     val dailyCalories: List<DailyCalorieEntry> = emptyList(),
     val daysLogged: Int = 0,
-    val daysOnTarget: Int = 0
+    val daysOnTarget: Int = 0,
+    val currentStreak: Int = 0
 )
 
 data class DailyCalorieEntry(
