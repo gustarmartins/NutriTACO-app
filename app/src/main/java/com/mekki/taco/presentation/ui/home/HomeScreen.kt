@@ -53,6 +53,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Person
@@ -111,8 +112,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.model.DietItemWithFood
+import com.mekki.taco.presentation.ui.components.FilterBottomSheet
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
+import com.mekki.taco.presentation.ui.search.FoodFilterState
+import com.mekki.taco.presentation.ui.search.FoodSortOption
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -143,6 +147,7 @@ fun HomeScreen(
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     var showBottomSheet by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
     var foodToAddToDiet by remember { mutableStateOf<Food?>(null) }
     var quantityToAddToDiet by remember { mutableStateOf("100") }
     val scrollState = rememberScrollState()
@@ -309,6 +314,7 @@ fun HomeScreen(
                             },
                             onSearchTermChange = homeViewModel::onSearchTermChange,
                             onSortOptionChange = homeViewModel::onSortOptionSelected,
+                            onShowFilters = { showFilterSheet = true },
                             onClearSearch = homeViewModel::cleanSearch,
                             onProfileClick = { showBottomSheet = true },
                             onSettingsClick = onNavigateToSettings
@@ -443,6 +449,22 @@ fun HomeScreen(
             )
         }
     }
+
+    if (showFilterSheet) {
+        FilterBottomSheet(
+            filterState = FoodFilterState(
+                sortOption = state.sortOption
+            ),
+            onDismiss = { showFilterSheet = false },
+            onSourceChange = { },
+            onCategoryToggle = { },
+            onClearCategories = { },
+            onSortChange = { homeViewModel.onSortOptionSelected(it) },
+            onResetFilters = { homeViewModel.onSortOptionSelected(FoodSortOption.RELEVANCE) },
+            showCategories = false,
+            showAdvancedFilters = false
+        )
+    }
 }
 
 @Composable
@@ -454,6 +476,7 @@ fun HomeTopBarWithSearch(
     onSearchClose: () -> Unit,
     onSearchTermChange: (String) -> Unit,
     onSortOptionChange: (FoodSortOption) -> Unit,
+    onShowFilters: () -> Unit,
     onClearSearch: () -> Unit,
     onProfileClick: () -> Unit,
     onSettingsClick: () -> Unit
@@ -667,6 +690,15 @@ fun HomeTopBarWithSearch(
                             selectedBorderColor = Color.Transparent
                         )
                     )
+                }
+                item {
+                    IconButton(onClick = onShowFilters) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = "Filtros avançados",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
         }
@@ -1330,7 +1362,7 @@ fun ConfirmLogDialog(
             }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss) {
                 Text("Cancelar")
             }
         }

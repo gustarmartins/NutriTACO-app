@@ -191,4 +191,7 @@ abstract class FoodDao {
         """
     )
     abstract fun getTopFoods(limit: Int = 10): Flow<List<Food>>
+
+    @Query("SELECT * FROM foods WHERE source = :source ORDER BY name ASC")
+    abstract fun getFoodsBySource(source: String): Flow<List<Food>>
 }

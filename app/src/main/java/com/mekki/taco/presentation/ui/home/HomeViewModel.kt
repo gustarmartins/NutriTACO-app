@@ -20,6 +20,7 @@ import com.mekki.taco.data.model.DietWithItems
 import com.mekki.taco.data.repository.OnboardingRepository
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.presentation.ui.components.ChartType
+import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.utils.NutrientCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -90,12 +91,6 @@ data class HomeState(
     val sortOption: FoodSortOption = FoodSortOption.RELEVANCE,
     val showRegistrarTutorial: Boolean = false
 )
-
-enum class FoodSortOption(val label: String) {
-    RELEVANCE("Relevância"), PROTEIN("Proteínas"), CARBS("Carboidratos"), FAT("Gorduras"), CALORIES(
-        "Calorias"
-    )
-}
 
 sealed class HomeEffect {
     data class ShowSnackbar(
@@ -242,7 +237,7 @@ class HomeViewModel @Inject constructor(
         val allResults = args[9] as Boolean
 
         val sortedResults = when (sort) {
-            FoodSortOption.RELEVANCE -> rawResults
+            FoodSortOption.RELEVANCE, FoodSortOption.NAME -> rawResults
             FoodSortOption.PROTEIN -> rawResults.sortedByDescending { it.proteina ?: 0.0 }
             FoodSortOption.CARBS -> rawResults.sortedByDescending { it.carboidratos ?: 0.0 }
             FoodSortOption.FAT -> rawResults.sortedByDescending { it.lipidios?.total ?: 0.0 }

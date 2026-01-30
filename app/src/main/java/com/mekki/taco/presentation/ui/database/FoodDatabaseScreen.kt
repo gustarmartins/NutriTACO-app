@@ -26,21 +26,17 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,7 +50,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.Food
-import com.mekki.taco.presentation.ui.search.FoodSortOption
+import com.mekki.taco.presentation.ui.components.FilterBottomSheet
+import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSource
 import java.text.DecimalFormat
 
@@ -246,13 +243,20 @@ fun FoodDatabaseScreen(
 
     if (showFilterSheet) {
         FilterBottomSheet(
-            state = uiState,
+            filterState = FoodFilterState(
+                searchQuery = uiState.searchQuery,
+                source = uiState.selectedSource,
+                sortOption = uiState.sortOption,
+                selectedCategories = uiState.selectedCategories
+            ),
+            categories = uiState.categories,
             onDismiss = { showFilterSheet = false },
             onSourceChange = viewModel::onSourceChange,
             onCategoryToggle = viewModel::onCategoryToggle,
             onClearCategories = viewModel::onClearCategories,
             onSortChange = viewModel::onSortChange,
-            onResetFilters = viewModel::onResetFilters
+            onResetFilters = viewModel::onResetFilters,
+            showAdvancedFilters = false
         )
     }
 }
@@ -336,119 +340,5 @@ fun NutrientValue(label: String, value: Double?, color: Color) {
             color = color.copy(alpha = 0.8f),
             modifier = Modifier.padding(start = 2.dp)
         )
-    }
-}
-
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun FilterBottomSheet(
-    state: FoodDatabaseState,
-    onDismiss: () -> Unit,
-    onSourceChange: (FoodSource) -> Unit,
-    onCategoryToggle: (String) -> Unit,
-    onClearCategories: () -> Unit,
-    onSortChange: (SortOption) -> Unit,
-    onResetFilters: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Header with title and reset button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Filtros",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                if (state.hasActiveFilters) {
-                    TextButton(onClick = onResetFilters) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.size(4.dp))
-                        Text("Resetar")
-                    }
-                }
-            }
-
-            // Source section
-            Text("Fonte", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FoodSource.entries.forEach { source ->
-                    FilterChip(
-                        selected = state.selectedSource == source,
-                        onClick = { onSourceChange(source) },
-                        label = { Text(source.displayName) }
-                    )
-                }
-            }
-
-            // Sort section
-            Text("Ordenar Por", style = MaterialTheme.typography.titleMedium)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(SortOption.entries.toTypedArray()) { option ->
-                    FilterChip(
-                        selected = state.sortOption == option,
-                        onClick = { onSortChange(option) },
-                        label = { Text(option.displayName) }
-                    )
-                }
-            }
-
-            // Category section with multi-select
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Categoria", style = MaterialTheme.typography.titleMedium)
-
-                if (state.selectedCategories.isNotEmpty()) {
-                    TextButton(onClick = onClearCategories) {
-                        Text(
-                            "Limpar (${state.selectedCategories.size})",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
-                }
-            }
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.categories) { cat ->
-                    FilterChip(
-                        selected = cat in state.selectedCategories,
-                        onClick = { onCategoryToggle(cat) },
-                        label = { Text(cat) }
-                    )
-                }
-            }
-
-            // Show selected categories count
-            if (state.selectedCategories.isNotEmpty()) {
-                Text(
-                    text = "${state.selectedCategories.size} categoria(s) selecionada(s)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
     }
 }

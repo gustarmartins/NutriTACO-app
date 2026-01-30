@@ -28,7 +28,7 @@ import kotlinx.coroutines.CoroutineScope
         FoodFts::class,
         DailyWaterLog::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 
@@ -133,6 +133,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Add source column (nullable, with default NULL)
+                db.execSQL("ALTER TABLE foods ADD COLUMN source TEXT DEFAULT NULL")
+
+                // 2. Backfill: TACO for official foods, CUSTOM for user-created
+                db.execSQL("UPDATE foods SET source = CASE WHEN isCustom = 1 THEN 'CUSTOM' ELSE 'TACO' END")
+
+                // 3. Create index for efficient filtering
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_foods_source ON foods(source)")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             // Retorna a instância existente se já foi criada (padrão Singleton).
             // Caso contrário, cria a instância do banco de dados de forma segura para threads.
@@ -143,7 +156,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "taco_database"
                 )
                     .addCallback(AppDatabaseCallback(context.applicationContext, scope))
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance

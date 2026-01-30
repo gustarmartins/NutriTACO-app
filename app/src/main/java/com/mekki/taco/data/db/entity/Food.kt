@@ -14,7 +14,8 @@ import kotlinx.parcelize.Parcelize
         Index(value = ["name"]),
         Index(value = ["tacoID"], unique = true),
         Index(value = ["category"]),
-        Index(value = ["uuid"], unique = true)
+        Index(value = ["uuid"], unique = true),
+        Index(value = ["source"])
     ]
 )
 @Parcelize
@@ -26,8 +27,13 @@ data class Food(
     val name: String,
     val category: String,
 
+    @Deprecated("Value is deprecated and source should be used instead. Kept for UUID/sharing logic compatibility.")
     @ColumnInfo(defaultValue = "0")
     val isCustom: Boolean = false,
+
+    // data source for future additions "TACO", "CUSTOM", "TBCA", "IBGE" etc.
+    @ColumnInfo(defaultValue = "NULL")
+    val source: String? = null,
 
     // collision-free sharing between users
     @ColumnInfo(defaultValue = "NULL")

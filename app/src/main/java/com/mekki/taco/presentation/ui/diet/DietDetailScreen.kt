@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -102,6 +103,7 @@ import com.mekki.taco.data.db.entity.DietItem
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.model.DietItemWithFood
 import com.mekki.taco.presentation.ui.components.DiscardChangesDialog
+import com.mekki.taco.presentation.ui.components.FilterBottomSheet
 import com.mekki.taco.presentation.ui.components.NutritionalSummaryCard
 import com.mekki.taco.presentation.ui.components.ScanResultDialog
 import com.mekki.taco.presentation.ui.components.SearchItem
@@ -1277,6 +1279,7 @@ fun SearchFoodSheetContent(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
+    var showFilters by remember { mutableStateOf(false) }
 
     // Auto-scroll to end when item is added
     LaunchedEffect(addedItems.size) {
@@ -1395,6 +1398,14 @@ fun SearchFoodSheetContent(
                         } else null
                     )
                 }
+
+                IconButton(onClick = { showFilters = true }) {
+                    Icon(
+                        Icons.Default.FilterList,
+                        contentDescription = "Filtros",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
@@ -1461,6 +1472,20 @@ fun SearchFoodSheetContent(
                 }
             }
         }
+    }
+
+    if (showFilters) {
+        FilterBottomSheet(
+            filterState = searchState.filterState,
+            onDismiss = { showFilters = false },
+            onSourceChange = { },
+            onCategoryToggle = { },
+            onClearCategories = { },
+            onSortChange = onSortOptionChange,
+            onResetFilters = { onSortOptionChange(FoodSortOption.RELEVANCE) },
+            showCategories = false,
+            showAdvancedFilters = false
+        )
     }
 }
 

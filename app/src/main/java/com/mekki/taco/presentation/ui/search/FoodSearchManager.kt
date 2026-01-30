@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 
-// FoodSortOption is now in FilterModel.kt
 
 data class FoodSearchState(
     val searchTerm: String = "",
@@ -27,13 +26,15 @@ data class FoodSearchState(
     val results: List<Food> = emptyList(),
     val expandedFoodId: Int? = null,
     val quickAddAmount: String = "100",
-    val sortOption: FoodSortOption = FoodSortOption.RELEVANCE
+    val sortOption: FoodSortOption = FoodSortOption.RELEVANCE,
+    val filterState: FoodFilterState = FoodFilterState.DEFAULT
 )
 
 private const val KEY_SM_TERM = "sm_search_term"
 private const val KEY_SM_QUICK_ADD = "sm_quick_add"
 private const val KEY_SM_SORT = "sm_sort_option"
 private const val KEY_SM_EXPANDED = "sm_expanded_id"
+private const val KEY_SM_SOURCE = "sm_source"
 
 /**
  * Reusable food search manager with FTS support, synonyms, and sorting.
@@ -42,7 +43,7 @@ private const val KEY_SM_EXPANDED = "sm_expanded_id"
 class FoodSearchManager(
     private val foodDao: FoodDao,
     private val scope: CoroutineScope,
-    private val savedStateHandle: SavedStateHandle? = null // Optional for flexibility
+    private val savedStateHandle: SavedStateHandle? = null
 ) {
     private val _localSearchTerm = MutableStateFlow("")
     private val _localQuickAdd = MutableStateFlow("100")
@@ -59,6 +60,12 @@ class FoodSearchManager(
     private val expandedIdFlow = savedStateHandle?.getStateFlow<Int?>(KEY_SM_EXPANDED, null)
         ?: _localExpandedId.asStateFlow()
 
+    private val _localSourceFilter = MutableStateFlow(FoodSource.ALL)
+    private val sourceFilterFlow = savedStateHandle?.getStateFlow(KEY_SM_SOURCE, FoodSource.ALL)
+        ?: _localSourceFilter.asStateFlow()
+
+    private val _filterState = MutableStateFlow(FoodFilterState.DEFAULT)
+
     private val _isLoading = MutableStateFlow(false)
     private val _rawResults = MutableStateFlow<List<Food>>(emptyList())
 
@@ -69,7 +76,8 @@ class FoodSearchManager(
             _rawResults,
             expandedIdFlow,
             quickAddFlow,
-            sortOptionFlow
+            sortOptionFlow,
+            _filterState
         )
     ) { args ->
         val term = args[0] as String
@@ -78,13 +86,16 @@ class FoodSearchManager(
         val expanded = args[3] as Int?
         val quickAdd = args[4] as String
         val sort = args[5] as FoodSortOption
+        val filters = args[6] as FoodFilterState
+
+        val filtered = applyFilters(raw, filters)
 
         val sorted = when (sort) {
-            FoodSortOption.RELEVANCE, FoodSortOption.NAME -> raw
-            FoodSortOption.PROTEIN -> raw.sortedByDescending { it.proteina ?: 0.0 }
-            FoodSortOption.CARBS -> raw.sortedByDescending { it.carboidratos ?: 0.0 }
-            FoodSortOption.FAT -> raw.sortedByDescending { it.lipidios?.total ?: 0.0 }
-            FoodSortOption.CALORIES -> raw.sortedByDescending { it.energiaKcal ?: 0.0 }
+            FoodSortOption.RELEVANCE, FoodSortOption.NAME -> filtered
+            FoodSortOption.PROTEIN -> filtered.sortedByDescending { it.proteina ?: 0.0 }
+            FoodSortOption.CARBS -> filtered.sortedByDescending { it.carboidratos ?: 0.0 }
+            FoodSortOption.FAT -> filtered.sortedByDescending { it.lipidios?.total ?: 0.0 }
+            FoodSortOption.CALORIES -> filtered.sortedByDescending { it.energiaKcal ?: 0.0 }
         }
         FoodSearchState(
             searchTerm = term,
@@ -92,7 +103,8 @@ class FoodSearchManager(
             results = sorted,
             expandedFoodId = expanded,
             quickAddAmount = quickAdd,
-            sortOption = sort
+            sortOption = sort,
+            filterState = filters
         )
     }.stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Lazily, FoodSearchState())
 
@@ -237,5 +249,59 @@ class FoodSearchManager(
             _localSortOption.value = FoodSortOption.RELEVANCE
         }
         _rawResults.value = emptyList()
+        _filterState.value = FoodFilterState.DEFAULT
+    }
+
+    fun onFilterStateChange(newState: FoodFilterState) {
+        _filterState.value = newState
+    }
+
+    fun onSourceFilterChange(source: FoodSource) {
+        _filterState.value = _filterState.value.copy(source = source)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyFilters(foods: List<Food>, filters: FoodFilterState): List<Food> {
+        return foods.filter { food ->
+            val sourceMatch = when (filters.source) {
+                FoodSource.ALL -> true
+                FoodSource.TACO -> !food.isCustom
+                FoodSource.CUSTOM -> food.isCustom
+            }
+            if (!sourceMatch) return@filter false
+
+            filters.minProtein?.let { if ((food.proteina ?: 0.0) < it) return@filter false }
+            filters.maxProtein?.let { if ((food.proteina ?: 0.0) > it) return@filter false }
+            filters.minCarbs?.let { if ((food.carboidratos ?: 0.0) < it) return@filter false }
+            filters.maxCarbs?.let { if ((food.carboidratos ?: 0.0) > it) return@filter false }
+            filters.minFat?.let { if ((food.lipidios?.total ?: 0.0) < it) return@filter false }
+            filters.maxFat?.let { if ((food.lipidios?.total ?: 0.0) > it) return@filter false }
+            filters.minCalories?.let { if ((food.energiaKcal ?: 0.0) < it) return@filter false }
+            filters.maxCalories?.let { if ((food.energiaKcal ?: 0.0) > it) return@filter false }
+
+            filters.minVitaminaC?.let { if ((food.vitaminaC ?: 0.0) < it) return@filter false }
+            filters.minRetinol?.let { if ((food.retinol ?: 0.0) < it) return@filter false }
+            filters.minTiamina?.let { if ((food.tiamina ?: 0.0) < it) return@filter false }
+            filters.minRiboflavina?.let { if ((food.riboflavina ?: 0.0) < it) return@filter false }
+            filters.minPiridoxina?.let { if ((food.piridoxina ?: 0.0) < it) return@filter false }
+            filters.minNiacina?.let { if ((food.niacina ?: 0.0) < it) return@filter false }
+
+            filters.minCalcio?.let { if ((food.calcio ?: 0.0) < it) return@filter false }
+            filters.minFerro?.let { if ((food.ferro ?: 0.0) < it) return@filter false }
+            filters.minSodio?.let { if ((food.sodio ?: 0.0) < it) return@filter false }
+            filters.maxSodio?.let { if ((food.sodio ?: 0.0) > it) return@filter false }
+            filters.minPotassio?.let { if ((food.potassio ?: 0.0) < it) return@filter false }
+            filters.minMagnesio?.let { if ((food.magnesio ?: 0.0) < it) return@filter false }
+            filters.minZinco?.let { if ((food.zinco ?: 0.0) < it) return@filter false }
+            filters.minCobre?.let { if ((food.cobre ?: 0.0) < it) return@filter false }
+            filters.minFosforo?.let { if ((food.fosforo ?: 0.0) < it) return@filter false }
+            filters.minManganes?.let { if ((food.manganes ?: 0.0) < it) return@filter false }
+
+            filters.minColesterol?.let { if ((food.colesterol ?: 0.0) < it) return@filter false }
+            filters.maxColesterol?.let { if ((food.colesterol ?: 0.0) > it) return@filter false }
+            filters.minFibra?.let { if ((food.fibraAlimentar ?: 0.0) < it) return@filter false }
+
+            true
+        }
     }
 }
