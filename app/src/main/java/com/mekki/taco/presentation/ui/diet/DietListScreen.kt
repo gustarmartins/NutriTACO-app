@@ -37,12 +37,14 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,7 +61,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.Diet
-import com.mekki.taco.data.db.entity.DietItem
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -78,7 +79,6 @@ fun DietListScreen(
     val sharingStatus by viewModel.sharingStatus.collectAsState()
     var dietToSetMain by remember { mutableStateOf<Diet?>(null) }
     var dietToDelete by remember { mutableStateOf<Diet?>(null) }
-    var deletedSnapshot by remember { mutableStateOf<Pair<Diet, List<DietItem>>?>(null) }
     var dietToExportId by remember { mutableIntStateOf(-1) }
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -108,7 +108,7 @@ fun DietListScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    DisposableEffect(Unit) {
         onFabChange {
             FloatingActionButton(onClick = onNavigateToCreateDiet) {
                 Icon(Icons.Filled.Add, contentDescription = "Criar Nova Dieta")
@@ -118,6 +118,10 @@ fun DietListScreen(
             IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
                 Icon(Icons.Filled.ArrowDownward, contentDescription = "Importar Dieta")
             }
+        }
+        onDispose {
+            onFabChange(null)
+            onActionsChange(null)
         }
     }
 
@@ -201,16 +205,15 @@ fun DietListScreen(
                         dietToDelete = null
                         coroutineScope.launch {
                             val snapshot = viewModel.deleteDietWithSnapshot(diet)
-                            deletedSnapshot = snapshot
                             val result = snackbarHostState.showSnackbar(
                                 message = "Dieta '${diet.name}' excluída",
                                 actionLabel = "Desfazer",
-                                withDismissAction = true
+                                withDismissAction = true,
+                                duration = SnackbarDuration.Indefinite
                             )
                             if (result == SnackbarResult.ActionPerformed) {
-                                deletedSnapshot?.let { viewModel.restoreDiet(it) }
+                                viewModel.restoreDiet(snapshot)
                             }
-                            deletedSnapshot = null
                         }
                     }
                 ) {

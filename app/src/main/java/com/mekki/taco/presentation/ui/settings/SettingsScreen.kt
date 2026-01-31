@@ -166,15 +166,12 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
 
-            if (uiState.revertPoints.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "Pontos de Restauração",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+        if (uiState.revertPoints.isNotEmpty()) {
+            HorizontalDivider()
+
+            SettingsSection(title = "Pontos de Restauração") {
                 Text(
                     "Restaure seus dados para o estado anterior a uma importação.",
                     style = MaterialTheme.typography.bodySmall,
