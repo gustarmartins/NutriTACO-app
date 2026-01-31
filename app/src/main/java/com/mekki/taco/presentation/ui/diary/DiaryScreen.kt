@@ -294,7 +294,7 @@ fun DiaryScreen(
             }
         },
         floatingActionButton = {
-            if (!isSelectionMode) {
+            if (!isSelectionMode && viewMode == DiaryViewMode.DAILY) {
                 FloatingActionButton(
                     onClick = { showSearchSheet = true },
                     containerColor = MaterialTheme.colorScheme.primary,
