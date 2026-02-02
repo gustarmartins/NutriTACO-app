@@ -70,9 +70,11 @@ import com.mekki.taco.presentation.ui.components.AddToDietDialog
 import com.mekki.taco.presentation.ui.components.DiscardChangesDialog
 import com.mekki.taco.presentation.ui.components.DynamicMacroGrid
 import com.mekki.taco.presentation.ui.components.MicronutrientsPanel
+import com.mekki.taco.presentation.ui.components.NutrientWarningBadges
 import com.mekki.taco.presentation.ui.components.PortionControlInput
 import com.mekki.taco.presentation.ui.components.SecondaryStatsGrid
 import com.mekki.taco.presentation.ui.components.VerticalNutrientCard
+import com.mekki.taco.utils.NutrientWarnings
 import kotlinx.coroutines.launch
 
 @OptIn(
@@ -313,6 +315,14 @@ fun FoodDetailScreen(
                                         PortionControlInput(
                                             portion = uiState.portion,
                                             onPortionChange = onPortionChange
+                                        )
+                                    }
+
+                                    val warnings = NutrientWarnings.getWarningsForFood(alimento)
+                                    if (warnings.isNotEmpty()) {
+                                        NutrientWarningBadges(
+                                            warnings = warnings,
+                                            modifier = Modifier.padding(top = 8.dp)
                                         )
                                     }
                                 }

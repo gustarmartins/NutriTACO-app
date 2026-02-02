@@ -189,6 +189,42 @@ fun SettingsScreen(
 
         HorizontalDivider()
 
+        // Sources Section
+        SettingsSection(title = "Fontes de Dados") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Tabela TACO",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Dados nutricionais baseados na Tabela Brasileira de Composição de Alimentos (TACO) - NEPA/UNICAMP.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Alertas Nutricionais",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Os alertas de \"Alto em Sódio\" e \"Alto em Gorduras Saturadas\" são baseados nos limites estabelecidos pela ANVISA na Instrução Normativa IN Nº 75/2020 (Anexo XV) para rotulagem nutricional frontal.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "• Sódio: ≥ 600mg por 100g\n• Gorduras Saturadas: ≥ 6g por 100g",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+
+        HorizontalDivider()
+
         // About Section
         SettingsSection(title = "Sobre") {
             Column(
