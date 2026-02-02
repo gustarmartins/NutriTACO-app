@@ -18,9 +18,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
-// FoodSource and FoodSortOption are now in FilterModel.kt
-// Legacy SortOption alias for compatibility
-typealias SortOption = FoodSortOption
+
 
 data class FoodDatabaseState(
     val isLoading: Boolean = true,
@@ -31,14 +29,14 @@ data class FoodDatabaseState(
     val searchQuery: String = "",
     val selectedCategories: Set<String> = emptySet(),
     val selectedSource: FoodSource = FoodSource.ALL,
-    val sortOption: SortOption = SortOption.NAME
+    val sortOption: FoodSortOption = FoodSortOption.NAME
 ) {
     // checks if any no default filters are active
     val hasActiveFilters: Boolean
         get() = searchQuery.isNotEmpty() ||
                 selectedCategories.isNotEmpty() ||
                 selectedSource != FoodSource.ALL ||
-                sortOption != SortOption.NAME
+                sortOption != FoodSortOption.NAME
 }
 
 @HiltViewModel
@@ -62,7 +60,7 @@ class FoodDatabaseViewModel @Inject constructor(
         val query: String,
         val categories: Set<String>,
         val source: FoodSource,
-        val sort: SortOption
+        val sort: FoodSortOption
     )
 
     val uiState: StateFlow<FoodDatabaseState> = combine(
@@ -99,11 +97,14 @@ class FoodDatabaseViewModel @Inject constructor(
         }.sortedWith(
             // 4. Sorting
             when (filters.sort) {
-                SortOption.NAME, SortOption.RELEVANCE -> compareBy { it.name }
-                SortOption.CALORIES -> compareByDescending { it.energiaKcal }
-                SortOption.PROTEIN -> compareByDescending { it.proteina }
-                SortOption.CARBS -> compareByDescending { it.carboidratos }
-                SortOption.FAT -> compareByDescending { it.lipidios?.total }
+                FoodSortOption.RELEVANCE -> compareByDescending { 
+                    it.usageCount * 2 + if (it.isCustom) 5 else 0 
+                }
+                FoodSortOption.NAME -> compareBy { it.name }
+                FoodSortOption.CALORIES -> compareByDescending { it.energiaKcal }
+                FoodSortOption.PROTEIN -> compareByDescending { it.proteina }
+                FoodSortOption.CARBS -> compareByDescending { it.carboidratos }
+                FoodSortOption.FAT -> compareByDescending { it.lipidios?.total }
             }
         ).toList()
 
@@ -163,7 +164,7 @@ class FoodDatabaseViewModel @Inject constructor(
         filterPreferences.selectedSource = source
     }
 
-    fun onSortChange(sort: SortOption) {
+    fun onSortChange(sort: FoodSortOption) {
         _sortOption.value = sort
         filterPreferences.sortOption = sort
     }
@@ -173,7 +174,7 @@ class FoodDatabaseViewModel @Inject constructor(
         _searchQuery.value = ""
         _selectedCategories.value = emptySet()
         _selectedSource.value = FoodSource.ALL
-        _sortOption.value = SortOption.NAME
+        _sortOption.value = FoodSortOption.NAME
 
         filterPreferences.clear()
     }
@@ -204,13 +205,13 @@ class FilterPreferences @Inject constructor(@ApplicationContext context: Context
         }
         set(value) = prefs.edit { putString(KEY_SOURCE, value.name) }
 
-    var sortOption: SortOption
+    var sortOption: FoodSortOption
         get() {
-            val name = prefs.getString(KEY_SORT, SortOption.NAME.name) ?: SortOption.NAME.name
+            val name = prefs.getString(KEY_SORT, FoodSortOption.NAME.name) ?: FoodSortOption.NAME.name
             return try {
-                SortOption.valueOf(name)
+                FoodSortOption.valueOf(name)
             } catch (e: IllegalArgumentException) {
-                SortOption.NAME
+                FoodSortOption.NAME
             }
         }
         set(value) = prefs.edit { putString(KEY_SORT, value.name) }
