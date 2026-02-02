@@ -31,18 +31,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,6 +95,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.SpanStyle
@@ -117,6 +115,7 @@ import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
+import com.mekki.taco.presentation.ui.search.FoodSource
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -151,15 +150,16 @@ fun HomeScreen(
     var foodToAddToDiet by remember { mutableStateOf<Food?>(null) }
     var quantityToAddToDiet by remember { mutableStateOf("100") }
     val scrollState = rememberScrollState()
-    val searchResultsListState = rememberLazyListState()
+    val density = LocalDensity.current
 
-    // auto-scroll implementation:
-    // When the user expands "Ver mais" results and had an item already expanded, we scroll to
-    // keep that item in view. This uses a flag-based approach because scrolling directly in the
-    // first LaunchedEffect was causing issues I was not able to handle across different devices.
+    // flag + position approach that handles auto-scrolling
+    // not ideal but keeps the list the way I want in HomeScreen
     var prevShowAllResults by remember { mutableStateOf(state.showAllResults) }
-    var shouldScrollToExpanded by remember { mutableStateOf(false) }
+    var pendingScrollToId by remember { mutableStateOf<Int?>(null) }
+    var hasMeasured by remember { mutableStateOf(false) }
+    var measuredItemY by remember { mutableStateOf(0) }
 
+    // 250ms delay ensures it works on most devices
     LaunchedEffect(state.showAllResults) {
         val justExpanded = state.showAllResults && !prevShowAllResults
         prevShowAllResults = state.showAllResults
@@ -167,18 +167,24 @@ fun HomeScreen(
         if (justExpanded && state.expandedAlimentoId != null) {
             val index = state.searchResults.indexOfFirst { it.id == state.expandedAlimentoId }
             if (index > 2) {
-                shouldScrollToExpanded = true
+                kotlinx.coroutines.delay(250)
+                hasMeasured = false
+                pendingScrollToId = state.expandedAlimentoId
             }
         }
     }
 
-    LaunchedEffect(shouldScrollToExpanded, state.expandedAlimentoId) {
-        if (shouldScrollToExpanded && state.expandedAlimentoId != null) {
-            val index = state.searchResults.indexOfFirst { it.id == state.expandedAlimentoId }
-            if (index >= 0) {
-                searchResultsListState.animateScrollToItem(index)
-            }
-            shouldScrollToExpanded = false
+    // When the item reports its position (in root coordinates), scroll to it
+    LaunchedEffect(measuredItemY) {
+        if (pendingScrollToId != null && measuredItemY > 0) {
+            // measuredItemY is the item's Y position relative to root (screen top)
+            // Lower offset = item appears closer to viewport top = more scrolling
+            val targetOffset = with(density) { 60.dp.toPx().toInt() }
+            // scrollTarget = how much to scroll so item appears at targetOffset from viewport top
+            val scrollTarget = (measuredItemY - targetOffset).coerceAtLeast(0)
+            scrollState.animateScrollTo(scrollTarget)
+            pendingScrollToId = null
+            measuredItemY = 0
         }
     }
 
@@ -344,7 +350,12 @@ fun HomeScreen(
                     InlineSearchResultsCard(
                         state = state,
                         showAllResults = state.showAllResults,
-                        lazyListState = searchResultsListState,
+                        pendingScrollToId = pendingScrollToId,
+                        hasMeasured = hasMeasured,
+                        onItemPositioned = { yPosition ->
+                            measuredItemY = yPosition
+                            hasMeasured = true
+                        },
                         onToggleShowAll = { homeViewModel.setShowAllResults(!state.showAllResults) },
                         onItemToggle = homeViewModel::onAlimentoToggled,
                         onAmountChange = homeViewModel::onQuickAddAmountChange,
@@ -453,14 +464,18 @@ fun HomeScreen(
     if (showFilterSheet) {
         FilterBottomSheet(
             filterState = FoodFilterState(
-                sortOption = state.sortOption
+                sortOption = state.sortOption,
+                source = state.sourceFilter
             ),
             onDismiss = { showFilterSheet = false },
-            onSourceChange = { },
+            onSourceChange = { homeViewModel.onSourceFilterChange(it) },
             onCategoryToggle = { },
             onClearCategories = { },
             onSortChange = { homeViewModel.onSortOptionSelected(it) },
-            onResetFilters = { homeViewModel.onSortOptionSelected(FoodSortOption.RELEVANCE) },
+            onResetFilters = {
+                homeViewModel.onSortOptionSelected(FoodSortOption.RELEVANCE)
+                homeViewModel.onSourceFilterChange(FoodSource.ALL)
+            },
             showCategories = false,
             showAdvancedFilters = false
         )
@@ -1153,7 +1168,9 @@ fun TimelineRow(
 fun InlineSearchResultsCard(
     state: HomeState,
     showAllResults: Boolean,
-    lazyListState: LazyListState,
+    pendingScrollToId: Int?,
+    hasMeasured: Boolean,
+    onItemPositioned: (Int) -> Unit,
     onToggleShowAll: () -> Unit,
     onItemToggle: (Int) -> Unit,
     onAmountChange: (String) -> Unit,
@@ -1236,31 +1253,40 @@ fun InlineSearchResultsCard(
                         color = MaterialTheme.colorScheme.outlineVariant
                     )
 
-                    LazyColumn(
-                        state = lazyListState,
+                    Column(
                         modifier = Modifier
-                            .heightIn(max = 400.dp)
+                            .animateContentSize(tween(200))
                             .padding(horizontal = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        itemsIndexed(itemsToShow, key = { _, food -> food.id }) { index, food ->
+                        itemsToShow.forEachIndexed { index, food ->
                             val isExpanded = state.expandedAlimentoId == food.id
-                            com.mekki.taco.presentation.ui.components.SearchItem(
-                                food = food,
-                                isExpanded = isExpanded,
-                                onToggle = {
-                                    onItemToggle(food.id)
-                                    keyboardController?.hide()
-                                },
-                                onNavigateToDetail = { onNavigateToDetail(it.id) },
-                                currentAmount = state.quickAddAmount,
-                                onAmountChange = onAmountChange,
-                                onLog = { onLog(food) },
-                                onAddToDiet = { onAddToDiet(food) },
-                                onFastEdit = { onCloneAndEdit(it) },
-                                showLogTutorial = state.showRegistrarTutorial,
-                                resultIndex = index + 1
-                            )
+                            val shouldMeasure = food.id == pendingScrollToId && !hasMeasured
+                            Box(
+                                modifier = if (shouldMeasure) {
+                                    Modifier.onGloballyPositioned { coordinates ->
+                                        val yInRoot = coordinates.positionInRoot().y.toInt()
+                                        onItemPositioned(yInRoot)
+                                    }
+                                } else Modifier
+                            ) {
+                                com.mekki.taco.presentation.ui.components.SearchItem(
+                                    food = food,
+                                    isExpanded = isExpanded,
+                                    onToggle = {
+                                        onItemToggle(food.id)
+                                        keyboardController?.hide()
+                                    },
+                                    onNavigateToDetail = { onNavigateToDetail(it.id) },
+                                    currentAmount = state.quickAddAmount,
+                                    onAmountChange = onAmountChange,
+                                    onLog = { onLog(food) },
+                                    onAddToDiet = { onAddToDiet(food) },
+                                    onFastEdit = { onCloneAndEdit(it) },
+                                    showLogTutorial = state.showRegistrarTutorial,
+                                    resultIndex = index + 1
+                                )
+                            }
                         }
                     }
 
