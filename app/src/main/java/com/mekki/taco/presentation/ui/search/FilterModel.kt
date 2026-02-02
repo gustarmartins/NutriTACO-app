@@ -84,6 +84,17 @@ data class FoodFilterState(
     val hasAdvancedFilters: Boolean
         get() = hasMacroFilters || hasMicroFilters
 
+    val activeAdvancedFilterCount: Int
+        get() = listOfNotNull(
+            minProtein, maxProtein, minCarbs, maxCarbs,
+            minFat, maxFat, minCalories, maxCalories,
+            minVitaminaC, minRetinol, minTiamina, minRiboflavina,
+            minPiridoxina, minNiacina, minCalcio, minFerro,
+            minSodio, maxSodio, minPotassio, minMagnesio,
+            minZinco, minCobre, minFosforo, minManganes,
+            minColesterol, maxColesterol, minFibra, minAminoAcidTotal
+        ).size
+
     companion object {
         val DEFAULT = FoodFilterState()
     }

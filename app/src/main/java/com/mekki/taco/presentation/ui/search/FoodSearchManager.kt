@@ -47,16 +47,12 @@ class FoodSearchManager(
 ) {
     private val _localSearchTerm = MutableStateFlow("")
     private val _localQuickAdd = MutableStateFlow("100")
-    private val _localSortOption = MutableStateFlow(FoodSortOption.RELEVANCE)
     private val _localExpandedId = MutableStateFlow<Int?>(null)
 
     private val searchTermFlow =
         savedStateHandle?.getStateFlow(KEY_SM_TERM, "") ?: _localSearchTerm.asStateFlow()
     private val quickAddFlow =
         savedStateHandle?.getStateFlow(KEY_SM_QUICK_ADD, "100") ?: _localQuickAdd.asStateFlow()
-    private val sortOptionFlow =
-        savedStateHandle?.getStateFlow(KEY_SM_SORT, FoodSortOption.RELEVANCE)
-            ?: _localSortOption.asStateFlow()
     private val expandedIdFlow = savedStateHandle?.getStateFlow<Int?>(KEY_SM_EXPANDED, null)
         ?: _localExpandedId.asStateFlow()
 
@@ -65,6 +61,9 @@ class FoodSearchManager(
         ?: _localSourceFilter.asStateFlow()
 
     private val _filterState = MutableStateFlow(FoodFilterState.DEFAULT)
+
+    val categories: StateFlow<List<String>> = foodDao.getAllCategories()
+        .stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Lazily, emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     private val _rawResults = MutableStateFlow<List<Food>>(emptyList())
@@ -76,7 +75,6 @@ class FoodSearchManager(
             _rawResults,
             expandedIdFlow,
             quickAddFlow,
-            sortOptionFlow,
             _filterState
         )
     ) { args ->
@@ -85,13 +83,13 @@ class FoodSearchManager(
         val raw = args[2] as List<Food>
         val expanded = args[3] as Int?
         val quickAdd = args[4] as String
-        val sort = args[5] as FoodSortOption
-        val filters = args[6] as FoodFilterState
+        val filters = args[5] as FoodFilterState
 
         val filtered = applyFilters(raw, filters)
 
-        val sorted = when (sort) {
-            FoodSortOption.RELEVANCE, FoodSortOption.NAME -> filtered
+        val sorted = when (filters.sortOption) {
+            FoodSortOption.RELEVANCE -> filtered
+            FoodSortOption.NAME -> filtered.sortedBy { it.name }
             FoodSortOption.PROTEIN -> filtered.sortedByDescending { it.proteina ?: 0.0 }
             FoodSortOption.CARBS -> filtered.sortedByDescending { it.carboidratos ?: 0.0 }
             FoodSortOption.FAT -> filtered.sortedByDescending { it.lipidios?.total ?: 0.0 }
@@ -103,7 +101,7 @@ class FoodSearchManager(
             results = sorted,
             expandedFoodId = expanded,
             quickAddAmount = quickAdd,
-            sortOption = sort,
+            sortOption = filters.sortOption,
             filterState = filters
         )
     }.stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Lazily, FoodSearchState())
@@ -136,13 +134,18 @@ class FoodSearchManager(
     }
 
     private fun observeSearchTerm() {
-        searchTermFlow
+        combine(searchTermFlow, _filterState) { term, filters -> Pair(term, filters) }
             .debounce(300)
             .distinctUntilChanged()
-            .flatMapLatest { term ->
-                if (term.length < 2) {
+            .flatMapLatest { (term, filters) ->
+                val hasCategories = filters.selectedCategories.isNotEmpty()
+                
+                if (term.length < 2 && !hasCategories) {
                     _isLoading.value = false
                     flowOf(emptyList())
+                } else if (hasCategories && term.length < 2) {
+                    _isLoading.value = true
+                    foodDao.getFoodsByCategories(filters.selectedCategories.toList())
                 } else {
                     _isLoading.value = true
                     val ftsQuery = buildFtsString(term)
@@ -200,11 +203,7 @@ class FoodSearchManager(
     }
 
     fun onSortOptionChange(option: FoodSortOption) {
-        if (savedStateHandle != null) {
-            savedStateHandle[KEY_SM_SORT] = option
-        } else {
-            _localSortOption.value = option
-        }
+        _filterState.value = _filterState.value.copy(sortOption = option)
     }
 
     fun onFoodToggled(foodId: Int) {
@@ -241,12 +240,10 @@ class FoodSearchManager(
             savedStateHandle[KEY_SM_TERM] = ""
             savedStateHandle[KEY_SM_EXPANDED] = null
             savedStateHandle[KEY_SM_QUICK_ADD] = "100"
-            savedStateHandle[KEY_SM_SORT] = FoodSortOption.RELEVANCE
         } else {
             _localSearchTerm.value = ""
             _localExpandedId.value = null
             _localQuickAdd.value = "100"
-            _localSortOption.value = FoodSortOption.RELEVANCE
         }
         _rawResults.value = emptyList()
         _filterState.value = FoodFilterState.DEFAULT
@@ -260,6 +257,16 @@ class FoodSearchManager(
         _filterState.value = _filterState.value.copy(source = source)
     }
 
+    fun onCategoryToggle(category: String) {
+        val current = _filterState.value.selectedCategories
+        val updated = if (category in current) current - category else current + category
+        _filterState.value = _filterState.value.copy(selectedCategories = updated)
+    }
+
+    fun onClearCategories() {
+        _filterState.value = _filterState.value.copy(selectedCategories = emptySet())
+    }
+
     @Suppress("DEPRECATION")
     private fun applyFilters(foods: List<Food>, filters: FoodFilterState): List<Food> {
         return foods.filter { food ->
@@ -269,6 +276,10 @@ class FoodSearchManager(
                 FoodSource.CUSTOM -> food.isCustom
             }
             if (!sourceMatch) return@filter false
+
+            if (filters.selectedCategories.isNotEmpty() && food.category !in filters.selectedCategories) {
+                return@filter false
+            }
 
             filters.minProtein?.let { if ((food.proteina ?: 0.0) < it) return@filter false }
             filters.maxProtein?.let { if ((food.proteina ?: 0.0) > it) return@filter false }

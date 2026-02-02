@@ -168,6 +168,9 @@ abstract class FoodDao {
     @Query("SELECT * FROM foods WHERE category = :categoria ORDER BY name ASC")
     abstract fun getFoodsByCategory(categoria: String): Flow<List<Food>>
 
+    @Query("SELECT * FROM foods WHERE category IN (:categories) ORDER BY name ASC")
+    abstract fun getFoodsByCategories(categories: List<String>): Flow<List<Food>>
+
     @Query("SELECT DISTINCT category FROM foods ORDER BY category ASC")
     abstract fun getAllCategories(): Flow<List<String>>
 
