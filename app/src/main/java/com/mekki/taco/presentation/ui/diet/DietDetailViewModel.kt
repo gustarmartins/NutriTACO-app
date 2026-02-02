@@ -446,6 +446,7 @@ class DietDetailViewModel @Inject constructor(
 
             savedStateHandle[KEY_HAS_UNSAVED] = false
             savedStateHandle[KEY_IS_EDIT_MODE] = false
+            foodSearchManager.clear()
 
             if (dietId == -1) {
                 // If it was new, we are done, navigate back

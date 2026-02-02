@@ -686,7 +686,7 @@ fun CompactFoodItemRow(
                         color = MaterialTheme.colorScheme.primary
                     )
                     val time = item.dietItem.consumptionTime
-                    if (time.isNotBlank() && time != "00:00") {
+                    if (!time.isNullOrBlank() && time != "00:00") {
                         Text(
                             text = " \u2022 ",
                             style = MaterialTheme.typography.bodyMedium,
