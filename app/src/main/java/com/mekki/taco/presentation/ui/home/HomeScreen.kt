@@ -37,12 +37,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -151,34 +147,20 @@ fun HomeScreen(
     var foodToAddToDiet by remember { mutableStateOf<Food?>(null) }
     var quantityToAddToDiet by remember { mutableStateOf("100") }
     val scrollState = rememberScrollState()
-    val searchResultsListState = rememberLazyListState()
 
-    // auto-scroll implementation:
-    // When the user expands "Ver mais" results and had an item already expanded, we scroll to
-    // keep that item in view. This uses a flag-based approach because scrolling directly in the
-    // first LaunchedEffect was causing issues I was not able to handle across different devices.
+    // Auto-scroll implementation simplified:
+    // With the nested LazyColumn removed, we now use the outer scroll state.
+    // When "Ver mais" is expanded with an item already expanded, we let the 
+    // animateContentSize handle the smooth expansion naturally without complex scroll logic.
     var prevShowAllResults by remember { mutableStateOf(state.showAllResults) }
-    var shouldScrollToExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.showAllResults) {
-        val justExpanded = state.showAllResults && !prevShowAllResults
+        val justCollapsed = !state.showAllResults && prevShowAllResults
         prevShowAllResults = state.showAllResults
-
-        if (justExpanded && state.expandedAlimentoId != null) {
-            val index = state.searchResults.indexOfFirst { it.id == state.expandedAlimentoId }
-            if (index > 2) {
-                shouldScrollToExpanded = true
-            }
-        }
-    }
-
-    LaunchedEffect(shouldScrollToExpanded, state.expandedAlimentoId) {
-        if (shouldScrollToExpanded && state.expandedAlimentoId != null) {
-            val index = state.searchResults.indexOfFirst { it.id == state.expandedAlimentoId }
-            if (index >= 0) {
-                searchResultsListState.animateScrollToItem(index)
-            }
-            shouldScrollToExpanded = false
+        
+        // When collapsing, scroll back to the top smoothly
+        if (justCollapsed) {
+            scrollState.animateScrollTo(0)
         }
     }
 
@@ -344,7 +326,6 @@ fun HomeScreen(
                     InlineSearchResultsCard(
                         state = state,
                         showAllResults = state.showAllResults,
-                        lazyListState = searchResultsListState,
                         onToggleShowAll = { homeViewModel.setShowAllResults(!state.showAllResults) },
                         onItemToggle = homeViewModel::onAlimentoToggled,
                         onAmountChange = homeViewModel::onQuickAddAmountChange,
@@ -1153,7 +1134,6 @@ fun TimelineRow(
 fun InlineSearchResultsCard(
     state: HomeState,
     showAllResults: Boolean,
-    lazyListState: LazyListState,
     onToggleShowAll: () -> Unit,
     onItemToggle: (Int) -> Unit,
     onAmountChange: (String) -> Unit,
@@ -1236,14 +1216,14 @@ fun InlineSearchResultsCard(
                         color = MaterialTheme.colorScheme.outlineVariant
                     )
 
-                    LazyColumn(
-                        state = lazyListState,
+                    // Use Column instead of LazyColumn to avoid nested scrolling issues
+                    Column(
                         modifier = Modifier
-                            .heightIn(max = 400.dp)
+                            .fillMaxWidth()
                             .padding(horizontal = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        itemsIndexed(itemsToShow, key = { _, food -> food.id }) { index, food ->
+                        itemsToShow.forEachIndexed { index, food ->
                             val isExpanded = state.expandedAlimentoId == food.id
                             com.mekki.taco.presentation.ui.components.SearchItem(
                                 food = food,
