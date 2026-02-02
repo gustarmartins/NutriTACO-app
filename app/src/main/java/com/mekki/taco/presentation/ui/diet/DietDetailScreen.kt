@@ -685,6 +685,19 @@ fun CompactFoodItemRow(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    val time = item.dietItem.consumptionTime
+                    if (time.isNotBlank() && time != "00:00") {
+                        Text(
+                            text = " \u2022 ",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        Text(
+                            text = time,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
                 }
             }
 
