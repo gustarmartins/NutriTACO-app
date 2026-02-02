@@ -45,6 +45,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -63,6 +64,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -311,7 +313,7 @@ fun HomeScreen(
                         HomeTopBarWithSearch(
                             isSearchActive = state.isSearchExpanded,
                             searchTerm = state.searchTerm,
-                            sortOption = state.sortOption,
+                            filterState = state.filterState,
                             onSearchClick = { homeViewModel.setSearchExpanded(true) },
                             onSearchClose = {
                                 keyboardController?.hide()
@@ -319,11 +321,13 @@ fun HomeScreen(
                                 homeViewModel.setSearchExpanded(false)
                             },
                             onSearchTermChange = homeViewModel::onSearchTermChange,
-                            onSortOptionChange = homeViewModel::onSortOptionSelected,
                             onShowFilters = { showFilterSheet = true },
                             onClearSearch = homeViewModel::cleanSearch,
                             onProfileClick = { showBottomSheet = true },
-                            onSettingsClick = onNavigateToSettings
+                            onSettingsClick = onNavigateToSettings,
+                            onSourceClear = { homeViewModel.onSourceFilterChange(FoodSource.ALL) },
+                            onCategoryClear = { homeViewModel.onCategoryToggle(it) },
+                            onAdvancedFiltersClear = { homeViewModel.clearAdvancedFilters() }
                         )
 
                         // Hero Card
@@ -463,21 +467,17 @@ fun HomeScreen(
 
     if (showFilterSheet) {
         FilterBottomSheet(
-            filterState = FoodFilterState(
-                sortOption = state.sortOption,
-                source = state.sourceFilter
-            ),
+            filterState = state.filterState,
+            categories = state.categories,
             onDismiss = { showFilterSheet = false },
             onSourceChange = { homeViewModel.onSourceFilterChange(it) },
-            onCategoryToggle = { },
-            onClearCategories = { },
+            onCategoryToggle = { homeViewModel.onCategoryToggle(it) },
+            onClearCategories = { homeViewModel.onClearCategories() },
             onSortChange = { homeViewModel.onSortOptionSelected(it) },
-            onResetFilters = {
-                homeViewModel.onSortOptionSelected(FoodSortOption.RELEVANCE)
-                homeViewModel.onSourceFilterChange(FoodSource.ALL)
-            },
-            showCategories = false,
-            showAdvancedFilters = false
+            onResetFilters = { homeViewModel.onResetFilters() },
+            onFilterStateChange = { homeViewModel.onFilterStateChange(it) },
+            showCategories = true,
+            showAdvancedFilters = true
         )
     }
 }
@@ -486,15 +486,17 @@ fun HomeScreen(
 fun HomeTopBarWithSearch(
     isSearchActive: Boolean,
     searchTerm: String,
-    sortOption: FoodSortOption,
+    filterState: FoodFilterState,
     onSearchClick: () -> Unit,
     onSearchClose: () -> Unit,
     onSearchTermChange: (String) -> Unit,
-    onSortOptionChange: (FoodSortOption) -> Unit,
     onShowFilters: () -> Unit,
     onClearSearch: () -> Unit,
     onProfileClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onSourceClear: () -> Unit,
+    onCategoryClear: (String) -> Unit,
+    onAdvancedFiltersClear: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -671,41 +673,61 @@ fun HomeTopBarWithSearch(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(FoodSortOption.entries.toTypedArray()) { option ->
-                    FilterChip(
-                        selected = sortOption == option,
-                        onClick = { onSortOptionChange(option) },
-                        label = {
-                            Text(
-                                option.label,
-                                color = if (sortOption == option)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                item {
+                    InputChip(
+                        selected = true,
+                        onClick = onShowFilters,
+                        label = { Text("Ordenar: ${filterState.sortOption.label}") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Sort,
+                                null,
+                                modifier = Modifier.size(16.dp)
                             )
-                        },
-                        leadingIcon = if (sortOption == option) {
-                            {
-                                Icon(
-                                    Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        } else null,
-                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                            containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
-                            selectedContainerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.95f)
-                        ),
-                        border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = sortOption == option,
-                            borderColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f),
-                            selectedBorderColor = Color.Transparent
-                        )
+                        }
                     )
                 }
+
+                if (filterState.source != FoodSource.ALL) {
+                    item {
+                        InputChip(
+                            selected = true,
+                            onClick = onSourceClear,
+                            label = { Text("Fonte: ${filterState.source.displayName}") },
+                            trailingIcon = {
+                                Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                            }
+                        )
+                    }
+                }
+
+                items(filterState.selectedCategories.toList()) { category ->
+                    InputChip(
+                        selected = true,
+                        onClick = { onCategoryClear(category) },
+                        label = { Text(category) },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    )
+                }
+
+                if (filterState.activeAdvancedFilterCount > 0) {
+                    item {
+                        InputChip(
+                            selected = true,
+                            onClick = onAdvancedFiltersClear,
+                            label = { Text("+${filterState.activeAdvancedFilterCount} filtros") },
+                            leadingIcon = {
+                                Icon(Icons.Default.FilterList, null, modifier = Modifier.size(16.dp))
+                            },
+                            trailingIcon = {
+                                Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                            }
+                        )
+                    }
+                }
+
                 item {
                     IconButton(onClick = onShowFilters) {
                         Icon(

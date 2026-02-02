@@ -20,22 +20,18 @@ import com.mekki.taco.data.model.DietWithItems
 import com.mekki.taco.data.repository.OnboardingRepository
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.presentation.ui.components.ChartType
+import com.mekki.taco.presentation.ui.search.FoodSearchManager
 import com.mekki.taco.presentation.ui.search.FoodSortOption
+import com.mekki.taco.presentation.ui.search.FoodSource
+import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.utils.NutrientCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -89,6 +85,8 @@ data class HomeState(
     val expandedAlimentoId: Int? = null,
     val quickAddAmount: String = "100",
     val sortOption: FoodSortOption = FoodSortOption.RELEVANCE,
+    val filterState: FoodFilterState = FoodFilterState.DEFAULT,
+    val categories: List<String> = emptyList(),
     val showRegistrarTutorial: Boolean = false
 )
 
@@ -103,10 +101,6 @@ sealed class SnackbarAction {
     data class GoToDiet(val dietId: Int) : SnackbarAction()
 }
 
-private const val KEY_SEARCH_TERM = "search_term"
-private const val KEY_QUICK_ADD_AMOUNT = "quick_add_amount"
-private const val KEY_SORT_OPTION = "sort_option"
-private const val KEY_EXPANDED_FOOD_ID = "expanded_food_id"
 private const val KEY_SEARCH_EXPANDED = "search_expanded"
 private const val KEY_SHOW_ALL_RESULTS = "show_all_results"
 
@@ -125,17 +119,11 @@ class HomeViewModel @Inject constructor(
     val availableDiets =
         dietDao.getAllDiets().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Persisted State
-    private val searchTerm = savedStateHandle.getStateFlow(KEY_SEARCH_TERM, "")
-    private val quickAddAmount = savedStateHandle.getStateFlow(KEY_QUICK_ADD_AMOUNT, "100")
-    private val sortOption =
-        savedStateHandle.getStateFlow(KEY_SORT_OPTION, FoodSortOption.RELEVANCE)
-    private val expandedAlimentoId = savedStateHandle.getStateFlow<Int?>(KEY_EXPANDED_FOOD_ID, null)
+    val foodSearchManager = FoodSearchManager(foodDao, viewModelScope, savedStateHandle)
+
     private val isSearchExpanded = savedStateHandle.getStateFlow(KEY_SEARCH_EXPANDED, false)
     private val showAllResults = savedStateHandle.getStateFlow(KEY_SHOW_ALL_RESULTS, false)
 
-    private val _searchIsLoading = MutableStateFlow(false)
-    private val _rawSearchResults = MutableStateFlow<List<Food>>(emptyList())
     private val _showRegistrarTutorial = MutableStateFlow(false)
 
     private val _effects = Channel<HomeEffect>(Channel.BUFFERED)
@@ -211,38 +199,23 @@ class HomeViewModel @Inject constructor(
         val waterIntake: WaterIntake
     )
 
+    @Suppress("UNCHECKED_CAST")
     val state: StateFlow<HomeState> = combine(
         listOf(
             dashboardData,
-            searchTerm,
-            _searchIsLoading,
-            _rawSearchResults,
-            expandedAlimentoId,
-            quickAddAmount,
-            sortOption,
+            foodSearchManager.state,
+            foodSearchManager.categories,
             _showRegistrarTutorial,
             isSearchExpanded,
             showAllResults
         )
     ) { args ->
         val dashboard = args[0] as DashboardData
-        val term = args[1] as String
-        val isLoading = args[2] as Boolean
-        val rawResults = args[3] as List<Food>
-        val expandedId = args[4] as Int?
-        val amount = args[5] as String
-        val sort = args[6] as FoodSortOption
-        val showTutorial = args[7] as Boolean
-        val searchExpanded = args[8] as Boolean
-        val allResults = args[9] as Boolean
-
-        val sortedResults = when (sort) {
-            FoodSortOption.RELEVANCE, FoodSortOption.NAME -> rawResults
-            FoodSortOption.PROTEIN -> rawResults.sortedByDescending { it.proteina ?: 0.0 }
-            FoodSortOption.CARBS -> rawResults.sortedByDescending { it.carboidratos ?: 0.0 }
-            FoodSortOption.FAT -> rawResults.sortedByDescending { it.lipidios?.total ?: 0.0 }
-            FoodSortOption.CALORIES -> rawResults.sortedByDescending { it.energiaKcal ?: 0.0 }
-        }
+        val searchState = args[1] as com.mekki.taco.presentation.ui.search.FoodSearchState
+        val cats = args[2] as List<String>
+        val showTutorial = args[3] as Boolean
+        val searchExpanded = args[4] as Boolean
+        val allResults = args[5] as Boolean
 
         HomeState(
             dietSummaries = dashboard.summaries,
@@ -252,12 +225,14 @@ class HomeViewModel @Inject constructor(
             waterIntake = dashboard.waterIntake,
             isSearchExpanded = searchExpanded,
             showAllResults = allResults,
-            searchTerm = term,
-            searchIsLoading = isLoading,
-            searchResults = sortedResults,
-            expandedAlimentoId = expandedId,
-            quickAddAmount = amount,
-            sortOption = sort,
+            searchTerm = searchState.searchTerm,
+            searchIsLoading = searchState.isLoading,
+            searchResults = searchState.results,
+            expandedAlimentoId = searchState.expandedFoodId,
+            quickAddAmount = searchState.quickAddAmount,
+            sortOption = searchState.sortOption,
+            filterState = searchState.filterState,
+            categories = cats,
             showRegistrarTutorial = showTutorial
         )
     }.stateIn(
@@ -267,7 +242,6 @@ class HomeViewModel @Inject constructor(
     )
 
     init {
-        observeSearchTerm()
         observeTutorials()
     }
 
@@ -515,57 +489,45 @@ class HomeViewModel @Inject constructor(
         )
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
-    private fun observeSearchTerm() {
-        viewModelScope.launch {
-            searchTerm.debounce(300).distinctUntilChanged()
-                .flatMapLatest { term ->
-                    if (term.length < 2) {
-                        flowOf(emptyList())
-                    } else {
-                        _searchIsLoading.value = true
-                        foodDao.getFoodsByName(term)
-                    }
-                }.catch {
-                    _searchIsLoading.value = false
-                    // Handle error (maybe clear results or show toast)
-                }.collect { results ->
-                    _rawSearchResults.value = results
-                    _searchIsLoading.value = false
-                }
-        }
-    }
+    fun onSearchTermChange(term: String) = foodSearchManager.onSearchTermChange(term)
 
-    fun onSearchTermChange(term: String) {
-        savedStateHandle[KEY_SEARCH_TERM] = term
-        savedStateHandle[KEY_EXPANDED_FOOD_ID] = null
-    }
+    fun onSortOptionSelected(option: FoodSortOption) = foodSearchManager.onSortOptionChange(option)
 
-    fun onSortOptionSelected(option: FoodSortOption) {
-        savedStateHandle[KEY_SORT_OPTION] = option
-    }
+    fun onAlimentoToggled(alimentoId: Int) = foodSearchManager.onFoodToggled(alimentoId)
 
-    fun onAlimentoToggled(alimentoId: Int) {
-        val currentId = savedStateHandle.get<Int?>(KEY_EXPANDED_FOOD_ID)
-        if (currentId == alimentoId) {
-            savedStateHandle[KEY_EXPANDED_FOOD_ID] = null
-        } else {
-            savedStateHandle[KEY_EXPANDED_FOOD_ID] = alimentoId
-            savedStateHandle[KEY_QUICK_ADD_AMOUNT] = "100"
-        }
-    }
+    fun onQuickAddAmountChange(amount: String) = foodSearchManager.onQuickAddAmountChange(amount)
 
-    fun onQuickAddAmountChange(amount: String) {
-        val filtered = amount.filter { it.isDigit() || it == '.' }
-        savedStateHandle[KEY_QUICK_ADD_AMOUNT] = filtered
-    }
+    fun cleanSearch() = foodSearchManager.clear()
 
-    fun cleanSearch() {
-        savedStateHandle[KEY_SEARCH_TERM] = ""
-        savedStateHandle[KEY_EXPANDED_FOOD_ID] = null
-        savedStateHandle[KEY_QUICK_ADD_AMOUNT] = "100"
-        savedStateHandle[KEY_SORT_OPTION] = FoodSortOption.RELEVANCE
-        _rawSearchResults.value = emptyList()
+    fun onSourceFilterChange(source: FoodSource) = foodSearchManager.onSourceFilterChange(source)
+
+    fun onCategoryToggle(category: String) = foodSearchManager.onCategoryToggle(category)
+
+    fun onClearCategories() = foodSearchManager.onClearCategories()
+
+    fun onFilterStateChange(newState: FoodFilterState) = foodSearchManager.onFilterStateChange(newState)
+
+    fun onResetFilters() = foodSearchManager.onFilterStateChange(FoodFilterState.DEFAULT)
+
+    fun clearAdvancedFilters() {
+        val current = foodSearchManager.state.value.filterState
+        foodSearchManager.onFilterStateChange(
+            current.copy(
+                minProtein = null, maxProtein = null,
+                minCarbs = null, maxCarbs = null,
+                minFat = null, maxFat = null,
+                minCalories = null, maxCalories = null,
+                minFibra = null, minCalcio = null, minFerro = null,
+                minSodio = null, maxSodio = null, minPotassio = null,
+                minMagnesio = null, minZinco = null, minFosforo = null,
+                minVitaminaC = null, minRetinol = null,
+                minTiamina = null, minRiboflavina = null,
+                minPiridoxina = null, minNiacina = null,
+                minCobre = null, minManganes = null,
+                minColesterol = null, maxColesterol = null,
+                minAminoAcidTotal = null
+            )
+        )
     }
 
     fun setSearchExpanded(expanded: Boolean) {

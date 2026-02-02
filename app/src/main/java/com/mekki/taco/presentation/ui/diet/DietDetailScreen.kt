@@ -48,6 +48,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -111,6 +113,8 @@ import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.search.FoodSearchState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
+import com.mekki.taco.presentation.ui.search.FoodSource
+import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.utils.NutrientCalculator
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
@@ -376,8 +380,14 @@ fun DietDetailScreen(
                 mealType = focusedMealType!!,
                 addedItems = groupedItems[focusedMealType] ?: emptyList(),
                 searchState = foodSearchState,
+                categories = viewModel.foodSearchManager.categories.collectAsState().value,
                 onSearchTermChange = viewModel.foodSearchManager::onSearchTermChange,
                 onSortOptionChange = viewModel.foodSearchManager::onSortOptionChange,
+                onSourceChange = viewModel.foodSearchManager::onSourceFilterChange,
+                onCategoryToggle = viewModel.foodSearchManager::onCategoryToggle,
+                onClearCategories = viewModel.foodSearchManager::onClearCategories,
+                onFilterStateChange = viewModel.foodSearchManager::onFilterStateChange,
+                onResetFilters = viewModel.foodSearchManager::clear,
                 onFoodToggled = viewModel.foodSearchManager::onFoodToggled,
                 onAmountChange = viewModel.foodSearchManager::onQuickAddAmountChange,
                 onAddFood = { food, qty ->
@@ -418,8 +428,14 @@ fun DietDetailScreen(
             ReplaceFoodSheetContent(
                 currentFood = currentItem.food,
                 searchState = foodSearchState,
+                categories = viewModel.foodSearchManager.categories.collectAsState().value,
                 onSearchTermChange = viewModel.foodSearchManager::onSearchTermChange,
                 onSortOptionChange = viewModel.foodSearchManager::onSortOptionChange,
+                onSourceChange = viewModel.foodSearchManager::onSourceFilterChange,
+                onCategoryToggle = viewModel.foodSearchManager::onCategoryToggle,
+                onClearCategories = viewModel.foodSearchManager::onClearCategories,
+                onFilterStateChange = viewModel.foodSearchManager::onFilterStateChange,
+                onResetFilters = viewModel.foodSearchManager::clear,
                 onFoodToggled = viewModel.foodSearchManager::onFoodToggled,
                 onAmountChange = viewModel.foodSearchManager::onQuickAddAmountChange,
                 onSelectFood = { newFood ->
@@ -1025,8 +1041,14 @@ fun MacroCircle(value: Double?, color: Color) {
 fun ReplaceFoodSheetContent(
     currentFood: Food,
     searchState: FoodSearchState,
+    categories: List<String>,
     onSearchTermChange: (String) -> Unit,
     onSortOptionChange: (FoodSortOption) -> Unit,
+    onSourceChange: (FoodSource) -> Unit,
+    onCategoryToggle: (String) -> Unit,
+    onClearCategories: () -> Unit,
+    onFilterStateChange: (FoodFilterState) -> Unit,
+    onResetFilters: () -> Unit,
     onFoodToggled: (Int) -> Unit,
     onAmountChange: (String) -> Unit,
     onSelectFood: (Food) -> Unit,
@@ -1035,6 +1057,7 @@ fun ReplaceFoodSheetContent(
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    var showFilters by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -1141,6 +1164,13 @@ fun ReplaceFoodSheetContent(
                         } else null
                     )
                 }
+                IconButton(onClick = { showFilters = true }) {
+                    Icon(
+                        Icons.Default.FilterList,
+                        contentDescription = "Filtros",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
@@ -1226,6 +1256,22 @@ fun ReplaceFoodSheetContent(
             }
         }
     }
+
+    if (showFilters) {
+        FilterBottomSheet(
+            filterState = searchState.filterState,
+            categories = categories,
+            onDismiss = { showFilters = false },
+            onSourceChange = onSourceChange,
+            onCategoryToggle = onCategoryToggle,
+            onClearCategories = onClearCategories,
+            onSortChange = onSortOptionChange,
+            onResetFilters = onResetFilters,
+            onFilterStateChange = onFilterStateChange,
+            showCategories = true,
+            showAdvancedFilters = true
+        )
+    }
 }
 
 @Composable
@@ -1267,8 +1313,14 @@ fun SearchFoodSheetContent(
     mealType: String,
     addedItems: List<DietItemWithFood>,
     searchState: FoodSearchState,
+    categories: List<String>,
     onSearchTermChange: (String) -> Unit,
     onSortOptionChange: (FoodSortOption) -> Unit,
+    onSourceChange: (FoodSource) -> Unit,
+    onCategoryToggle: (String) -> Unit,
+    onClearCategories: () -> Unit,
+    onFilterStateChange: (FoodFilterState) -> Unit,
+    onResetFilters: () -> Unit,
     onFoodToggled: (Int) -> Unit,
     onAmountChange: (String) -> Unit,
     onAddFood: (Food, Double) -> Unit,
@@ -1354,33 +1406,64 @@ fun SearchFoodSheetContent(
 
         Spacer(Modifier.height(8.dp))
 
-        // Search Field
-        OutlinedTextField(
-            value = searchState.searchTerm,
-            onValueChange = onSearchTermChange,
+        // Search Field with Filter Button
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Buscar alimento") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
-            trailingIcon = {
-                if (searchState.searchTerm.isNotEmpty()) {
-                    IconButton(onClick = { onSearchTermChange("") }) {
-                        Icon(Icons.Default.Close, "Limpar")
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchState.searchTerm,
+                onValueChange = onSearchTermChange,
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Buscar alimento") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = {
+                    if (searchState.searchTerm.isNotEmpty()) {
+                        IconButton(onClick = { onSearchTermChange("") }) {
+                            Icon(Icons.Default.Close, "Limpar")
+                        }
                     }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                    }
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            IconButton(onClick = { showFilters = true }) {
+                val activeFilterCount = listOfNotNull(
+                    if (searchState.filterState.source != FoodSource.ALL) 1 else null,
+                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null,
+                    if (searchState.filterState.sortOption != FoodSortOption.NAME) 1 else null
+                ).sum()
+
+                if (activeFilterCount > 0) {
+                    BadgedBox(
+                        badge = { Badge { Text(activeFilterCount.toString()) } }
+                    ) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = "Filtros",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.Default.FilterList,
+                        contentDescription = "Filtros",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    keyboardController?.hide()
-                    focusManager.clearFocus()
-                }
-            ),
-            shape = RoundedCornerShape(12.dp)
-        )
+            }
+        }
 
         // Sort Chips
-        if (searchState.searchTerm.length >= 2) {
+        if (searchState.searchTerm.length >= 2 || searchState.results.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier
@@ -1396,14 +1479,6 @@ fun SearchFoodSheetContent(
                         leadingIcon = if (searchState.sortOption == option) {
                             { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
                         } else null
-                    )
-                }
-
-                IconButton(onClick = { showFilters = true }) {
-                    Icon(
-                        Icons.Default.FilterList,
-                        contentDescription = "Filtros",
-                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -1477,14 +1552,16 @@ fun SearchFoodSheetContent(
     if (showFilters) {
         FilterBottomSheet(
             filterState = searchState.filterState,
+            categories = categories,
             onDismiss = { showFilters = false },
-            onSourceChange = { },
-            onCategoryToggle = { },
-            onClearCategories = { },
+            onSourceChange = onSourceChange,
+            onCategoryToggle = onCategoryToggle,
+            onClearCategories = onClearCategories,
             onSortChange = onSortOptionChange,
-            onResetFilters = { onSortOptionChange(FoodSortOption.RELEVANCE) },
-            showCategories = false,
-            showAdvancedFilters = false
+            onResetFilters = onResetFilters,
+            onFilterStateChange = onFilterStateChange,
+            showCategories = true,
+            showAdvancedFilters = true
         )
     }
 }

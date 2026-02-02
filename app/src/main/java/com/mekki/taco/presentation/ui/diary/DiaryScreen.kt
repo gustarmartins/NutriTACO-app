@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,8 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -114,6 +117,8 @@ import com.mekki.taco.presentation.ui.components.PortionControlInput
 import com.mekki.taco.presentation.ui.components.SearchItem
 import com.mekki.taco.presentation.ui.components.TimePickerDialog
 import com.mekki.taco.presentation.ui.search.FoodFilterState
+import com.mekki.taco.presentation.ui.search.FoodSortOption
+import com.mekki.taco.presentation.ui.search.FoodSource
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -541,11 +546,11 @@ fun DiaryScreen(
                                 item { Spacer(Modifier.height(16.dp)) }
                             }
                         }
-                    } // LazyColumn
-                } // when DiaryViewMode.DAILY
-            } // when statement
-        } // Column
-    } // Scaffold
+                    }
+                }
+            }
+        }
+    }
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
@@ -904,11 +909,8 @@ fun DiarySearchSheetContent(
     onNavigateToDetail: (Int) -> Unit,
     onClose: () -> Unit
 ) {
-    val searchTerm by viewModel.searchTerm.collectAsState()
-    val searchResults by viewModel.searchResults.collectAsState()
-    val isLoading by viewModel.searchIsLoading.collectAsState()
-    val expandedId by viewModel.expandedFoodId.collectAsState()
-    val quickAddAmount by viewModel.quickAddAmount.collectAsState()
+    val searchState by viewModel.searchState.collectAsState()
+    val categories by viewModel.foodSearchManager.categories.collectAsState()
 
     val mealTypes =
         listOf("Café da Manhã", "Almoço", "Jantar", "Lanche", "Pré-treino", "Pós-treino", "Outros")
@@ -971,41 +973,59 @@ fun DiarySearchSheetContent(
             )
         }
 
-        OutlinedTextField(
-            value = searchTerm,
-            onValueChange = viewModel::onSearchTermChange,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Buscar um alimento") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
-            trailingIcon = {
-                if (searchTerm.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.clearSearch() }) {
-                        Icon(Icons.Default.Close, null)
-                    }
-                }
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = {
-                focusManager.clearFocus()
-                keyboardController?.hide()
-            })
-        )
-
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            OutlinedTextField(
+                value = searchState.searchTerm,
+                onValueChange = viewModel::onSearchTermChange,
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Buscar um alimento") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = {
+                    if (searchState.searchTerm.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearSearch() }) {
+                            Icon(Icons.Default.Close, null)
+                        }
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                })
+            )
+
             IconButton(onClick = { showFilters = true }) {
-                Icon(
-                    Icons.Default.FilterList,
-                    contentDescription = "Filtros",
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                val activeFilterCount = listOfNotNull(
+                    if (searchState.filterState.source != FoodSource.ALL) 1 else null,
+                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null,
+                    if (searchState.filterState.sortOption != FoodSortOption.NAME) 1 else null
+                ).sum()
+
+                if (activeFilterCount > 0) {
+                    BadgedBox(
+                        badge = { Badge { Text(activeFilterCount.toString()) } }
+                    ) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = "Filtros",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.Default.FilterList,
+                        contentDescription = "Filtros",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
-        if (isLoading) {
+        if (searchState.isLoading) {
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -1020,12 +1040,12 @@ fun DiarySearchSheetContent(
                     .padding(top = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(searchResults) { food ->
+                itemsIndexed(searchState.results) { index, food ->
                     SearchItem(
                         food = food,
-                        isExpanded = expandedId == food.id,
+                        isExpanded = searchState.expandedFoodId == food.id,
                         onToggle = { viewModel.onFoodToggled(food.id) },
-                        currentAmount = quickAddAmount,
+                        currentAmount = searchState.quickAddAmount,
                         onAmountChange = viewModel::onQuickAddAmountChange,
                         onNavigateToDetail = { onNavigateToDetail(food.id) },
                         onAddToDiet = {
@@ -1034,11 +1054,12 @@ fun DiarySearchSheetContent(
                             onClose()
                         },
                         isAddToDietPrimary = true,
-                        actionButtonLabel = "Registrar"
+                        actionButtonLabel = "Registrar",
+                        resultIndex = index + 1
                     )
                 }
 
-                if (searchResults.isEmpty() && searchTerm.length >= 2) {
+                if (searchState.results.isEmpty() && searchState.searchTerm.length >= 2) {
                     item {
                         Text(
                             "Nenhum resultado encontrado.",
@@ -1056,15 +1077,17 @@ fun DiarySearchSheetContent(
 
     if (showFilters) {
         FilterBottomSheet(
-            filterState = FoodFilterState.DEFAULT,
+            filterState = searchState.filterState,
+            categories = categories,
             onDismiss = { showFilters = false },
-            onSourceChange = { },
-            onCategoryToggle = { },
-            onClearCategories = { },
-            onSortChange = { },
-            onResetFilters = { },
-            showCategories = false,
-            showAdvancedFilters = false
+            onSourceChange = { viewModel.foodSearchManager.onSourceFilterChange(it) },
+            onCategoryToggle = { viewModel.foodSearchManager.onCategoryToggle(it) },
+            onClearCategories = { viewModel.foodSearchManager.onClearCategories() },
+            onSortChange = { viewModel.foodSearchManager.onSortOptionChange(it) },
+            onResetFilters = { viewModel.clearSearch() },
+            onFilterStateChange = { viewModel.foodSearchManager.onFilterStateChange(it) },
+            showCategories = true,
+            showAdvancedFilters = true
         )
     }
 }

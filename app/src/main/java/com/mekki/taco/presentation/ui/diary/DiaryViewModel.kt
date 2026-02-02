@@ -15,6 +15,8 @@ import com.mekki.taco.data.model.DiarySummary
 import com.mekki.taco.data.model.UserProfile
 import com.mekki.taco.data.repository.DiaryRepository
 import com.mekki.taco.data.repository.UserProfileRepository
+import com.mekki.taco.presentation.ui.search.FoodSearchManager
+import com.mekki.taco.presentation.ui.search.FoodSearchState
 import com.mekki.taco.utils.NutrientCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -112,33 +114,8 @@ class DiaryViewModel @Inject constructor(
     }
 
     // --- State: Search ---
-    private val _searchTerm = MutableStateFlow("")
-    val searchTerm = _searchTerm.asStateFlow()
-
-    private val _searchIsLoading = MutableStateFlow(false)
-    val searchIsLoading = _searchIsLoading.asStateFlow()
-
-    private val _expandedFoodId = MutableStateFlow<Int?>(null)
-    val expandedFoodId = _expandedFoodId.asStateFlow()
-
-    private val _quickAddAmount = MutableStateFlow("100")
-    val quickAddAmount = _quickAddAmount.asStateFlow()
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val searchResults: StateFlow<List<Food>> = _searchTerm
-        .debounce(300)
-        .flatMapLatest { term ->
-            if (term.length >= 2) {
-                _searchIsLoading.value = true
-                foodDao.getFoodsByName(term).map {
-                    _searchIsLoading.value = false
-                    it
-                }
-            } else {
-                flowOf(emptyList())
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val foodSearchManager = FoodSearchManager(foodDao, viewModelScope)
+    val searchState: StateFlow<FoodSearchState> = foodSearchManager.state
 
     init {
         loadDiets()
@@ -611,25 +588,14 @@ class DiaryViewModel @Inject constructor(
     }
 
     // --- Search & Add Food Actions ---
-    fun onSearchTermChange(term: String) {
-        _searchTerm.value = term
-    }
+    fun onSearchTermChange(term: String) = foodSearchManager.onSearchTermChange(term)
 
-    fun onFoodToggled(id: Int) {
-        if (_expandedFoodId.value == id) {
-            _expandedFoodId.value = null
-        } else {
-            _expandedFoodId.value = id
-            _quickAddAmount.value = "100"
-        }
-    }
+    fun onFoodToggled(id: Int) = foodSearchManager.onFoodToggled(id)
 
-    fun onQuickAddAmountChange(amount: String) {
-        _quickAddAmount.value = amount
-    }
+    fun onQuickAddAmountChange(amount: String) = foodSearchManager.onQuickAddAmountChange(amount)
 
     fun addFoodToLog(food: Food, mealType: String, customTime: LocalTime? = null) {
-        val amount = _quickAddAmount.value.toDoubleOrNull() ?: 100.0
+        val amount = foodSearchManager.state.value.quickAddAmount.toDoubleOrNull() ?: 100.0
 
         val date = _currentDate.value
         val time = customTime ?: LocalTime.now()
@@ -651,11 +617,7 @@ class DiaryViewModel @Inject constructor(
         }
     }
 
-    fun clearSearch() {
-        _searchTerm.value = ""
-        _expandedFoodId.value = null
-        _quickAddAmount.value = "100"
-    }
+    fun clearSearch() = foodSearchManager.clear()
 
     fun loadMockData() {
         viewModelScope.launch {
