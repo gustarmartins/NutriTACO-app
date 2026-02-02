@@ -150,9 +150,8 @@ fun HomeScreen(
 
     // Auto-scroll implementation simplified:
     // With the nested LazyColumn removed, we now use the outer scroll state.
-    // When "Ver mais" is expanded with an item already expanded, the 
-    // animateContentSize modifier on the Card (line 1152) handles the smooth 
-    // expansion naturally without complex scroll logic.
+    // When "Ver mais" is expanded, the Card's animateContentSize modifier in 
+    // InlineSearchResultsCard handles smooth expansion naturally without complex scroll logic.
     var prevShowAllResults by remember { mutableStateOf(state.showAllResults) }
 
     LaunchedEffect(state.showAllResults) {
