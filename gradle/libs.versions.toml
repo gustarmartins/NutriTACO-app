@@ -42,7 +42,7 @@ gson = "2.13.2"
 desugar_jdk_libs = "2.1.5"
 foundationLayout = "1.10.2"
 material3 = "1.4.0"
-media3Transformer = "1.9.1"
+# media3Transformer = "1.9.1"
 
 # Hilt
 hilt = "2.59"
