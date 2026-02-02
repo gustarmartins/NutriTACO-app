@@ -340,12 +340,14 @@ fun DietDetailScreen(
                     val items = groupedItems[mealType] ?: emptyList()
                     val mealTime = items.firstOrNull()?.dietItem?.consumptionTime ?: "00:00"
 
-                    item(key = "header_$mealType") {
-                        MealHeader(
-                            title = mealType,
-                            time = mealTime,
-                            isEditMode = isEditMode,
-                            onAddClick = { viewModel.setFocusedMealType(mealType) })
+                    if (isEditMode || items.isNotEmpty()) {
+                        item(key = "header_$mealType") {
+                            MealHeader(
+                                title = mealType,
+                                time = mealTime,
+                                isEditMode = isEditMode,
+                                onAddClick = { viewModel.setFocusedMealType(mealType) })
+                        }
                     }
 
                     items(items = items, key = { "${mealType}_${it.dietItem.id}" }) { dietItem ->
@@ -358,7 +360,10 @@ fun DietDetailScreen(
                                 isDragging = isDragging,
                                 onShowOptions = { itemForSheet = dietItem },
                                 onViewFood = { onViewFood(dietItem.food.id) },
-                                onEnableEditMode = { viewModel.setEditMode(true) },
+                                onEnableEditModeAndShowOptions = {
+                                    viewModel.setEditMode(true)
+                                    itemForSheet = dietItem
+                                },
                                 handle = { Modifier.draggableHandle() })
                         }
                     }
@@ -610,7 +615,7 @@ fun CompactFoodItemRow(
     isDragging: Boolean,
     onShowOptions: () -> Unit,
     onViewFood: () -> Unit,
-    onEnableEditMode: () -> Unit,
+    onEnableEditModeAndShowOptions: () -> Unit,
     handle: @Composable (Modifier) -> Modifier
 ) {
     val df = DecimalFormat("#.#")
@@ -638,7 +643,7 @@ fun CompactFoodItemRow(
                         if (isEditMode) onShowOptions() else onViewFood()
                     },
                     onLongClick = {
-                        if (!isEditMode) onEnableEditMode()
+                        if (!isEditMode) onEnableEditModeAndShowOptions()
                     }
                 )
                 .padding(12.dp),
