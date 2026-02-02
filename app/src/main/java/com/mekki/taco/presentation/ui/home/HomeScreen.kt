@@ -150,8 +150,9 @@ fun HomeScreen(
 
     // Auto-scroll implementation simplified:
     // With the nested LazyColumn removed, we now use the outer scroll state.
-    // When "Ver mais" is expanded with an item already expanded, we let the 
-    // animateContentSize handle the smooth expansion naturally without complex scroll logic.
+    // When "Ver mais" is expanded with an item already expanded, the 
+    // animateContentSize modifier on the Card (line 1152) handles the smooth 
+    // expansion naturally without complex scroll logic.
     var prevShowAllResults by remember { mutableStateOf(state.showAllResults) }
 
     LaunchedEffect(state.showAllResults) {
@@ -1216,7 +1217,11 @@ fun InlineSearchResultsCard(
                         color = MaterialTheme.colorScheme.outlineVariant
                     )
 
-                    // Use Column instead of LazyColumn to avoid nested scrolling issues
+                    // Use Column instead of LazyColumn to avoid nested scrolling issues.
+                    // Performance note: All items compose immediately with forEachIndexed.
+                    // This is acceptable because search results are typically filtered to <100 items,
+                    // and the trade-off eliminates nested scroll conflicts. If needed, this could
+                    // be optimized later with a custom scroll solution or limiting max results shown.
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
