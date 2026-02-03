@@ -2,6 +2,10 @@ package com.mekki.taco.presentation.ui.diary
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -24,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +41,7 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -80,6 +86,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -94,6 +101,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -123,6 +131,7 @@ import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -1093,40 +1102,79 @@ fun DiarySearchSheetContent(
                 CircularProgressIndicator()
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(top = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                itemsIndexed(searchState.results) { index, food ->
-                    SearchItem(
-                        food = food,
-                        isExpanded = searchState.expandedFoodId == food.id,
-                        onToggle = { viewModel.onFoodToggled(food.id) },
-                        currentAmount = searchState.quickAddAmount,
-                        onAmountChange = viewModel::onQuickAddAmountChange,
-                        onNavigateToDetail = { onNavigateToDetail(food.id) },
-                        onAddToDiet = {
-                            viewModel.addFoodToLog(food, selectedMealType, selectedTime)
-                            viewModel.clearSearch()
-                            onClose()
-                        },
-                        isAddToDietPrimary = true,
-                        actionButtonLabel = "Registrar",
-                        resultIndex = index + 1
-                    )
+            val listState = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+            val expandedIndex = searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
+            val isExpandedVisible = remember(listState.firstVisibleItemIndex, listState.layoutInfo.visibleItemsInfo.size, expandedIndex) {
+                if (expandedIndex < 0) true
+                else listState.layoutInfo.visibleItemsInfo.any { it.index == expandedIndex }
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
+                        SearchItem(
+                            food = food,
+                            isExpanded = searchState.expandedFoodId == food.id,
+                            onToggle = {
+                                viewModel.onFoodToggled(food.id)
+                                keyboardController?.hide()
+                            },
+                            currentAmount = searchState.quickAddAmount,
+                            onAmountChange = viewModel::onQuickAddAmountChange,
+                            onNavigateToDetail = { onNavigateToDetail(food.id) },
+                            onAddToDiet = {
+                                viewModel.addFoodToLog(food, selectedMealType, selectedTime)
+                                viewModel.clearSearch()
+                                onClose()
+                            },
+                            isAddToDietPrimary = true,
+                            actionButtonLabel = "Registrar",
+                            resultIndex = index + 1
+                        )
+                    }
+
+                    if (searchState.results.isEmpty() && searchState.searchTerm.length >= 2) {
+                        item {
+                            Text(
+                                "Nenhum resultado encontrado.",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
                 }
 
-                if (searchState.results.isEmpty() && searchState.searchTerm.length >= 2) {
-                    item {
-                        Text(
-                            "Nenhum resultado encontrado.",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline
+                // Scroll-to-selected FAB
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = expandedIndex >= 0 && !isExpandedVisible,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
+                ) {
+                    SmallFloatingActionButton(
+                        onClick = {
+                            scope.launch {
+                                listState.animateScrollToItem(expandedIndex)
+                            }
+                        },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ) {
+                        Icon(
+                            Icons.Default.CenterFocusStrong,
+                            contentDescription = "Ir para item selecionado"
                         )
                     }
                 }

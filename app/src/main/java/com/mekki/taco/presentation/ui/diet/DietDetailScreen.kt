@@ -1,6 +1,11 @@
 package com.mekki.taco.presentation.ui.diet
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,6 +43,7 @@ import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -72,6 +78,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryScrollableTabRow
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -1295,56 +1302,94 @@ fun ReplaceFoodSheetContent(
             }
 
             else -> {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
-                        val isCurrentFood = food.id == currentFood.id
+                val listState = rememberLazyListState()
+                val scope = rememberCoroutineScope()
+                val expandedIndex = searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
+                val isExpandedVisible = remember(listState.firstVisibleItemIndex, listState.layoutInfo.visibleItemsInfo.size, expandedIndex) {
+                    if (expandedIndex < 0) true
+                    else listState.layoutInfo.visibleItemsInfo.any { it.index == expandedIndex }
+                }
 
-                        if (isCurrentFood) {
-                            // Show current food as disabled
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
-                                        alpha = 0.5f
-                                    )
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                Box(modifier = Modifier.weight(1f)) {
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
+                            val isCurrentFood = food.id == currentFood.id
+
+                            if (isCurrentFood) {
+                                // Show current food as disabled
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                            alpha = 0.5f
+                                        )
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text(
-                                        food.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        "(atual)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            food.name,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "(atual)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                 }
+                            } else {
+                                // Normal selectable food item
+                                SearchItem(
+                                    food = food,
+                                    isExpanded = searchState.expandedFoodId == food.id,
+                                    onToggle = {
+                                        onFoodToggled(food.id)
+                                        keyboardController?.hide()
+                                    },
+                                    onNavigateToDetail = { onNavigateToDetail(food.id) },
+                                    currentAmount = searchState.quickAddAmount,
+                                    onAmountChange = onAmountChange,
+                                    onAddToDiet = { onSelectFood(food) },
+                                    isAddToDietPrimary = true,
+                                    actionButtonLabel = "Selecionar",
+                                    resultIndex = index + 1
+                                )
                             }
-                        } else {
-                            // Normal selectable food item
-                            SearchItem(
-                                food = food,
-                                isExpanded = searchState.expandedFoodId == food.id,
-                                onToggle = {
-                                    onFoodToggled(food.id)
-                                    keyboardController?.hide()
-                                },
-                                onNavigateToDetail = { onNavigateToDetail(food.id) },
-                                currentAmount = searchState.quickAddAmount,
-                                onAmountChange = onAmountChange,
-                                onAddToDiet = { onSelectFood(food) },
-                                isAddToDietPrimary = true,
-                                actionButtonLabel = "Selecionar",
-                                resultIndex = index + 1
+                        }
+                    }
+
+                    // Scroll-to-selected FAB
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = expandedIndex >= 0 && !isExpandedVisible,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp),
+                        enter = fadeIn() + scaleIn(),
+                        exit = fadeOut() + scaleOut()
+                    ) {
+                        SmallFloatingActionButton(
+                            onClick = {
+                                scope.launch {
+                                    listState.animateScrollToItem(expandedIndex)
+                                }
+                            },
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Icon(
+                                Icons.Default.CenterFocusStrong,
+                                contentDescription = "Ir para item selecionado"
                             )
                         }
                     }
@@ -1640,39 +1685,77 @@ fun SearchFoodSheetContent(
             }
 
             else -> {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
-                        SearchItem(
-                            food = food,
-                            isExpanded = searchState.expandedFoodId == food.id,
-                            onToggle = {
-                                onFoodToggled(food.id)
-                                keyboardController?.hide()
-                            },
-                            onNavigateToDetail = { onNavigateToDetail(food.id) },
-                            currentAmount = searchState.quickAddAmount,
-                            onAmountChange = onAmountChange,
-                            onAddToDiet = { amount ->
-                                val qty = amount.toDoubleOrNull() ?: 100.0
-                                onAddFood(food, qty)
-                            },
-                            isAddToDietPrimary = true,
-                            actionButtonLabel = "Adicionar",
-                            resultIndex = index + 1
-                        )
+                val listState = rememberLazyListState()
+                val scope = rememberCoroutineScope()
+                val expandedIndex = searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
+                val isExpandedVisible = remember(listState.firstVisibleItemIndex, listState.layoutInfo.visibleItemsInfo.size, expandedIndex) {
+                    if (expandedIndex < 0) true
+                    else listState.layoutInfo.visibleItemsInfo.any { it.index == expandedIndex }
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
+                            SearchItem(
+                                food = food,
+                                isExpanded = searchState.expandedFoodId == food.id,
+                                onToggle = {
+                                    onFoodToggled(food.id)
+                                    keyboardController?.hide()
+                                },
+                                onNavigateToDetail = { onNavigateToDetail(food.id) },
+                                currentAmount = searchState.quickAddAmount,
+                                onAmountChange = onAmountChange,
+                                onAddToDiet = { amount ->
+                                    val qty = amount.toDoubleOrNull() ?: 100.0
+                                    onAddFood(food, qty)
+                                },
+                                isAddToDietPrimary = true,
+                                actionButtonLabel = "Adicionar",
+                                resultIndex = index + 1
+                            )
+                        }
+
+                        item {
+                            Spacer(Modifier.height(16.dp))
+                            OutlinedButton(
+                                onClick = onNavigateToCreate,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Add, null)
+                                Spacer(Modifier.width(8.dp))
+                                // TODO after food is created by user, should be displayed
+                                // on search screen or be added already.
+                                Text("Cadastrar novo alimento")
+                            }
+                        }
                     }
 
-                    item {
-                        Spacer(Modifier.height(16.dp))
-                        OutlinedButton(
-                            onClick = onNavigateToCreate,
-                            modifier = Modifier.fillMaxWidth()
+                    // Scroll-to-selected FAB
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = expandedIndex >= 0 && !isExpandedVisible,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp),
+                        enter = fadeIn() + scaleIn(),
+                        exit = fadeOut() + scaleOut()
+                    ) {
+                        SmallFloatingActionButton(
+                            onClick = {
+                                scope.launch {
+                                    listState.animateScrollToItem(expandedIndex)
+                                }
+                            },
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         ) {
-                            Icon(Icons.Default.Add, null)
-                            Spacer(Modifier.width(8.dp))
-                            // TODO after food is created by user, should be displayed
-                            // on search screen or be added already.
-                            Text("Cadastrar novo alimento")
+                            Icon(
+                                Icons.Default.CenterFocusStrong,
+                                contentDescription = "Ir para item selecionado"
+                            )
                         }
                     }
                 }
