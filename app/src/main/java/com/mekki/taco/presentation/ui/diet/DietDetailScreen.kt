@@ -451,6 +451,7 @@ fun DietDetailScreen(
                     viewModel.foodSearchManager.clear()
                 },
                 onNavigateToDetail = onViewFood,
+                onNavigateToCreate = { viewModel.onStartCreateFood() },
                 onCancel = {
                     itemToReplaceFood = null
                     viewModel.foodSearchManager.clear()
@@ -1073,6 +1074,7 @@ fun ReplaceFoodSheetContent(
     onAmountChange: (String) -> Unit,
     onSelectFood: (Food) -> Unit,
     onNavigateToDetail: (Int) -> Unit,
+    onNavigateToCreate: () -> Unit,
     onCancel: () -> Unit
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -1140,30 +1142,61 @@ fun ReplaceFoodSheetContent(
 
         Spacer(Modifier.height(8.dp))
 
-        // Search Field
-        OutlinedTextField(
-            value = searchState.searchTerm,
-            onValueChange = onSearchTermChange,
+        // Search Field with Filter Button
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Buscar novo alimento") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
-            trailingIcon = {
-                if (searchState.searchTerm.isNotEmpty()) {
-                    IconButton(onClick = { onSearchTermChange("") }) {
-                        Icon(Icons.Default.Close, "Limpar")
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchState.searchTerm,
+                onValueChange = onSearchTermChange,
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Buscar novo alimento") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = {
+                    if (searchState.searchTerm.isNotEmpty()) {
+                        IconButton(onClick = { onSearchTermChange("") }) {
+                            Icon(Icons.Default.Close, "Limpar")
+                        }
                     }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                    }
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            IconButton(onClick = { showFilters = true }) {
+                val activeFilterCount = listOfNotNull(
+                    if (searchState.filterState.source != FoodSource.ALL) 1 else null,
+                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null,
+                    if (searchState.filterState.sortOption != FoodSortOption.NAME) 1 else null
+                ).sum()
+
+                if (activeFilterCount > 0) {
+                    BadgedBox(
+                        badge = { Badge { Text(activeFilterCount.toString()) } }
+                    ) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = "Filtros",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.Default.FilterList,
+                        contentDescription = "Filtros",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    keyboardController?.hide()
-                    focusManager.clearFocus()
-                }
-            ),
-            shape = RoundedCornerShape(12.dp)
-        )
+            }
+        }
 
         // Filter chips row (HomeScreen pattern)
         if (searchState.searchTerm.length >= 2 || searchState.filterState.hasActiveFilters) {
@@ -1238,12 +1271,27 @@ fun ReplaceFoodSheetContent(
             }
 
             searchState.results.isEmpty() && searchState.searchTerm.length >= 2 -> {
-                Text(
-                    "Nenhum resultado encontrado.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(16.dp)
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "Nenhum resultado encontrado.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(
+                        onClick = onNavigateToCreate,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Cadastrar novo alimento")
+                    }
+                }
             }
 
             else -> {
