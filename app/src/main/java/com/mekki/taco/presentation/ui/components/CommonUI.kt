@@ -45,7 +45,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun PortionControlInput(
     portion: String,
-    onPortionChange: (String) -> Unit
+    onPortionChange: (String) -> Unit,
+    step: Double = 10.0
 ) {
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
@@ -64,7 +65,7 @@ fun PortionControlInput(
             onClick = {
                 focusManager.clearFocus()
                 val current = portion.toDoubleOrNull() ?: 0.0
-                val new = (current - 10).coerceAtLeast(0.0)
+                val new = (current - step).coerceAtLeast(0.0)
                 onPortionChange(if (new % 1.0 == 0.0) new.toInt().toString() else new.toString())
             },
             modifier = Modifier.size(32.dp)
@@ -129,7 +130,7 @@ fun PortionControlInput(
             onClick = {
                 focusManager.clearFocus()
                 val current = portion.toDoubleOrNull() ?: 0.0
-                val new = current + 10
+                val new = current + step
                 onPortionChange(if (new % 1.0 == 0.0) new.toInt().toString() else new.toString())
             },
             modifier = Modifier.size(32.dp)

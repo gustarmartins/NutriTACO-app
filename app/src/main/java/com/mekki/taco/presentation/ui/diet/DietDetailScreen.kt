@@ -1,7 +1,6 @@
 package com.mekki.taco.presentation.ui.diet
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -26,11 +25,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,8 +39,8 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -79,7 +76,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -104,43 +100,46 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.DietItem
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.model.DietItemWithFood
+import com.mekki.taco.data.model.DietWithItems
 import com.mekki.taco.presentation.ui.components.DiscardChangesDialog
 import com.mekki.taco.presentation.ui.components.FilterBottomSheet
 import com.mekki.taco.presentation.ui.components.NutritionalSummaryCard
+import com.mekki.taco.presentation.ui.components.PortionControlInput
 import com.mekki.taco.presentation.ui.components.ScanResultDialog
 import com.mekki.taco.presentation.ui.components.SearchItem
+import com.mekki.taco.presentation.ui.components.TimeControlInput
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
+import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSearchState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
-import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
+import com.mekki.taco.presentation.ui.theme.LocalNutrientColors
 import com.mekki.taco.utils.NutrientCalculator
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import java.text.DecimalFormat
 
-private val COLOR_PROTEIN = Color(0xFF2E7A7A)
-private val COLOR_CARBS = Color(0xFFDCC48E)
-private val COLOR_FAT = Color(0xFFC97C4A)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DietDetailScreen(
     viewModel: DietDetailViewModel,
     profileViewModel: ProfileViewModel,
-    onEditDiet: (Int) -> Unit, // kept for signature match
     onEditFood: (Int) -> Unit,
     onViewFood: (Int) -> Unit,
     onTitleChange: (String) -> Unit,
@@ -244,143 +243,28 @@ fun DietDetailScreen(
         onDispose { onFabChange(null) }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (isEditMode && dietDetails?.diet?.name?.isBlank() == true) "Nova Dieta" else dietDetails?.diet?.name
-                            ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                }, colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isEditMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
-                    titleContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
-                ), navigationIcon = {
-                    IconButton(onClick = handleBackPress) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
-                    }
-                }, actions = {
-                    if (!isEditMode) {
-                        IconButton(onClick = viewModel::onStartScan) {
-                            Icon(Icons.Default.CameraAlt, "Escanear")
-                        }
-                        IconButton(onClick = { viewModel.setEditMode(true) }) {
-                            Icon(Icons.Default.Edit, "Editar")
-                        }
-                    } else {
-                        if (hasUnsavedChanges) {
-                            IconButton(onClick = { viewModel.saveDiet() }) {
-                                Icon(Icons.Default.Check, "Salvar")
-                            }
-                        }
-                    }
-                })
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
-        if (dietDetails == null) {
-            Box(
-                Modifier.fillMaxSize(), contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator() }
-        } else {
-            val lazyListState = rememberLazyListState()
-            val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
-                val fromKey = from.key.toString()
-                val toKey = to.key.toString()
-                val fromMeal = fromKey.substringBeforeLast('_')
-                val toMeal = toKey.substringBeforeLast('_')
-
-                if (fromMeal == toMeal) {
-                    val mealList = groupedItems[fromMeal] ?: return@rememberReorderableLazyListState
-                    val fromId = fromKey.substringAfterLast('_').toIntOrNull()
-                    val toId = toKey.substringAfterLast('_').toIntOrNull()
-                    val fromIndex = mealList.indexOfFirst { it.dietItem.id == fromId }
-                    val toIndex = mealList.indexOfFirst { it.dietItem.id == toId }
-
-                    if (fromIndex != -1 && toIndex != -1) {
-                        viewModel.reorderFoodItemsInMeal(fromMeal, fromIndex, toIndex)
-                    }
-                }
-            }
-
-            LazyColumn(
-                state = lazyListState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(bottom = 80.dp),
-            ) {
-                item {
-                    DietHeaderSection(
-                        isEditMode = isEditMode,
-                        dietName = dietDetails?.diet?.name ?: "",
-                        calorieGoal = dietDetails?.diet?.calorieGoals ?: 0.0,
-                        onNameChange = viewModel::onDietNameChange,
-                        onGoalChange = viewModel::onCalorieGoalChange,
-                        suggestedGoals = suggestedGoals,
-                        onApplyGoal = viewModel::applySmartGoal,
-                        isProfileComplete = userProfile?.weight != null,
-                        onOpenProfile = { showProfileSheet = true })
-                }
-
-                // Macros Summary
-                item {
-                    val currentKcal = dietTotalNutrition?.energiaKcal ?: 0.0
-                    val goalKcal = dietDetails?.diet?.calorieGoals ?: 0.0
-
-                    Column(Modifier.padding(horizontal = 16.dp)) {
-                        if (goalKcal > 0.0) {
-                            DietGoalProgressCard(currentKcal, goalKcal)
-                            Spacer(Modifier.height(12.dp))
-                        }
-                        dietTotalNutrition?.let { totalFood ->
-                            NutritionalSummaryCard(
-                                food = totalFood,
-                                label = "Total da Dieta",
-                                initiallyExpanded = isEditMode
-                            )
-                        }
-                    }
-                }
-
-                // Meals
-                viewModel.mealTypes.forEach { mealType ->
-                    val items = groupedItems[mealType] ?: emptyList()
-                    val mealTime = items.firstOrNull()?.dietItem?.consumptionTime ?: "00:00"
-
-                    if (isEditMode || items.isNotEmpty()) {
-                        item(key = "header_$mealType") {
-                            MealHeader(
-                                title = mealType,
-                                time = mealTime,
-                                isEditMode = isEditMode,
-                                onAddClick = { viewModel.setFocusedMealType(mealType) })
-                        }
-                    }
-
-                    items(items = items, key = { "${mealType}_${it.dietItem.id}" }) { dietItem ->
-                        ReorderableItem(
-                            reorderableState, key = "${mealType}_${dietItem.dietItem.id}"
-                        ) { isDragging ->
-                            CompactFoodItemRow(
-                                item = dietItem,
-                                isEditMode = isEditMode,
-                                isDragging = isDragging,
-                                onShowOptions = { itemForSheet = dietItem },
-                                onViewFood = { onViewFood(dietItem.food.id) },
-                                onEnableEditModeAndShowOptions = {
-                                    viewModel.setEditMode(true)
-                                    itemForSheet = dietItem
-                                },
-                                handle = { Modifier.draggableHandle() })
-                        }
-                    }
-                }
-            }
-        }
-    }
+    DietDetailContent(
+        groupedItems = groupedItems,
+        dietTotalNutrition = dietTotalNutrition,
+        dietDetails = dietDetails,
+        isEditMode = isEditMode,
+        hasUnsavedChanges = hasUnsavedChanges,
+        suggestedGoals = suggestedGoals,
+        isProfileComplete = userProfile?.weight != null,
+        mealTypes = viewModel.mealTypes,
+        onBackClick = handleBackPress,
+        onStartScan = viewModel::onStartScan,
+        onEditModeChange = viewModel::setEditMode,
+        onSaveDiet = viewModel::saveDiet,
+        onReorderFoodItemsInMeal = viewModel::reorderFoodItemsInMeal,
+        onDietNameChange = viewModel::onDietNameChange,
+        onCalorieGoalChange = viewModel::onCalorieGoalChange,
+        onApplyGoal = viewModel::applySmartGoal,
+        onOpenProfile = { showProfileSheet = true },
+        onSetFocusedMealType = viewModel::setFocusedMealType,
+        onViewFood = onViewFood,
+        onShowItemOptions = { itemForSheet = it }
+    )
 
     if (focusedMealType != null) {
         ModalBottomSheet(
@@ -520,6 +404,171 @@ fun DietDetailScreen(
                     }
                 }, onNavigateToSettings = onNavigateToSettings
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun DietDetailContent(
+    groupedItems: Map<String, List<DietItemWithFood>>,
+    dietTotalNutrition: Food?,
+    dietDetails: DietWithItems?,
+    isEditMode: Boolean,
+    hasUnsavedChanges: Boolean,
+    suggestedGoals: List<SmartGoal>,
+    isProfileComplete: Boolean,
+    mealTypes: List<String>,
+    onBackClick: () -> Unit,
+    onStartScan: () -> Unit,
+    onEditModeChange: (Boolean) -> Unit,
+    onSaveDiet: () -> Unit,
+    onReorderFoodItemsInMeal: (String, Int, Int) -> Unit,
+    onDietNameChange: (String) -> Unit,
+    onCalorieGoalChange: (Double) -> Unit,
+    onApplyGoal: (SmartGoal) -> Unit,
+    onOpenProfile: () -> Unit,
+    onSetFocusedMealType: (String?) -> Unit,
+    onViewFood: (Int) -> Unit,
+    onShowItemOptions: (DietItemWithFood) -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = if (isEditMode && dietDetails?.diet?.name?.isBlank() == true) "Nova Dieta" else dietDetails?.diet?.name
+                            ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }, colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isEditMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
+                    titleContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                ), navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
+                    }
+                }, actions = {
+                    if (!isEditMode) {
+                        IconButton(onClick = onStartScan) {
+                            Icon(Icons.Default.CameraAlt, "Escanear")
+                        }
+                        IconButton(onClick = { onEditModeChange(true) }) {
+                            Icon(Icons.Default.Edit, "Editar")
+                        }
+                    } else {
+                        if (hasUnsavedChanges) {
+                            IconButton(onClick = onSaveDiet) {
+                                Icon(Icons.Default.Check, "Salvar")
+                            }
+                        }
+                    }
+                })
+        }
+    ) { innerPadding ->
+        if (dietDetails == null) {
+            Box(
+                Modifier.fillMaxSize(), contentAlignment = Alignment.Center
+            ) { CircularProgressIndicator() }
+        } else {
+            val lazyListState = rememberLazyListState()
+            val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+                val fromKey = from.key.toString()
+                val toKey = to.key.toString()
+                val fromMeal = fromKey.substringBeforeLast('_')
+                val toMeal = toKey.substringBeforeLast('_')
+
+                if (fromMeal == toMeal) {
+                    val mealList = groupedItems[fromMeal] ?: return@rememberReorderableLazyListState
+                    val fromId = fromKey.substringAfterLast('_').toIntOrNull()
+                    val toId = toKey.substringAfterLast('_').toIntOrNull()
+                    val fromIndex = mealList.indexOfFirst { it.dietItem.id == fromId }
+                    val toIndex = mealList.indexOfFirst { it.dietItem.id == toId }
+
+                    if (fromIndex != -1 && toIndex != -1) {
+                        onReorderFoodItemsInMeal(fromMeal, fromIndex, toIndex)
+                    }
+                }
+            }
+
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(bottom = 80.dp),
+            ) {
+                item {
+                    DietHeaderSection(
+                        isEditMode = isEditMode,
+                        dietName = dietDetails.diet.name,
+                        calorieGoal = dietDetails.diet.calorieGoals ?: 0.0,
+                        onNameChange = onDietNameChange,
+                        onGoalChange = onCalorieGoalChange,
+                        suggestedGoals = suggestedGoals,
+                        onApplyGoal = onApplyGoal,
+                        isProfileComplete = isProfileComplete,
+                        onOpenProfile = onOpenProfile
+                    )
+                }
+
+                // Macros Summary
+                item {
+                    val currentKcal = dietTotalNutrition?.energiaKcal ?: 0.0
+                    val goalKcal = dietDetails.diet.calorieGoals ?: 0.0
+
+                    Column(Modifier.padding(horizontal = 16.dp)) {
+                        if (goalKcal > 0.0) {
+                            DietGoalProgressCard(currentKcal, goalKcal)
+                            Spacer(Modifier.height(12.dp))
+                        }
+                        dietTotalNutrition?.let { totalFood ->
+                            NutritionalSummaryCard(
+                                food = totalFood,
+                                label = "Total da Dieta",
+                                initiallyExpanded = isEditMode
+                            )
+                        }
+                    }
+                }
+
+                // Meals
+                mealTypes.forEach { mealType ->
+                    val items = groupedItems[mealType] ?: emptyList()
+                    val mealTime = items.firstOrNull()?.dietItem?.consumptionTime ?: "00:00"
+
+                    if (isEditMode || items.isNotEmpty()) {
+                        item(key = "header_$mealType") {
+                            MealHeader(
+                                title = mealType,
+                                time = mealTime,
+                                isEditMode = isEditMode,
+                                onAddClick = { onSetFocusedMealType(mealType) })
+                        }
+                    }
+
+                    itemsIndexed(
+                        items = items,
+                        key = { _, it -> "${mealType}_${it.dietItem.id}" }) { _, dietItem ->
+                        ReorderableItem(
+                            reorderableState, key = "${mealType}_${dietItem.dietItem.id}"
+                        ) { isDragging ->
+                            CompactFoodItemRow(
+                                item = dietItem,
+                                isEditMode = isEditMode,
+                                isDragging = isDragging,
+                                onShowOptions = { onShowItemOptions(dietItem) },
+                                onViewFood = { onViewFood(dietItem.food.id) },
+                                onEnableEditModeAndShowOptions = {
+                                    onEditModeChange(true)
+                                    onShowItemOptions(dietItem)
+                                },
+                                handle = { Modifier.draggableHandle() })
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -682,21 +731,10 @@ fun CompactFoodItemRow(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = " \u2022 ",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
-                    Text(
-                        text = "${df.format(calc.energiaKcal ?: 0.0)} kcal",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
                     val time = item.dietItem.consumptionTime
                     if (!time.isNullOrBlank() && time != "00:00") {
                         Text(
-                            text = " \u2022 ",
+                            text = " • ",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.outlineVariant
                         )
@@ -707,14 +745,34 @@ fun CompactFoodItemRow(
                         )
                     }
                 }
+
+                val nutrientColors = LocalNutrientColors.current
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = nutrientColors.protein)) {
+                            append("Proteínas ${df.format(calc.proteina ?: 0.0)}g")
+                        }
+                        append(" • ")
+                        withStyle(SpanStyle(color = nutrientColors.carbs)) {
+                            append("Carboidratos ${df.format(calc.carboidratos ?: 0.0)}g")
+                        }
+                        append(" • ")
+                        withStyle(SpanStyle(color = nutrientColors.fat)) {
+                            append("Gorduras ${df.format(calc.lipidios?.total ?: 0.0)}g")
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
-            // Macros in a very compact way
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                MacroCircle(calc.proteina, COLOR_PROTEIN)
-                MacroCircle(calc.carboidratos, COLOR_CARBS)
-                MacroCircle(calc.lipidios?.total, COLOR_FAT)
-            }
+            Text(
+                text = "${df.format(calc.energiaKcal ?: 0.0)} kcal",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
             if (isEditMode) {
                 IconButton(onClick = onShowOptions) {
@@ -788,43 +846,18 @@ fun FoodItemActionsSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Quantity field
-                    OutlinedTextField(
-                        value = quantity,
-                        onValueChange = { quantity = it },
-                        label = { Text("Porção") },
-                        suffix = { Text("g") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(12.dp)
+                    PortionControlInput(
+                        portion = quantity,
+                        onPortionChange = { quantity = it },
+                        step = 5.0
                     )
-
-                    // Time picker button
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedTextField(
-                            value = time,
-                            onValueChange = { },
-                            label = { Text("Horário") },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = false,
-                            readOnly = true,
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable { showTimePicker = true })
-                    }
+                    TimeControlInput(
+                        time = time,
+                        onClick = { showTimePicker = true }
+                    )
                 }
 
                 // Meal type selector - OUTSIDE the Row
@@ -1046,14 +1079,21 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-fun MacroCircle(value: Double?, color: Color) {
-    Box(
+fun LabeledMacroChip(label: String, value: Double?, color: Color) {
+    Row(
         modifier = Modifier
-            .size(24.dp)
-            .clip(CircleShape)
-            .background(color.copy(alpha = 0.2f)),
-        contentAlignment = Alignment.Center
+            .clip(RoundedCornerShape(8.dp))
+            .background(color.copy(alpha = 0.15f))
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color.copy(alpha = 0.7f),
+            fontWeight = FontWeight.Medium
+        )
         Text(
             text = DecimalFormat("#").format(value ?: 0.0),
             style = MaterialTheme.typography.labelSmall,
@@ -1179,8 +1219,7 @@ fun ReplaceFoodSheetContent(
             IconButton(onClick = { showFilters = true }) {
                 val activeFilterCount = listOfNotNull(
                     if (searchState.filterState.source != FoodSource.ALL) 1 else null,
-                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null,
-                    if (searchState.filterState.sortOption != FoodSortOption.NAME) 1 else null
+                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null
                 ).sum()
 
                 if (activeFilterCount > 0) {
@@ -1302,8 +1341,13 @@ fun ReplaceFoodSheetContent(
             else -> {
                 val listState = rememberLazyListState()
                 val scope = rememberCoroutineScope()
-                val expandedIndex = searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
-                val isExpandedVisible = remember(listState.firstVisibleItemIndex, listState.layoutInfo.visibleItemsInfo.size, expandedIndex) {
+                val expandedIndex =
+                    searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
+                val isExpandedVisible = remember(
+                    listState.firstVisibleItemIndex,
+                    listState.layoutInfo.visibleItemsInfo.size,
+                    expandedIndex
+                ) {
                     if (expandedIndex < 0) true
                     else listState.layoutInfo.visibleItemsInfo.any { it.index == expandedIndex }
                 }
@@ -1321,7 +1365,9 @@ fun ReplaceFoodSheetContent(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
-                        itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
+                        itemsIndexed(
+                            searchState.results,
+                            key = { _, food -> food.id }) { index, food ->
                             val isCurrentFood = food.id == currentFood.id
 
                             if (isCurrentFood) {
@@ -1587,8 +1633,7 @@ fun SearchFoodSheetContent(
             IconButton(onClick = { showFilters = true }) {
                 val activeFilterCount = listOfNotNull(
                     if (searchState.filterState.source != FoodSource.ALL) 1 else null,
-                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null,
-                    if (searchState.filterState.sortOption != FoodSortOption.NAME) 1 else null
+                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null
                 ).sum()
 
                 if (activeFilterCount > 0) {
@@ -1695,8 +1740,13 @@ fun SearchFoodSheetContent(
             else -> {
                 val listState = rememberLazyListState()
                 val scope = rememberCoroutineScope()
-                val expandedIndex = searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
-                val isExpandedVisible = remember(listState.firstVisibleItemIndex, listState.layoutInfo.visibleItemsInfo.size, expandedIndex) {
+                val expandedIndex =
+                    searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
+                val isExpandedVisible = remember(
+                    listState.firstVisibleItemIndex,
+                    listState.layoutInfo.visibleItemsInfo.size,
+                    expandedIndex
+                ) {
                     if (expandedIndex < 0) true
                     else listState.layoutInfo.visibleItemsInfo.any { it.index == expandedIndex }
                 }
@@ -1714,7 +1764,9 @@ fun SearchFoodSheetContent(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
-                        itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
+                        itemsIndexed(
+                            searchState.results,
+                            key = { _, food -> food.id }) { index, food ->
                             SearchItem(
                                 food = food,
                                 isExpanded = searchState.expandedFoodId == food.id,
