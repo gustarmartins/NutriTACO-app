@@ -139,13 +139,19 @@ class FoodSearchManager(
             .distinctUntilChanged()
             .flatMapLatest { (term, filters) ->
                 val hasCategories = filters.selectedCategories.isNotEmpty()
-                
-                if (term.length < 2 && !hasCategories) {
+                val hasAdvanced = filters.hasAdvancedFilters
+                val hasAnyFilter = hasCategories || hasAdvanced
+
+                if (term.length < 2 && !hasAnyFilter) {
                     _isLoading.value = false
                     flowOf(emptyList())
-                } else if (hasCategories && term.length < 2) {
+                } else if (hasAnyFilter && term.length < 2) {
                     _isLoading.value = true
-                    foodDao.getFoodsByCategories(filters.selectedCategories.toList())
+                    if (hasCategories) {
+                        foodDao.getFoodsByCategories(filters.selectedCategories.toList())
+                    } else {
+                        foodDao.getAllFoods()
+                    }
                 } else {
                     _isLoading.value = true
                     val ftsQuery = buildFtsString(term)
