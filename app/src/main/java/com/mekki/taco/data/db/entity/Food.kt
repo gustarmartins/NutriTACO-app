@@ -42,14 +42,14 @@ data class Food(
     @ColumnInfo(defaultValue = "0")
     val usageCount: Int = 0,
 
-    val energiaKcal: Double?,
+    val energiaKcal: Double?, // kcal
     val energiaKj: Double?,
     val proteina: Double?, // g
     val colesterol: Double?, // mg
     val carboidratos: Double?, // g
     val fibraAlimentar: Double?, // g
     val cinzas: Double?, // g
-    val calcio: Double?, // g
+    val calcio: Double?, // mg
     val magnesio: Double?, // mg
     val manganes: Double?, // mg
     val fosforo: Double?, // mg
@@ -58,9 +58,9 @@ data class Food(
     val potassio: Double?, // mg
     val cobre: Double?, // mg
     val zinco: Double?, // mg
-    val retinol: Double?, // µg
-    val RE: Double?, // µg
-    val RAE: Double?, // µg
+    val retinol: Double?, // µg (mcg)
+    val RE: Double?, // µg (mcg)
+    val RAE: Double?, // µg (mcg)
     val tiamina: Double?, // mg
     val riboflavina: Double?, // mg
     val piridoxina: Double?, // mg
@@ -77,32 +77,30 @@ data class Food(
 
 @Parcelize
 data class Lipidios(
-    val total: Double?,
-    val saturados: Double?,
-    val monoinsaturados: Double?,
-    val poliinsaturados: Double?
+    val total: Double?, // sum of three below in g
+    val saturados: Double?, // g
+    val monoinsaturados: Double?, // g
+    val poliinsaturados: Double? // g
 ) : Parcelable
 
 @Parcelize
 data class Aminoacidos(
-    val triptofano: Double?,
-    val treonina: Double?,
-    val isoleucina: Double?,
-    val leucina: Double?,
-    val lisina: Double?,
-    val metionina: Double?,
-    val cistina: Double?,
-    val fenilalanina: Double?,
-    val tirosina: Double?,
-    val valina: Double?,
-    val arginina: Double?,
-    val histidina: Double?,
-    val alanina: Double?,
-    val acidoAspartico: Double?,
-    val acidoGlutamico: Double?,
-    val glicina: Double?,
-    val prolina: Double?,
-    val serina: Double?
+    val triptofano: Double?, // g
+    val treonina: Double?, // g
+    val isoleucina: Double?, // g
+    val leucina: Double?, // g
+    val lisina: Double?, // g
+    val metionina: Double?, // g
+    val cistina: Double?, // g
+    val fenilalanina: Double?, // g
+    val tirosina: Double?, // g
+    val valina: Double?, // g
+    val arginina: Double?, // g
+    val histidina: Double?, // g
+    val alanina: Double?, // g
+    val acidoAspartico: Double?, // g
+    val acidoGlutamico: Double?, // g
+    val glicina: Double?, // g
+    val prolina: Double?, // g
+    val serina: Double? // g
 ) : Parcelable
-
-
