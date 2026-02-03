@@ -324,4 +324,44 @@ class DietSharingManager @Inject constructor(
             .take(50)
             .ifBlank { "dieta" }
     }
+
+    suspend fun shareDietToCache(dietId: Int): Uri? = withContext(Dispatchers.IO) {
+        when (val result = exportDiet(dietId)) {
+            is ExportResult.Success -> {
+                try {
+                    val cacheDir = java.io.File(context.cacheDir, "shared_diets")
+                    cacheDir.mkdirs()
+
+                    val file = java.io.File(cacheDir, result.fileName)
+                    file.writeText(result.json, Charsets.UTF_8)
+
+                    androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to create shareable file", e)
+                    null
+                }
+            }
+
+            is ExportResult.Error -> null
+        }
+    }
+
+    fun detectFileType(uri: Uri): NutriTacoFileType {
+        return try {
+            val json = readJsonFromUri(uri) ?: return NutriTacoFileType.UNKNOWN
+
+            when {
+                json.contains("\"diet\"") && json.contains("\"entries\"") -> NutriTacoFileType.DIET
+                json.contains("\"diets\"") && json.contains("\"dailyLogs\"") -> NutriTacoFileType.BACKUP
+                else -> NutriTacoFileType.UNKNOWN
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to detect file type", e)
+            NutriTacoFileType.UNKNOWN
+        }
+    }
 }

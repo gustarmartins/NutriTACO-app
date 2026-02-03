@@ -109,7 +109,25 @@ fun AppNavigation(
             )
         }
 
-        composable(DIET_LIST_ROUTE) {
+        composable(
+            route = "$DIET_LIST_ROUTE?importUri={importUri}",
+            arguments = listOf(
+                navArgument("importUri") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val importUri = backStackEntry.arguments?.getString("importUri")
+
+            LaunchedEffect(importUri) {
+                importUri?.let { encodedUri ->
+                    val uri = android.net.Uri.parse(java.net.URLDecoder.decode(encodedUri, "UTF-8"))
+                    dietListViewModel.importDiet(uri)
+                }
+            }
+
             DietListScreen(
                 viewModel = dietListViewModel,
                 onNavigateToCreateDiet = { navController.navigate("$DIET_DETAIL_ROUTE/-1?edit=true") },
@@ -291,7 +309,25 @@ fun AppNavigation(
             )
         }
 
-        composable(SETTINGS_ROUTE) {
+        composable(
+            route = "$SETTINGS_ROUTE?importUri={importUri}",
+            arguments = listOf(
+                navArgument("importUri") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val importUri = backStackEntry.arguments?.getString("importUri")
+
+            LaunchedEffect(importUri) {
+                importUri?.let { encodedUri ->
+                    val uri = android.net.Uri.parse(java.net.URLDecoder.decode(encodedUri, "UTF-8"))
+                    settingsViewModel.onImportDataFromIntent(uri)
+                }
+            }
+
             onFabChange(null)
             onActionsChange(null)
             onTitleChange("Configurações")

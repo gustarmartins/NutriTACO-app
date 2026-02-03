@@ -40,3 +40,9 @@ enum class ConflictResolution {
     /** Ask user for each conflict */
     ASK_USER
 }
+
+enum class NutriTacoFileType {
+    DIET,
+    BACKUP,
+    UNKNOWN
+}

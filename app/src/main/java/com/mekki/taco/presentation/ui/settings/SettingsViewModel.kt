@@ -76,6 +76,10 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun onImportDataFromIntent(uri: Uri) {
+        onImportData(uri)
+    }
+
     fun confirmImport(merge: Boolean) {
         val uri = _uiState.value.pendingImportUri ?: return
         dismissImportDialog()

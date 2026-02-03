@@ -36,6 +36,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.mekki.taco.data.sharing.DietSharingManager
+import com.mekki.taco.data.sharing.NutriTacoFileType
 import com.mekki.taco.presentation.navigation.AppNavigation
 import com.mekki.taco.presentation.navigation.BottomNavItem
 import com.mekki.taco.presentation.navigation.FOOD_DATABASE_ROUTE
@@ -49,15 +51,21 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject
+    lateinit var dietSharingManager: DietSharingManager
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     companion object {
         private const val TAG = "MainActivity_TACO"
         const val EXTRA_OPEN_SEARCH = "extra_open_search"
         const val EXTRA_OPEN_FOOD_DETAIL = "extra_open_food_detail"
+        const val EXTRA_IMPORT_FILE_URI = "extra_import_file_uri"
+        const val EXTRA_IMPORT_FILE_TYPE = "extra_import_file_type"
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -81,9 +89,9 @@ class MainActivity : ComponentActivity() {
                 // We want to handle widget intents on fresh start, not restoration
                 // To avoid restoring to widget last state when kill
                 val isFromWidget = savedInstanceState == null && (
-                    intent?.getBooleanExtra(EXTRA_OPEN_SEARCH, false) == true ||
-                    (intent?.getIntExtra(EXTRA_OPEN_FOOD_DETAIL, -1) ?: -1) > 0
-                )
+                        intent?.getBooleanExtra(EXTRA_OPEN_SEARCH, false) == true ||
+                                (intent?.getIntExtra(EXTRA_OPEN_FOOD_DETAIL, -1) ?: -1) > 0
+                        )
 
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     if (!isFromWidget) return@LaunchedEffect
@@ -101,12 +109,56 @@ class MainActivity : ComponentActivity() {
                                 launchSingleTop = true
                             }
                         }
+
                         openSearch -> {
                             navController.navigate("food_database") {
                                 popUpTo("home") { saveState = true }
                                 launchSingleTop = true
                             }
                         }
+                    }
+                }
+
+                // Handle .json file intents
+                val incomingUri = remember(savedInstanceState) {
+                    if (savedInstanceState == null && intent?.action == android.content.Intent.ACTION_VIEW) {
+                        intent?.data
+                    } else null
+                }
+                var pendingImportUri by remember { mutableStateOf(incomingUri) }
+                var detectedFileType by remember { mutableStateOf<NutriTacoFileType?>(null) }
+
+                androidx.compose.runtime.LaunchedEffect(pendingImportUri) {
+                    pendingImportUri?.let { uri ->
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            detectedFileType = dietSharingManager.detectFileType(uri)
+                        }
+                        when (detectedFileType) {
+                            NutriTacoFileType.DIET -> {
+                                val encodedUri = java.net.URLEncoder.encode(uri.toString(), "UTF-8")
+                                navController.navigate("diet_list?importUri=$encodedUri") {
+                                    popUpTo("home") { saveState = true }
+                                    launchSingleTop = true
+                                }
+                            }
+
+                            NutriTacoFileType.BACKUP -> {
+                                val encodedUri = java.net.URLEncoder.encode(uri.toString(), "UTF-8")
+                                navController.navigate("$SETTINGS_ROUTE?importUri=$encodedUri") {
+                                    popUpTo("home") { saveState = true }
+                                    launchSingleTop = true
+                                }
+                            }
+
+                            NutriTacoFileType.UNKNOWN, null -> {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Arquivo não reconhecido. Certifique-se de que seja um backup ou dieta.",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        pendingImportUri = null
                     }
                 }
 

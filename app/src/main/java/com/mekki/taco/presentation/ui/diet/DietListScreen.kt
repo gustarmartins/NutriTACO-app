@@ -77,22 +77,14 @@ fun DietListScreen(
 ) {
     val dietas by viewModel.dietas.collectAsState()
     val sharingStatus by viewModel.sharingStatus.collectAsState()
+    val shareUri by viewModel.shareUri.collectAsState()
     var dietToSetMain by remember { mutableStateOf<Diet?>(null) }
     var dietToDelete by remember { mutableStateOf<Diet?>(null) }
-    var dietToExportId by remember { mutableIntStateOf(-1) }
+    var showShareInstructions by remember { mutableStateOf(false) }
+    var dietToShareId by remember { mutableIntStateOf(-1) }
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-
-    // Launchers
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null && dietToExportId != -1) {
-            viewModel.exportDiet(dietToExportId, uri)
-        }
-        dietToExportId = -1
-    }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -100,7 +92,23 @@ fun DietListScreen(
         uri?.let { viewModel.importDiet(it) }
     }
 
-    // Effects
+    LaunchedEffect(shareUri) {
+        shareUri?.let { uri ->
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(
+                android.content.Intent.createChooser(
+                    intent,
+                    "Compartilhar Dieta"
+                )
+            )
+            viewModel.clearShareUri()
+        }
+    }
+
     LaunchedEffect(sharingStatus) {
         sharingStatus?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -162,8 +170,8 @@ fun DietListScreen(
                     onEditClick = { onEditDiet(dieta.id) },
                     onDeleteClick = { dietToDelete = dieta },
                     onExportClick = {
-                        dietToExportId = dieta.id
-                        exportLauncher.launch("${dieta.name}.json")
+                        dietToShareId = dieta.id
+                        showShareInstructions = true
                     }
                 )
             }
@@ -187,6 +195,47 @@ fun DietListScreen(
             },
             dismissButton = {
                 TextButton(onClick = { dietToSetMain = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showShareInstructions) {
+        AlertDialog(
+            onDismissRequest = {
+                showShareInstructions = false
+                dietToShareId = -1
+            },
+            icon = { Icon(Icons.Filled.Share, contentDescription = null) },
+            title = { Text("Compartilhar Dieta") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("O destinatário poderá:")
+                    Text("• Abrir diretamente com o NutriTACO (se instalado)")
+                    Text("• Ou salvar o arquivo .json e importar manualmente")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showShareInstructions = false
+                        if (dietToShareId != -1) {
+                            viewModel.shareDiet(dietToShareId)
+                            dietToShareId = -1
+                        }
+                    }
+                ) {
+                    Text("Compartilhar")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showShareInstructions = false
+                        dietToShareId = -1
+                    }
+                ) {
                     Text("Cancelar")
                 }
             }

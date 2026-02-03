@@ -69,6 +69,25 @@ class DietListViewModel @Inject constructor(
         }
     }
 
+    private val _shareUri = MutableStateFlow<android.net.Uri?>(null)
+    val shareUri: StateFlow<android.net.Uri?> = _shareUri.asStateFlow()
+
+    fun shareDiet(dietId: Int) {
+        viewModelScope.launch {
+            _sharingStatus.value = "Preparando..."
+            val uri = dietSharingManager.shareDietToCache(dietId)
+            if (uri != null) {
+                _shareUri.value = uri
+            } else {
+                _sharingStatus.value = "Erro ao preparar dieta para compartilhamento"
+            }
+        }
+    }
+
+    fun clearShareUri() {
+        _shareUri.value = null
+    }
+
     fun importDiet(uri: android.net.Uri) {
         viewModelScope.launch {
             _sharingStatus.value = "Importando..."
