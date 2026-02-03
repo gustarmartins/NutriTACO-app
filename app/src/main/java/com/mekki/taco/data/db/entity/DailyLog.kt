@@ -34,5 +34,7 @@ data class DailyLog(
 
     val originalQuantityGrams: Double? = null,
 
-    val notes: String? = null
+    val notes: String? = null,
+
+    val sortOrder: Int = 0
 )

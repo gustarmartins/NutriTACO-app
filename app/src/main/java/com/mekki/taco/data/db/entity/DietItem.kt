@@ -35,5 +35,6 @@ data class DietItem(
 
     val quantityGrams: Double,
     val mealType: String? = null,
-    val consumptionTime: String? = null
+    val consumptionTime: String? = null,
+    val sortOrder: Int = 0
 ) : Parcelable

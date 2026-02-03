@@ -40,8 +40,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -85,8 +85,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -127,12 +127,11 @@ import com.mekki.taco.presentation.ui.components.PortionControlInput
 import com.mekki.taco.presentation.ui.components.SearchItem
 import com.mekki.taco.presentation.ui.components.TimePickerDialog
 import com.mekki.taco.presentation.ui.search.FoodFilterState
-import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
 import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
-import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -1013,8 +1012,7 @@ fun DiarySearchSheetContent(
             IconButton(onClick = { showFilters = true }) {
                 val activeFilterCount = listOfNotNull(
                     if (searchState.filterState.source != FoodSource.ALL) 1 else null,
-                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null,
-                    if (searchState.filterState.sortOption != FoodSortOption.NAME) 1 else null
+                    if (searchState.filterState.selectedCategories.isNotEmpty()) searchState.filterState.selectedCategories.size else null
                 ).sum()
 
                 if (activeFilterCount > 0) {
@@ -1105,8 +1103,13 @@ fun DiarySearchSheetContent(
         } else {
             val listState = rememberLazyListState()
             val scope = rememberCoroutineScope()
-            val expandedIndex = searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
-            val isExpandedVisible = remember(listState.firstVisibleItemIndex, listState.layoutInfo.visibleItemsInfo.size, expandedIndex) {
+            val expandedIndex =
+                searchState.results.indexOfFirst { it.id == searchState.expandedFoodId }
+            val isExpandedVisible = remember(
+                listState.firstVisibleItemIndex,
+                listState.layoutInfo.visibleItemsInfo.size,
+                expandedIndex
+            ) {
                 if (expandedIndex < 0) true
                 else listState.layoutInfo.visibleItemsInfo.any { it.index == expandedIndex }
             }

@@ -436,6 +436,7 @@ class DietDetailViewModel @Inject constructor(
 
             val itemsToSave = currentDiet.items.map {
                 it.dietItem.copy(dietId = savedDietId)
+            val itemsToSave = currentDiet.items.mapIndexed { index, it ->
             }
             if (itemsToSave.isNotEmpty()) {
                 dietItemDao.insertDietItems(itemsToSave)
@@ -473,6 +474,8 @@ class DietDetailViewModel @Inject constructor(
 
     private fun processDietItems(items: List<DietItemWithFood>) {
         _groupedItems.value = items.groupBy { it.dietItem.mealType ?: "Sem Categoria" }
+        val sorted = items.sortedBy { it.dietItem.sortOrder }
+        _groupedItems.value = sorted.groupBy { it.dietItem.mealType ?: "Sem Categoria" }
 
         var accKcal = 0.0
         var accKj = 0.0
