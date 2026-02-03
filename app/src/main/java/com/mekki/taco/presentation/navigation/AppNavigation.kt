@@ -155,7 +155,6 @@ fun AppNavigation(
             DietDetailScreen(
                 viewModel = dietDetailViewModel,
                 profileViewModel = profileViewModel,
-                onEditDiet = { /* Unused */ },
                 onEditFood = { foodId ->
                     navController.navigate("$FOOD_DETAIL_ROUTE/$foodId?edit=true")
                 },
