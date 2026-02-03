@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AddCircleOutline
@@ -62,6 +63,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -1163,8 +1165,8 @@ fun ReplaceFoodSheetContent(
             shape = RoundedCornerShape(12.dp)
         )
 
-        // Sort Chips
-        if (searchState.searchTerm.length >= 2) {
+        // Filter chips row (HomeScreen pattern)
+        if (searchState.searchTerm.length >= 2 || searchState.filterState.hasActiveFilters) {
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier
@@ -1172,21 +1174,49 @@ fun ReplaceFoodSheetContent(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FoodSortOption.values().forEach { option ->
-                    FilterChip(
-                        selected = searchState.sortOption == option,
-                        onClick = { onSortOptionChange(option) },
-                        label = { Text(option.label) },
-                        leadingIcon = if (searchState.sortOption == option) {
-                            { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                        } else null
+                InputChip(
+                    selected = true,
+                    onClick = { showFilters = true },
+                    label = { Text("Ordenar: ${searchState.filterState.sortOption.label}") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Sort,
+                            null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
+
+                if (searchState.filterState.source != FoodSource.ALL) {
+                    InputChip(
+                        selected = true,
+                        onClick = { onSourceChange(FoodSource.ALL) },
+                        label = { Text("Fonte: ${searchState.filterState.source.displayName}") },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
                     )
                 }
-                IconButton(onClick = { showFilters = true }) {
-                    Icon(
-                        Icons.Default.FilterList,
-                        contentDescription = "Filtros",
-                        tint = MaterialTheme.colorScheme.primary
+
+                searchState.filterState.selectedCategories.forEach { category ->
+                    InputChip(
+                        selected = true,
+                        onClick = { onCategoryToggle(category) },
+                        label = { Text(category) },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    )
+                }
+
+                if (searchState.filterState.activeAdvancedFilterCount > 0) {
+                    InputChip(
+                        selected = true,
+                        onClick = { onFilterStateChange(FoodFilterState.DEFAULT) },
+                        label = { Text("+${searchState.filterState.activeAdvancedFilterCount} filtros") },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
                     )
                 }
             }
@@ -1480,8 +1510,8 @@ fun SearchFoodSheetContent(
             }
         }
 
-        // Sort Chips
-        if (searchState.searchTerm.length >= 2 || searchState.results.isNotEmpty()) {
+        // Filter chips row (HomeScreen pattern)
+        if (searchState.searchTerm.length >= 2 || searchState.results.isNotEmpty() || searchState.filterState.hasActiveFilters) {
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier
@@ -1489,14 +1519,49 @@ fun SearchFoodSheetContent(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FoodSortOption.values().forEach { option ->
-                    FilterChip(
-                        selected = searchState.sortOption == option,
-                        onClick = { onSortOptionChange(option) },
-                        label = { Text(option.label) },
-                        leadingIcon = if (searchState.sortOption == option) {
-                            { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                        } else null
+                InputChip(
+                    selected = true,
+                    onClick = { showFilters = true },
+                    label = { Text("Ordenar: ${searchState.filterState.sortOption.label}") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Sort,
+                            null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
+
+                if (searchState.filterState.source != FoodSource.ALL) {
+                    InputChip(
+                        selected = true,
+                        onClick = { onSourceChange(FoodSource.ALL) },
+                        label = { Text("Fonte: ${searchState.filterState.source.displayName}") },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    )
+                }
+
+                searchState.filterState.selectedCategories.forEach { category ->
+                    InputChip(
+                        selected = true,
+                        onClick = { onCategoryToggle(category) },
+                        label = { Text(category) },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    )
+                }
+
+                if (searchState.filterState.activeAdvancedFilterCount > 0) {
+                    InputChip(
+                        selected = true,
+                        onClick = { onFilterStateChange(FoodFilterState.DEFAULT) },
+                        label = { Text("+${searchState.filterState.activeAdvancedFilterCount} filtros") },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
                     )
                 }
             }

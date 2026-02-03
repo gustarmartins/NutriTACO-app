@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -69,6 +70,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -1020,6 +1022,63 @@ fun DiarySearchSheetContent(
                         Icons.Default.FilterList,
                         contentDescription = "Filtros",
                         tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
+        // Filter chips row (HomeScreen pattern)
+        AnimatedVisibility(visible = searchState.results.isNotEmpty() || searchState.filterState.hasActiveFilters) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                InputChip(
+                    selected = true,
+                    onClick = { showFilters = true },
+                    label = { Text("Ordenar: ${searchState.filterState.sortOption.label}") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Sort,
+                            null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
+
+                if (searchState.filterState.source != FoodSource.ALL) {
+                    InputChip(
+                        selected = true,
+                        onClick = { viewModel.foodSearchManager.onSourceFilterChange(FoodSource.ALL) },
+                        label = { Text("Fonte: ${searchState.filterState.source.displayName}") },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    )
+                }
+
+                searchState.filterState.selectedCategories.forEach { category ->
+                    InputChip(
+                        selected = true,
+                        onClick = { viewModel.foodSearchManager.onCategoryToggle(category) },
+                        label = { Text(category) },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    )
+                }
+
+                if (searchState.filterState.activeAdvancedFilterCount > 0) {
+                    InputChip(
+                        selected = true,
+                        onClick = { viewModel.foodSearchManager.onFilterStateChange(FoodFilterState.DEFAULT) },
+                        label = { Text("+${searchState.filterState.activeAdvancedFilterCount} filtros") },
+                        trailingIcon = {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
                     )
                 }
             }
