@@ -129,6 +129,7 @@ import com.mekki.taco.presentation.ui.components.TimePickerDialog
 import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
+import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.launch
@@ -1136,7 +1137,9 @@ fun DiarySearchSheetContent(
                             },
                             isAddToDietPrimary = true,
                             actionButtonLabel = "Registrar",
-                            resultIndex = index + 1
+                            resultIndex = index + 1,
+                            highlightedNutrient = searchState.filterState.sortOption.getNutrientDisplayInfo()
+                                ?: searchState.filterState.getFirstActiveAdvancedFilterInfo()
                         )
                     }
 

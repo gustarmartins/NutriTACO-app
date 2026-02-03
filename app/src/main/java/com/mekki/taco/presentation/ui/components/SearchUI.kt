@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.Food
+import com.mekki.taco.presentation.ui.search.NutrientDisplayInfo
 import com.mekki.taco.utils.NutrientCalculator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -75,7 +76,8 @@ fun SearchItem(
     onFastEdit: ((Food) -> Unit)? = null,
     isAddToDietPrimary: Boolean = false,
     actionButtonLabel: String = "Registrar",
-    resultIndex: Int? = null
+    resultIndex: Int? = null,
+    highlightedNutrient: NutrientDisplayInfo? = null
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val coroutineScope = rememberCoroutineScope()
@@ -166,7 +168,8 @@ fun SearchItem(
                             { onFastEdit(food) }
                         } else null,
                         isAddToDietPrimary = isAddToDietPrimary,
-                        actionButtonLabel = actionButtonLabel
+                        actionButtonLabel = actionButtonLabel,
+                        highlightedNutrient = highlightedNutrient
                     )
 
                     Spacer(Modifier.height(8.dp))
@@ -189,7 +192,8 @@ private fun SearchResultDetailContent(
     onDismissLogTutorial: () -> Unit,
     onFastEdit: (() -> Unit)?,
     isAddToDietPrimary: Boolean,
-    actionButtonLabel: String
+    actionButtonLabel: String,
+    highlightedNutrient: NutrientDisplayInfo? = null
 ) {
     val amountDouble = currentAmount.toDoubleOrNull() ?: 0.0
     val calc = remember(food, amountDouble) {
@@ -212,7 +216,10 @@ private fun SearchResultDetailContent(
         Spacer(Modifier.height(12.dp))
 
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            if (maxWidth >= 386.dp) {
+            val hasExtraNutrient = highlightedNutrient != null
+            val wideThreshold = if (hasExtraNutrient) 480.dp else 386.dp
+
+            if (maxWidth >= wideThreshold) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -226,6 +233,14 @@ private fun SearchResultDetailContent(
                     )
                     MacroMiniColumn("Proteínas", calc.proteina, Color(0xFF2E7A7A), unit = "g")
                     MacroMiniColumn("Gorduras", calc.lipidios?.total, Color(0xFFC97C4A), unit = "g")
+                    if (highlightedNutrient != null) {
+                        MacroMiniColumn(
+                            highlightedNutrient.label,
+                            highlightedNutrient.getValue(calc),
+                            highlightedNutrient.color,
+                            unit = highlightedNutrient.unit
+                        )
+                    }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -248,6 +263,19 @@ private fun SearchResultDetailContent(
                             "Gorduras", calc.lipidios?.total, Color(0xFFC97C4A), "g",
                             modifier = Modifier.weight(1f)
                         )
+                    }
+                    if (highlightedNutrient != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            MacroMiniColumn(
+                                highlightedNutrient.label,
+                                highlightedNutrient.getValue(calc),
+                                highlightedNutrient.color,
+                                unit = highlightedNutrient.unit
+                            )
+                        }
                     }
                 }
             }

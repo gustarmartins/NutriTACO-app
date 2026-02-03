@@ -118,6 +118,7 @@ import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
+import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -1306,7 +1307,9 @@ fun InlineSearchResultsCard(
                                     onAddToDiet = { onAddToDiet(food) },
                                     onFastEdit = { onCloneAndEdit(it) },
                                     showLogTutorial = state.showRegistrarTutorial,
-                                    resultIndex = index + 1
+                                    resultIndex = index + 1,
+                                    highlightedNutrient = state.filterState.sortOption.getNutrientDisplayInfo()
+                                        ?: state.filterState.getFirstActiveAdvancedFilterInfo()
                                 )
                             }
                         }

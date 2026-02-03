@@ -207,6 +207,63 @@ data class FoodFilterState(
             minColesterol, maxColesterol, minFibra, minAminoAcidTotal
         ).size
 
+    fun getFirstActiveAdvancedFilterInfo(): NutrientDisplayInfo? {
+        return when {
+            minFibra != null -> NutrientDisplayInfo(
+                label = "Fibra", unit = "g", color = Color(0xFF8BC34A)
+            ) { it.fibraAlimentar }
+            minColesterol != null || maxColesterol != null -> NutrientDisplayInfo(
+                label = "Colesterol", unit = "mg", color = Color(0xFFE57373)
+            ) { it.colesterol }
+            minSodio != null || maxSodio != null -> NutrientDisplayInfo(
+                label = "Sódio", unit = "mg", color = Color(0xFF26A69A)
+            ) { it.sodio }
+            minPotassio != null -> NutrientDisplayInfo(
+                label = "Potássio", unit = "mg", color = Color(0xFF42A5F5)
+            ) { it.potassio }
+            minCalcio != null -> NutrientDisplayInfo(
+                label = "Cálcio", unit = "mg", color = Color(0xFFECEFF1)
+            ) { it.calcio }
+            minMagnesio != null -> NutrientDisplayInfo(
+                label = "Magnésio", unit = "mg", color = Color(0xFF78909C)
+            ) { it.magnesio }
+            minFosforo != null -> NutrientDisplayInfo(
+                label = "Fósforo", unit = "mg", color = Color(0xFFFFB74D)
+            ) { it.fosforo }
+            minFerro != null -> NutrientDisplayInfo(
+                label = "Ferro", unit = "mg", color = Color(0xFFBF360C)
+            ) { it.ferro }
+            minZinco != null -> NutrientDisplayInfo(
+                label = "Zinco", unit = "mg", color = Color(0xFF7E57C2)
+            ) { it.zinco }
+            minCobre != null -> NutrientDisplayInfo(
+                label = "Cobre", unit = "mg", color = Color(0xFFD4A574)
+            ) { it.cobre }
+            minManganes != null -> NutrientDisplayInfo(
+                label = "Manganês", unit = "mg", color = Color(0xFF9E9E9E)
+            ) { it.manganes }
+            minVitaminaC != null -> NutrientDisplayInfo(
+                label = "Vit. C", unit = "mg", color = Color(0xFFFFA726)
+            ) { it.vitaminaC }
+            minRetinol != null -> NutrientDisplayInfo(
+                label = "Retinol", unit = "µg", color = Color(0xFFAB47BC)
+            ) { it.retinol }
+            minTiamina != null -> NutrientDisplayInfo(
+                label = "Tiamina", unit = "mg", color = Color(0xFF66BB6A)
+            ) { it.tiamina }
+            minRiboflavina != null -> NutrientDisplayInfo(
+                label = "Riboflavina", unit = "mg", color = Color(0xFF29B6F6)
+            ) { it.riboflavina }
+            minPiridoxina != null -> NutrientDisplayInfo(
+                label = "Piridoxina", unit = "mg", color = Color(0xFFEC407A)
+            ) { it.piridoxina }
+            minNiacina != null -> NutrientDisplayInfo(
+                label = "Niacina", unit = "mg", color = Color(0xFF5C6BC0)
+            ) { it.niacina }
+            else -> null
+        }
+    }
+
     companion object {
         val DEFAULT = FoodFilterState()
     }

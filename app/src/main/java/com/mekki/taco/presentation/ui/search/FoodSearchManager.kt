@@ -90,10 +90,30 @@ class FoodSearchManager(
         val sorted = when (filters.sortOption) {
             FoodSortOption.RELEVANCE -> filtered
             FoodSortOption.NAME -> filtered.sortedBy { it.name }
+            // Macros
+            FoodSortOption.CALORIES -> filtered.sortedByDescending { it.energiaKcal ?: 0.0 }
             FoodSortOption.PROTEIN -> filtered.sortedByDescending { it.proteina ?: 0.0 }
             FoodSortOption.CARBS -> filtered.sortedByDescending { it.carboidratos ?: 0.0 }
             FoodSortOption.FAT -> filtered.sortedByDescending { it.lipidios?.total ?: 0.0 }
-            FoodSortOption.CALORIES -> filtered.sortedByDescending { it.energiaKcal ?: 0.0 }
+            FoodSortOption.FIBER -> filtered.sortedByDescending { it.fibraAlimentar ?: 0.0 }
+            FoodSortOption.CHOLESTEROL -> filtered.sortedByDescending { it.colesterol ?: 0.0 }
+            // Minerals
+            FoodSortOption.SODIUM -> filtered.sortedByDescending { it.sodio ?: 0.0 }
+            FoodSortOption.POTASSIUM -> filtered.sortedByDescending { it.potassio ?: 0.0 }
+            FoodSortOption.CALCIUM -> filtered.sortedByDescending { it.calcio ?: 0.0 }
+            FoodSortOption.MAGNESIUM -> filtered.sortedByDescending { it.magnesio ?: 0.0 }
+            FoodSortOption.PHOSPHORUS -> filtered.sortedByDescending { it.fosforo ?: 0.0 }
+            FoodSortOption.IRON -> filtered.sortedByDescending { it.ferro ?: 0.0 }
+            FoodSortOption.ZINC -> filtered.sortedByDescending { it.zinco ?: 0.0 }
+            FoodSortOption.COPPER -> filtered.sortedByDescending { it.cobre ?: 0.0 }
+            FoodSortOption.MANGANESE -> filtered.sortedByDescending { it.manganes ?: 0.0 }
+            // Vitamins
+            FoodSortOption.VITAMIN_C -> filtered.sortedByDescending { it.vitaminaC ?: 0.0 }
+            FoodSortOption.RETINOL -> filtered.sortedByDescending { it.retinol ?: 0.0 }
+            FoodSortOption.THIAMINE -> filtered.sortedByDescending { it.tiamina ?: 0.0 }
+            FoodSortOption.RIBOFLAVIN -> filtered.sortedByDescending { it.riboflavina ?: 0.0 }
+            FoodSortOption.PYRIDOXINE -> filtered.sortedByDescending { it.piridoxina ?: 0.0 }
+            FoodSortOption.NIACIN -> filtered.sortedByDescending { it.niacina ?: 0.0 }
         }
         FoodSearchState(
             searchTerm = term,
