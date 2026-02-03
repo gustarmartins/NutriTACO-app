@@ -79,9 +79,6 @@ class DietDetailViewModel @Inject constructor(
 
     fun setFocusedMealType(mealType: String?) {
         savedStateHandle[KEY_FOCUSED_MEAL] = mealType
-        if (mealType == null) {
-            foodSearchManager.clear()
-        }
     }
 
     // --- Core Diet State ---
@@ -458,6 +455,7 @@ class DietDetailViewModel @Inject constructor(
     }
 
     fun discardChanges() {
+        foodSearchManager.clear()
         if (dietId == -1) {
             viewModelScope.launch { _navigateBack.emit(Unit) }
         } else {

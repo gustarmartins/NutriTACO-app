@@ -124,6 +124,7 @@ import com.mekki.taco.presentation.ui.search.FoodSearchState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
 import com.mekki.taco.presentation.ui.search.FoodFilterState
+import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
 import com.mekki.taco.utils.NutrientCalculator
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
@@ -383,10 +384,7 @@ fun DietDetailScreen(
 
     if (focusedMealType != null) {
         ModalBottomSheet(
-            onDismissRequest = {
-                viewModel.setFocusedMealType(null)
-                viewModel.foodSearchManager.clear()
-            },
+            onDismissRequest = { viewModel.setFocusedMealType(null) },
             sheetState = searchSheetState,
             dragHandle = { BottomSheetDefaults.DragHandle() }
         ) {
@@ -1363,7 +1361,9 @@ fun ReplaceFoodSheetContent(
                                     onAddToDiet = { onSelectFood(food) },
                                     isAddToDietPrimary = true,
                                     actionButtonLabel = "Selecionar",
-                                    resultIndex = index + 1
+                                    resultIndex = index + 1,
+                                    highlightedNutrient = searchState.filterState.sortOption.getNutrientDisplayInfo()
+                                        ?: searchState.filterState.getFirstActiveAdvancedFilterInfo()
                                 )
                             }
                         }
@@ -1715,7 +1715,9 @@ fun SearchFoodSheetContent(
                                 },
                                 isAddToDietPrimary = true,
                                 actionButtonLabel = "Adicionar",
-                                resultIndex = index + 1
+                                resultIndex = index + 1,
+                                highlightedNutrient = searchState.filterState.sortOption.getNutrientDisplayInfo()
+                                    ?: searchState.filterState.getFirstActiveAdvancedFilterInfo()
                             )
                         }
 
