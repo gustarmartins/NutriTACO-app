@@ -151,18 +151,21 @@ fun SettingsScreen(
                     Text("Processando...", style = MaterialTheme.typography.bodySmall)
                 }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(
                         onClick = { exportLauncher.launch("taco_backup.json") },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Exportar Dados")
+                        Text("Salvar Dados (Local ou Google Drive)")
                     }
                     Button(
                         onClick = { importLauncher.launch(arrayOf("application/json")) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Importar Dados")
+                        Text("Restaurar Dados (.json)")
                     }
                 }
             }
