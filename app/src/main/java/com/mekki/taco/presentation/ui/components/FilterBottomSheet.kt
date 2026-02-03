@@ -301,7 +301,7 @@ private fun MicroFiltersContent(
             onChange = { onFilterStateChange(filterState.copy(minVitaminaC = it)) }
         )
         NutrientMinRow(
-            label = "Vitamina A / Retinol (µg)",
+            label = "Vitamina A (mcg)",
             value = filterState.minRetinol,
             onChange = { onFilterStateChange(filterState.copy(minRetinol = it)) }
         )
@@ -364,8 +364,12 @@ private fun NutrientRangeRow(
     onMinChange: (Double?) -> Unit,
     onMaxChange: (Double?) -> Unit
 ) {
-    var minText by remember(minValue) { mutableStateOf(minValue?.let { formatFilterValue(it) } ?: "") }
-    var maxText by remember(maxValue) { mutableStateOf(maxValue?.let { formatFilterValue(it) } ?: "") }
+    var minText by remember(minValue) {
+        mutableStateOf(minValue?.let { formatFilterValue(it) } ?: "")
+    }
+    var maxText by remember(maxValue) {
+        mutableStateOf(maxValue?.let { formatFilterValue(it) } ?: "")
+    }
 
     Column {
         Text(label, style = MaterialTheme.typography.bodyMedium)
