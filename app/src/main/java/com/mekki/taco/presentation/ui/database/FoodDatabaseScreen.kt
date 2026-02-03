@@ -82,8 +82,7 @@ fun FoodDatabaseScreen(
 
     val activeFilterCount = listOfNotNull(
         if (uiState.selectedSource != FoodSource.ALL) 1 else null,
-        if (uiState.selectedCategories.isNotEmpty()) uiState.selectedCategories.size else null,
-        if (uiState.sortOption != FoodSortOption.NAME) 1 else null
+        if (uiState.selectedCategories.isNotEmpty()) uiState.selectedCategories.size else null
     ).sum()
 
     Scaffold(
