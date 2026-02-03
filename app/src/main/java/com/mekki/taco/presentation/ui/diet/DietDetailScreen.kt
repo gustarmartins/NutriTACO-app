@@ -1313,6 +1313,14 @@ fun ReplaceFoodSheetContent(
                         state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        item {
+                            Text(
+                                text = "${searchState.results.size} resultados",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                         itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
                             val isCurrentFood = food.id == currentFood.id
 
@@ -1698,6 +1706,14 @@ fun SearchFoodSheetContent(
                         state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        item {
+                            Text(
+                                text = "${searchState.results.size} resultados",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                         itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
                             SearchItem(
                                 food = food,

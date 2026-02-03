@@ -1116,9 +1116,17 @@ fun DiarySearchSheetContent(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 16.dp),
+                        .padding(top = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    item {
+                        Text(
+                            text = "${searchState.results.size} resultados",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                     itemsIndexed(searchState.results, key = { _, food -> food.id }) { index, food ->
                         SearchItem(
                             food = food,
