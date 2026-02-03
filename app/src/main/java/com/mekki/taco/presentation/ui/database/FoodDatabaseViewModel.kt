@@ -97,14 +97,34 @@ class FoodDatabaseViewModel @Inject constructor(
         }.sortedWith(
             // 4. Sorting
             when (filters.sort) {
-                FoodSortOption.RELEVANCE -> compareByDescending { 
-                    it.usageCount * 2 + if (it.isCustom) 5 else 0 
+                FoodSortOption.RELEVANCE -> compareByDescending<Food> { 
+                    it.usageCount * 2 + if (it.source == "CUSTOM" || (it.source == null && it.isCustom)) 5 else 0 
                 }
                 FoodSortOption.NAME -> compareBy { it.name }
-                FoodSortOption.CALORIES -> compareByDescending { it.energiaKcal }
-                FoodSortOption.PROTEIN -> compareByDescending { it.proteina }
-                FoodSortOption.CARBS -> compareByDescending { it.carboidratos }
-                FoodSortOption.FAT -> compareByDescending { it.lipidios?.total }
+                // Macros
+                FoodSortOption.CALORIES -> compareByDescending { it.energiaKcal ?: 0.0 }
+                FoodSortOption.PROTEIN -> compareByDescending { it.proteina ?: 0.0 }
+                FoodSortOption.CARBS -> compareByDescending { it.carboidratos ?: 0.0 }
+                FoodSortOption.FAT -> compareByDescending { it.lipidios?.total ?: 0.0 }
+                FoodSortOption.FIBER -> compareByDescending { it.fibraAlimentar ?: 0.0 }
+                FoodSortOption.CHOLESTEROL -> compareByDescending { it.colesterol ?: 0.0 }
+                // Minerals
+                FoodSortOption.SODIUM -> compareByDescending { it.sodio ?: 0.0 }
+                FoodSortOption.POTASSIUM -> compareByDescending { it.potassio ?: 0.0 }
+                FoodSortOption.CALCIUM -> compareByDescending { it.calcio ?: 0.0 }
+                FoodSortOption.MAGNESIUM -> compareByDescending { it.magnesio ?: 0.0 }
+                FoodSortOption.PHOSPHORUS -> compareByDescending { it.fosforo ?: 0.0 }
+                FoodSortOption.IRON -> compareByDescending { it.ferro ?: 0.0 }
+                FoodSortOption.ZINC -> compareByDescending { it.zinco ?: 0.0 }
+                FoodSortOption.COPPER -> compareByDescending { it.cobre ?: 0.0 }
+                FoodSortOption.MANGANESE -> compareByDescending { it.manganes ?: 0.0 }
+                // Vitamins
+                FoodSortOption.VITAMIN_C -> compareByDescending { it.vitaminaC ?: 0.0 }
+                FoodSortOption.RETINOL -> compareByDescending { it.retinol ?: 0.0 }
+                FoodSortOption.THIAMINE -> compareByDescending { it.tiamina ?: 0.0 }
+                FoodSortOption.RIBOFLAVIN -> compareByDescending { it.riboflavina ?: 0.0 }
+                FoodSortOption.PYRIDOXINE -> compareByDescending { it.piridoxina ?: 0.0 }
+                FoodSortOption.NIACIN -> compareByDescending { it.niacina ?: 0.0 }
             }
         ).toList()
 

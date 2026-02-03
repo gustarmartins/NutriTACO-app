@@ -6,6 +6,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
@@ -25,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -44,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
+import com.mekki.taco.presentation.ui.search.SortCategory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,13 +112,27 @@ fun FilterBottomSheet(
             }
 
             Text("Ordenar Por", style = MaterialTheme.typography.titleMedium)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(FoodSortOption.entries.toTypedArray()) { option ->
-                    FilterChip(
-                        selected = filterState.sortOption == option,
-                        onClick = { onSortChange(option) },
-                        label = { Text(option.displayName) }
+            SortCategory.entries.forEach { category ->
+                val categoryOptions = FoodSortOption.entries.filter { it.category == category }
+                if (categoryOptions.isNotEmpty()) {
+                    Text(
+                        category.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        categoryOptions.forEach { option ->
+                            FilterChip(
+                                selected = filterState.sortOption == option,
+                                onClick = { onSortChange(option) },
+                                label = { Text(option.displayName) }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -346,6 +364,9 @@ private fun NutrientRangeRow(
     onMinChange: (Double?) -> Unit,
     onMaxChange: (Double?) -> Unit
 ) {
+    var minText by remember(minValue) { mutableStateOf(minValue?.let { formatFilterValue(it) } ?: "") }
+    var maxText by remember(maxValue) { mutableStateOf(maxValue?.let { formatFilterValue(it) } ?: "") }
+
     Column {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Row(
@@ -353,23 +374,59 @@ private fun NutrientRangeRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
-                value = minValue?.toString() ?: "",
-                onValueChange = { onMinChange(it.toDoubleOrNull()) },
+                value = minText,
+                onValueChange = { input ->
+                    val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }
+                        .replace(',', '.')
+                    if (filtered.count { it == '.' } <= 1) {
+                        minText = filtered
+                        onMinChange(filtered.toDoubleOrNull()?.coerceAtLeast(0.0))
+                    }
+                },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Mín") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                trailingIcon = if (minText.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { minText = ""; onMinChange(null) }) {
+                            Icon(Icons.Default.Clear, "Limpar", Modifier.size(18.dp))
+                        }
+                    }
+                } else null
             )
             Text("–")
             OutlinedTextField(
-                value = maxValue?.toString() ?: "",
-                onValueChange = { onMaxChange(it.toDoubleOrNull()) },
+                value = maxText,
+                onValueChange = { input ->
+                    val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }
+                        .replace(',', '.')
+                    if (filtered.count { it == '.' } <= 1) {
+                        maxText = filtered
+                        onMaxChange(filtered.toDoubleOrNull()?.coerceAtLeast(0.0))
+                    }
+                },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Máx") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                trailingIcon = if (maxText.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { maxText = ""; onMaxChange(null) }) {
+                            Icon(Icons.Default.Clear, "Limpar", Modifier.size(18.dp))
+                        }
+                    }
+                } else null
             )
         }
+    }
+}
+
+private fun formatFilterValue(value: Double): String {
+    return if (value == value.toLong().toDouble()) {
+        value.toLong().toString()
+    } else {
+        value.toString()
     }
 }
 
@@ -379,6 +436,8 @@ private fun NutrientMinRow(
     value: Double?,
     onChange: (Double?) -> Unit
 ) {
+    var text by remember(value) { mutableStateOf(value?.let { formatFilterValue(it) } ?: "") }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -390,12 +449,26 @@ private fun NutrientMinRow(
             modifier = Modifier.weight(1f)
         )
         OutlinedTextField(
-            value = value?.toString() ?: "",
-            onValueChange = { onChange(it.toDoubleOrNull()) },
+            value = text,
+            onValueChange = { input ->
+                val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }
+                    .replace(',', '.')
+                if (filtered.count { it == '.' } <= 1) {
+                    text = filtered
+                    onChange(filtered.toDoubleOrNull()?.coerceAtLeast(0.0))
+                }
+            },
             modifier = Modifier.width(100.dp),
             placeholder = { Text("Mín") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            trailingIcon = if (text.isNotEmpty()) {
+                {
+                    IconButton(onClick = { text = ""; onChange(null) }) {
+                        Icon(Icons.Default.Clear, "Limpar", Modifier.size(16.dp))
+                    }
+                }
+            } else null
         )
     }
 }
