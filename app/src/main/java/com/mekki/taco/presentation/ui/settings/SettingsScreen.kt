@@ -19,6 +19,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.R
 import com.mekki.taco.data.manager.RevertPoint
@@ -51,6 +57,11 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val uriHandler = LocalUriHandler.current
+
+    val backupFileName = remember {
+        val formatter = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+        "taco_backup_${formatter.format(Date())}.json"
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -134,7 +145,53 @@ fun SettingsScreen(
         HorizontalDivider()
 
         // Data & Backup Section
-        SettingsSection(title = "Dados & Backup") {
+        var showDriveHelpDialog by remember { mutableStateOf(false) }
+
+        if (showDriveHelpDialog) {
+            AlertDialog(
+                onDismissRequest = { showDriveHelpDialog = false },
+                icon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+                title = { Text("Como salvar no Google Drive") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            buildAnnotatedString {
+                                append("1. Instale o ")
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) {
+                                    append("Google Drive")
+                                }
+                                append(" (clique para abrir a Play Store)")
+                            },
+                            modifier = Modifier.clickable {
+                                uriHandler.openUri("https://play.google.com/store/apps/details?id=com.google.android.apps.docs")
+                            }
+                        )
+                        Text("2. Ao salvar, toque no menu ☰ no canto superior esquerdo")
+                        Text("3. Selecione sua conta do Drive")
+                        Text("4. Escolha \"Meu Drive\" ou uma pasta de sua preferência")
+                        Text("5. Toque em \"Salvar\"")
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showDriveHelpDialog = false }) {
+                        Text("Entendi")
+                    }
+                }
+            )
+        }
+
+        SettingsSectionWithAction(
+            title = "Dados & Backup",
+            action = {
+                IconButton(onClick = { showDriveHelpDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = "Como salvar no Google Drive",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        ) {
             if (uiState.backupMessage != null) {
                 Text(
                     text = uiState.backupMessage ?: "",
@@ -156,7 +213,7 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { exportLauncher.launch("taco_backup.json") },
+                        onClick = { exportLauncher.launch(backupFileName) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Salvar Dados (Local ou Google Drive)")
