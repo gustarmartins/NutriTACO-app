@@ -275,6 +275,24 @@ class FoodSearchManager(
         _filterState.value = FoodFilterState.DEFAULT
     }
 
+    fun restoreState(
+        searchTerm: String,
+        filterState: FoodFilterState,
+        expandedId: Int?,
+        quickAddAmount: String
+    ) {
+        if (savedStateHandle != null) {
+            savedStateHandle[KEY_SM_TERM] = searchTerm
+            savedStateHandle[KEY_SM_EXPANDED] = expandedId
+            savedStateHandle[KEY_SM_QUICK_ADD] = quickAddAmount
+        } else {
+            _localSearchTerm.value = searchTerm
+            _localExpandedId.value = expandedId
+            _localQuickAdd.value = quickAddAmount
+        }
+        _filterState.value = filterState
+    }
+
     fun onFilterStateChange(newState: FoodFilterState) {
         _filterState.value = newState
     }

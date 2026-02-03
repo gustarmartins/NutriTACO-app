@@ -19,6 +19,7 @@ import com.mekki.taco.data.model.UserProfile
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.data.service.DietScannerService
 import com.mekki.taco.data.service.SmartFoodMatcher
+import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSearchManager
 import com.mekki.taco.utils.BMRCalculator
 import com.mekki.taco.utils.NutrientCalculator
@@ -69,6 +70,15 @@ class DietDetailViewModel @Inject constructor(
     val isEditMode = savedStateHandle.getStateFlow(KEY_IS_EDIT_MODE, dietId == -1)
     val foodSearchManager = FoodSearchManager(foodDao, viewModelScope, savedStateHandle)
 
+    private data class CachedSearchState(
+        val searchTerm: String,
+        val filterState: FoodFilterState,
+        val expandedId: Int?,
+        val quickAddAmount: String
+    )
+
+    private val mealSearchStateCache = mutableMapOf<String, CachedSearchState>()
+
     fun toggleEditMode() {
         savedStateHandle[KEY_IS_EDIT_MODE] = !isEditMode.value
     }
@@ -78,7 +88,28 @@ class DietDetailViewModel @Inject constructor(
     }
 
     fun setFocusedMealType(mealType: String?) {
+        focusedMealType.value?.let { currentMeal ->
+            val state = foodSearchManager.state.value
+            mealSearchStateCache[currentMeal] = CachedSearchState(
+                searchTerm = state.searchTerm,
+                filterState = state.filterState,
+                expandedId = state.expandedFoodId,
+                quickAddAmount = state.quickAddAmount
+            )
+        }
+
         savedStateHandle[KEY_FOCUSED_MEAL] = mealType
+
+        mealType?.let { target ->
+            mealSearchStateCache[target]?.let { cached ->
+                foodSearchManager.restoreState(
+                    searchTerm = cached.searchTerm,
+                    filterState = cached.filterState,
+                    expandedId = cached.expandedId,
+                    quickAddAmount = cached.quickAddAmount
+                )
+            } ?: foodSearchManager.clear()
+        }
     }
 
     // --- Core Diet State ---
@@ -434,9 +465,8 @@ class DietDetailViewModel @Inject constructor(
             // Delete old items and insert new ones
             dietItemDao.deleteAllItemsByDietId(savedDietId)
 
-            val itemsToSave = currentDiet.items.map {
-                it.dietItem.copy(dietId = savedDietId)
             val itemsToSave = currentDiet.items.mapIndexed { index, it ->
+                it.dietItem.copy(dietId = savedDietId, sortOrder = index)
             }
             if (itemsToSave.isNotEmpty()) {
                 dietItemDao.insertDietItems(itemsToSave)
@@ -473,7 +503,6 @@ class DietDetailViewModel @Inject constructor(
     }
 
     private fun processDietItems(items: List<DietItemWithFood>) {
-        _groupedItems.value = items.groupBy { it.dietItem.mealType ?: "Sem Categoria" }
         val sorted = items.sortedBy { it.dietItem.sortOrder }
         _groupedItems.value = sorted.groupBy { it.dietItem.mealType ?: "Sem Categoria" }
 
