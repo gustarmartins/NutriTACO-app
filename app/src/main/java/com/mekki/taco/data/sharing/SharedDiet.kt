@@ -35,7 +35,7 @@ data class SharedDiet(
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
         const val MIME_TYPE = "application/json"
-        const val FILE_EXTENSION = "tacodiet"
+        const val FILE_EXTENSION = "dieta"
     }
 }
 

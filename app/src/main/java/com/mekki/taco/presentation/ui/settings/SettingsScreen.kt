@@ -59,8 +59,8 @@ fun SettingsScreen(
     val uriHandler = LocalUriHandler.current
 
     val backupFileName = remember {
-        val formatter = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-        "taco_backup_${formatter.format(Date())}.json"
+        val formatter = SimpleDateFormat("dd'_'MMM'_'yyyy'_'HH'h'mm", Locale("pt", "BR"))
+        "backup_nutritaco_${formatter.format(Date())}.json"
     }
 
     val exportLauncher = rememberLauncherForActivityResult(

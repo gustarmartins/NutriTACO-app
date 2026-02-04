@@ -352,6 +352,12 @@ class DietSharingManager @Inject constructor(
 
     fun detectFileType(uri: Uri): NutriTacoFileType {
         return try {
+            // Check file extension first as a hint
+            val path = uri.path ?: uri.lastPathSegment ?: ""
+            if (path.endsWith(".dieta", ignoreCase = true)) {
+                return NutriTacoFileType.DIET
+            }
+
             val json = readJsonFromUri(uri) ?: return NutriTacoFileType.UNKNOWN
 
             when {
