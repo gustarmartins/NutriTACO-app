@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 
-
 data class FoodDatabaseState(
     val isLoading: Boolean = true,
     val foods: List<Food> = emptyList(),
@@ -31,12 +30,14 @@ data class FoodDatabaseState(
     val selectedSource: FoodSource = FoodSource.ALL,
     val sortOption: FoodSortOption = FoodSortOption.NAME
 ) {
-    // checks if any no default filters are active
     val hasActiveFilters: Boolean
         get() = searchQuery.isNotEmpty() ||
                 selectedCategories.isNotEmpty() ||
                 selectedSource != FoodSource.ALL ||
                 sortOption != FoodSortOption.NAME
+    val hasClearableFilters: Boolean
+        get() = selectedCategories.isNotEmpty() ||
+                selectedSource != FoodSource.ALL
 }
 
 @HiltViewModel
@@ -97,9 +98,10 @@ class FoodDatabaseViewModel @Inject constructor(
         }.sortedWith(
             // 4. Sorting
             when (filters.sort) {
-                FoodSortOption.RELEVANCE -> compareByDescending<Food> { 
-                    it.usageCount * 2 + if (it.source == "CUSTOM" || (it.source == null && it.isCustom)) 5 else 0 
+                FoodSortOption.RELEVANCE -> compareByDescending<Food> {
+                    it.usageCount * 2 + if (it.source == "CUSTOM" || (it.source == null && it.isCustom)) 5 else 0
                 }
+
                 FoodSortOption.NAME -> compareBy { it.name }
                 // Macros
                 FoodSortOption.CALORIES -> compareByDescending { it.energiaKcal ?: 0.0 }
@@ -153,7 +155,6 @@ class FoodDatabaseViewModel @Inject constructor(
         filterPreferences.searchQuery = query
     }
 
-    // Toggle category selection
     fun onCategoryToggle(category: String) {
         val currentCategories = _selectedCategories.value.toMutableSet()
         if (category in currentCategories) {
@@ -165,7 +166,6 @@ class FoodDatabaseViewModel @Inject constructor(
         filterPreferences.selectedCategories = currentCategories
     }
 
-    // Remove a specific category from selection
     fun onCategoryRemove(category: String) {
         val currentCategories = _selectedCategories.value.toMutableSet()
         currentCategories.remove(category)
@@ -173,7 +173,6 @@ class FoodDatabaseViewModel @Inject constructor(
         filterPreferences.selectedCategories = currentCategories
     }
 
-    // Clear all category selections
     fun onClearCategories() {
         _selectedCategories.value = emptySet()
         filterPreferences.selectedCategories = emptySet()
@@ -189,7 +188,20 @@ class FoodDatabaseViewModel @Inject constructor(
         filterPreferences.sortOption = sort
     }
 
-    // Reset all filters to default values
+    /**
+     * Clears only the applied filters (source, categories)
+     * Preserves: search query, sort option
+     */
+    fun onClearFilters() {
+        _selectedCategories.value = emptySet()
+        _selectedSource.value = FoodSource.ALL
+
+        filterPreferences.clearFiltersOnly()
+    }
+
+    /**
+     * Reset ALL filters to default values (including search and sort)
+     */
     fun onResetFilters() {
         _searchQuery.value = ""
         _selectedCategories.value = emptySet()
@@ -227,7 +239,8 @@ class FilterPreferences @Inject constructor(@ApplicationContext context: Context
 
     var sortOption: FoodSortOption
         get() {
-            val name = prefs.getString(KEY_SORT, FoodSortOption.NAME.name) ?: FoodSortOption.NAME.name
+            val name =
+                prefs.getString(KEY_SORT, FoodSortOption.NAME.name) ?: FoodSortOption.NAME.name
             return try {
                 FoodSortOption.valueOf(name)
             } catch (e: IllegalArgumentException) {
@@ -236,12 +249,26 @@ class FilterPreferences @Inject constructor(@ApplicationContext context: Context
         }
         set(value) = prefs.edit { putString(KEY_SORT, value.name) }
 
+    /**
+     * Clears only filter preferences (source, categories)
+     * Preserves: search query, sort option
+     */
+    fun clearFiltersOnly() {
+        prefs.edit {
+            remove(KEY_CATEGORIES)
+            remove(KEY_SOURCE)
+        }
+    }
+
+    /**
+     * Clears all preferences
+     */
     fun clear() {
         prefs.edit {
             remove(KEY_SEARCH_QUERY)
-                .remove(KEY_CATEGORIES)
-                .remove(KEY_SOURCE)
-                .remove(KEY_SORT)
+            remove(KEY_CATEGORIES)
+            remove(KEY_SOURCE)
+            remove(KEY_SORT)
         }
     }
 
