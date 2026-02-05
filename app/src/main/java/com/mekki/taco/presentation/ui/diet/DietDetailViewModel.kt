@@ -21,6 +21,8 @@ import com.mekki.taco.data.service.DietScannerService
 import com.mekki.taco.data.service.SmartFoodMatcher
 import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSearchManager
+import com.mekki.taco.presentation.undo.UndoManager
+import com.mekki.taco.presentation.undo.UndoableAction
 import com.mekki.taco.utils.BMRCalculator
 import com.mekki.taco.utils.NutrientCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,10 +31,12 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
@@ -54,6 +58,7 @@ private const val KEY_DIET_DETAILS = "diet_details"
 private const val KEY_HAS_UNSAVED = "has_unsaved_changes"
 private const val KEY_FOCUSED_MEAL = "focused_meal_type"
 private const val KEY_PENDING_CREATE_FOOD = "pending_create_food"
+private const val KEY_REPLACING_ITEM_ID = "replacing_item_id"
 
 @HiltViewModel
 class DietDetailViewModel @Inject constructor(
@@ -66,6 +71,10 @@ class DietDetailViewModel @Inject constructor(
 ) : ViewModel() {
 
     val dietId: Int = savedStateHandle.get<Int>("dietId") ?: -1
+
+    val undoManager = UndoManager()
+    val canUndo = undoManager.canUndo
+    val canRedo = undoManager.canRedo
 
     val isEditMode = savedStateHandle.getStateFlow(KEY_IS_EDIT_MODE, dietId == -1)
     val foodSearchManager = FoodSearchManager(foodDao, viewModelScope, savedStateHandle)
@@ -84,6 +93,9 @@ class DietDetailViewModel @Inject constructor(
     }
 
     fun setEditMode(enabled: Boolean) {
+        if (!enabled) {
+            undoManager.clear()
+        }
         savedStateHandle[KEY_IS_EDIT_MODE] = enabled
     }
 
@@ -112,6 +124,13 @@ class DietDetailViewModel @Inject constructor(
         }
     }
 
+    fun setReplacingItem(item: DietItemWithFood?) {
+        savedStateHandle[KEY_REPLACING_ITEM_ID] = item?.dietItem?.id
+        if (item == null) {
+            foodSearchManager.clear()
+        }
+    }
+
     // --- Core Diet State ---
     val dietDetails = savedStateHandle.getStateFlow<DietWithItems?>(KEY_DIET_DETAILS, null)
 
@@ -125,6 +144,13 @@ class DietDetailViewModel @Inject constructor(
 
     val focusedMealType = savedStateHandle.getStateFlow<String?>(KEY_FOCUSED_MEAL, null)
 
+    private val replacingItemId = savedStateHandle.getStateFlow<Int?>(KEY_REPLACING_ITEM_ID, null)
+
+    val replacingItem = combine(replacingItemId, _groupedItems) { id, groups ->
+        if (id == null) null
+        else groups.values.flatten().find { it.dietItem.id == id }
+    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), null)
+
     // --- Scanner State ---
     private val _isScanning = MutableStateFlow(false)
     val isScanning = _isScanning.asStateFlow()
@@ -137,6 +163,12 @@ class DietDetailViewModel @Inject constructor(
 
     private val _scannedCandidates = MutableStateFlow<List<DietItemWithFood>>(emptyList())
     val scannedCandidates = _scannedCandidates.asStateFlow()
+
+    private val _selectedItemIds = MutableStateFlow<Set<Int>>(emptySet())
+    val selectedItemIds = _selectedItemIds.asStateFlow()
+
+    private val _isSelectionMode = MutableStateFlow(false)
+    val isSelectionMode = _isSelectionMode.asStateFlow()
 
     // --- Smart Goals State ---
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
@@ -281,6 +313,8 @@ class DietDetailViewModel @Inject constructor(
             food = food
         )
 
+        undoManager.recordAction(UndoableAction.AddDietItem(newItem, mealType))
+
         val newItems = currentDiet.items + newItem
         updateLocalState(currentDiet.copy(items = newItems))
 
@@ -303,11 +337,47 @@ class DietDetailViewModel @Inject constructor(
             )
         )
 
+        undoManager.recordAction(UndoableAction.AddDietItem(newItem, targetMeal))
+
         val newItems = currentDiet.items + newItem
         updateLocalState(currentDiet.copy(items = newItems))
 
         viewModelScope.launch {
             _snackbarMessages.send("${item.food.name} copiado para $targetMeal")
+        }
+    }
+
+    fun moveItemToMeal(item: DietItemWithFood, targetMeal: String) {
+        val currentDiet = dietDetails.value ?: return
+        val fromMeal = item.dietItem.mealType ?: "Outros"
+        val defaultTime = getDefaultTimeForMeal(targetMeal)
+
+        val fromIndex =
+            _groupedItems.value[fromMeal]?.indexOfFirst { it.dietItem.id == item.dietItem.id } ?: 0
+        undoManager.recordAction(
+            UndoableAction.MoveDietItem(
+                item = item,
+                fromMeal = fromMeal,
+                fromIndex = fromIndex,
+                toMeal = targetMeal,
+                toIndex = 0
+            )
+        )
+
+        val updatedItems = currentDiet.items.map {
+            if (it.dietItem.id == item.dietItem.id) {
+                it.copy(
+                    dietItem = it.dietItem.copy(
+                        mealType = targetMeal,
+                        consumptionTime = defaultTime
+                    )
+                )
+            } else it
+        }
+        updateLocalState(currentDiet.copy(items = updatedItems))
+
+        viewModelScope.launch {
+            _snackbarMessages.send("${item.food.name} movido para $targetMeal")
         }
     }
 
@@ -369,7 +439,10 @@ class DietDetailViewModel @Inject constructor(
 
     // --- CRUD ---
 
-    fun updateItem(item: DietItem) {
+    /**
+     * Internal update without undo tracking. Use specific functions for tracked changes.
+     */
+    private fun updateItemInternal(item: DietItem) {
         val currentDiet = dietDetails.value ?: return
         val updatedItems = currentDiet.items.map {
             if (it.dietItem.id == item.id) it.copy(dietItem = item) else it
@@ -377,14 +450,70 @@ class DietDetailViewModel @Inject constructor(
         updateLocalState(currentDiet.copy(items = updatedItems))
     }
 
+    /**
+     * Updates a diet item with undo tracking for quantity and time changes.
+     */
+    fun updateItem(item: DietItem) {
+        val currentDiet = dietDetails.value ?: return
+        val oldItem = currentDiet.items.find { it.dietItem.id == item.id }?.dietItem ?: return
+        val foodName = currentDiet.items.find { it.dietItem.id == item.id }?.food?.name ?: "Item"
+
+        if (oldItem.quantityGrams != item.quantityGrams) {
+            undoManager.recordAction(
+                UndoableAction.UpdateDietItemPortion(
+                    itemId = item.id,
+                    oldQuantity = oldItem.quantityGrams,
+                    newQuantity = item.quantityGrams,
+                    foodName = foodName
+                )
+            )
+        }
+
+        if (oldItem.consumptionTime != item.consumptionTime && item.consumptionTime != null) {
+            undoManager.recordAction(
+                UndoableAction.UpdateDietItemTime(
+                    itemId = item.id,
+                    oldTime = oldItem.consumptionTime ?: "",
+                    newTime = item.consumptionTime,
+                    foodName = foodName
+                )
+            )
+        }
+
+        updateItemInternal(item)
+    }
+
     fun deleteItem(item: DietItem) {
         val currentDiet = dietDetails.value ?: return
+
+        val itemWithFood = currentDiet.items.find { it.dietItem.id == item.id } ?: return
+        val mealType = item.mealType ?: "Outros"
+        val itemIndex =
+            _groupedItems.value[mealType]?.indexOfFirst { it.dietItem.id == item.id } ?: 0
+
+        undoManager.recordAction(
+            UndoableAction.DeleteDietItem(itemWithFood, mealType, itemIndex)
+        )
+
         val updatedItems = currentDiet.items.filterNot { it.dietItem.id == item.id }
         updateLocalState(currentDiet.copy(items = updatedItems))
+
+        viewModelScope.launch {
+            _snackbarMessages.send("${itemWithFood.food.name} removido")
+        }
     }
 
     fun replaceFood(item: DietItemWithFood, newFood: Food) {
         val currentDiet = dietDetails.value ?: return
+
+        undoManager.recordAction(
+            UndoableAction.ReplaceDietItem(
+                itemId = item.dietItem.id,
+                oldFood = item.food,
+                newFood = newFood
+            )
+        )
+
         val updatedItems = currentDiet.items.map {
             if (it.dietItem.id == item.dietItem.id) {
                 it.copy(dietItem = it.dietItem.copy(foodId = newFood.id), food = newFood)
@@ -435,13 +564,22 @@ class DietDetailViewModel @Inject constructor(
             category = "Meus Alimentos"
         )
         val newId = foodDao.insertFood(clonedFood).toInt()
+        val savedClonedFood = clonedFood.copy(id = newId)
+
+        undoManager.recordAction(
+            UndoableAction.ReplaceDietItem(
+                itemId = item.dietItem.id,
+                oldFood = food,
+                newFood = savedClonedFood
+            )
+        )
 
         val currentDiet = dietDetails.value ?: return
         val updatedItems = currentDiet.items.map {
             if (it.dietItem.id == item.dietItem.id) {
                 it.copy(
                     dietItem = it.dietItem.copy(foodId = newId),
-                    food = clonedFood.copy(id = newId)
+                    food = savedClonedFood
                 )
             } else it
         }
@@ -472,6 +610,7 @@ class DietDetailViewModel @Inject constructor(
                 dietItemDao.insertDietItems(itemsToSave)
             }
 
+            undoManager.clear()
             savedStateHandle[KEY_HAS_UNSAVED] = false
             savedStateHandle[KEY_IS_EDIT_MODE] = false
             foodSearchManager.clear()
@@ -486,6 +625,7 @@ class DietDetailViewModel @Inject constructor(
     }
 
     fun discardChanges() {
+        undoManager.clear()
         foodSearchManager.clear()
         if (dietId == -1) {
             viewModelScope.launch { _navigateBack.emit(Unit) }
@@ -653,6 +793,308 @@ class DietDetailViewModel @Inject constructor(
             }
             // Updates local state without flagging as unsaved if only food content changed
             savedStateHandle[KEY_DIET_DETAILS] = currentDiet.copy(items = updatedList)
+        }
+    }
+
+    fun undo() {
+        val action = undoManager.popUndo() ?: return
+        viewModelScope.launch {
+            performUndo(action)
+            undoManager.confirmUndo(action)
+            _snackbarMessages.send("Desfeito: ${action.description}")
+        }
+    }
+
+    fun redo() {
+        val action = undoManager.popRedo() ?: return
+        viewModelScope.launch {
+            performRedo(action)
+            undoManager.confirmRedo(action)
+            _snackbarMessages.send("Refeito: ${action.description}")
+        }
+    }
+
+    private suspend fun performUndo(action: UndoableAction) {
+        when (action) {
+            is UndoableAction.DeleteDietItem -> {
+                val currentDiet = dietDetails.value ?: return
+                val newItems = currentDiet.items.toMutableList()
+                newItems.add(action.item)
+                updateLocalState(currentDiet.copy(items = newItems))
+            }
+
+            is UndoableAction.UpdateDietItemPortion -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems = currentDiet.items.map {
+                    if (it.dietItem.id == action.itemId) {
+                        it.copy(dietItem = it.dietItem.copy(quantityGrams = action.oldQuantity))
+                    } else it
+                }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.UpdateDietItemTime -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems = currentDiet.items.map {
+                    if (it.dietItem.id == action.itemId) {
+                        it.copy(dietItem = it.dietItem.copy(consumptionTime = action.oldTime))
+                    } else it
+                }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.MoveDietItem -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems = currentDiet.items.map {
+                    if (it.dietItem.id == action.item.dietItem.id) {
+                        it.copy(dietItem = it.dietItem.copy(mealType = action.fromMeal))
+                    } else it
+                }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.AddDietItem -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems =
+                    currentDiet.items.filterNot { it.dietItem.id == action.item.dietItem.id }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.AddMultipleDietItems -> {
+                val currentDiet = dietDetails.value ?: return
+                val idsToRemove = action.items.map { it.dietItem.id }.toSet()
+                val updatedItems =
+                    currentDiet.items.filterNot { idsToRemove.contains(it.dietItem.id) }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.ReplaceDietItem -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems = currentDiet.items.map {
+                    if (it.dietItem.id == action.itemId) {
+                        it.copy(
+                            dietItem = it.dietItem.copy(foodId = action.oldFood.id),
+                            food = action.oldFood
+                        )
+                    } else it
+                }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            else -> { /* Other actions handled as needed */
+            }
+        }
+    }
+
+    private suspend fun performRedo(action: UndoableAction) {
+        when (action) {
+            is UndoableAction.DeleteDietItem -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems =
+                    currentDiet.items.filterNot { it.dietItem.id == action.item.dietItem.id }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.UpdateDietItemPortion -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems = currentDiet.items.map {
+                    if (it.dietItem.id == action.itemId) {
+                        it.copy(dietItem = it.dietItem.copy(quantityGrams = action.newQuantity))
+                    } else it
+                }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.UpdateDietItemTime -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems = currentDiet.items.map {
+                    if (it.dietItem.id == action.itemId) {
+                        it.copy(dietItem = it.dietItem.copy(consumptionTime = action.newTime))
+                    } else it
+                }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.MoveDietItem -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems = currentDiet.items.map {
+                    if (it.dietItem.id == action.item.dietItem.id) {
+                        it.copy(dietItem = it.dietItem.copy(mealType = action.toMeal))
+                    } else it
+                }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            is UndoableAction.AddDietItem -> {
+                val currentDiet = dietDetails.value ?: return
+                val newItems = currentDiet.items + action.item
+                updateLocalState(currentDiet.copy(items = newItems))
+            }
+
+            is UndoableAction.AddMultipleDietItems -> {
+                val currentDiet = dietDetails.value ?: return
+                val newItems = currentDiet.items + action.items
+                updateLocalState(currentDiet.copy(items = newItems))
+            }
+
+            is UndoableAction.ReplaceDietItem -> {
+                val currentDiet = dietDetails.value ?: return
+                val updatedItems = currentDiet.items.map {
+                    if (it.dietItem.id == action.itemId) {
+                        it.copy(
+                            dietItem = it.dietItem.copy(foodId = action.newFood.id),
+                            food = action.newFood
+                        )
+                    } else it
+                }
+                updateLocalState(currentDiet.copy(items = updatedItems))
+            }
+
+            else -> { /* Other actions handled as needed */
+            }
+        }
+    }
+
+    // --- Selection Mode Actions ---
+    fun toggleSelection(itemId: Int) {
+        val current = _selectedItemIds.value
+        if (current.contains(itemId)) {
+            val newSet = current - itemId
+            _selectedItemIds.value = newSet
+            if (newSet.isEmpty()) _isSelectionMode.value = false
+        } else {
+            _selectedItemIds.value = current + itemId
+            _isSelectionMode.value = true
+        }
+    }
+
+    fun clearSelection() {
+        _selectedItemIds.value = emptySet()
+        _isSelectionMode.value = false
+    }
+
+    fun deleteSelectedItems() {
+        val currentDiet = dietDetails.value ?: return
+        val idsToDelete = _selectedItemIds.value
+        if (idsToDelete.isEmpty()) return
+
+        val itemsToDelete = currentDiet.items.filter { idsToDelete.contains(it.dietItem.id) }
+
+        // Record undo action for each item
+        itemsToDelete.forEachIndexed { _, item ->
+            val mealType = item.dietItem.mealType ?: "Outros"
+            val itemIndex =
+                _groupedItems.value[mealType]?.indexOfFirst { it.dietItem.id == item.dietItem.id }
+                    ?: 0
+            undoManager.recordAction(UndoableAction.DeleteDietItem(item, mealType, itemIndex))
+        }
+
+        val updatedItems = currentDiet.items.filterNot { idsToDelete.contains(it.dietItem.id) }
+        updateLocalState(currentDiet.copy(items = updatedItems))
+        clearSelection()
+
+        viewModelScope.launch {
+            _snackbarMessages.send("${itemsToDelete.size} itens removidos")
+        }
+    }
+
+    fun addSelectedToDailyLog() {
+        viewModelScope.launch {
+            val currentDiet = dietDetails.value ?: return@launch
+            val selectedIds = _selectedItemIds.value
+            val itemsToAdd = currentDiet.items.filter { selectedIds.contains(it.dietItem.id) }
+
+            itemsToAdd.forEach { item ->
+                val log = DailyLog(
+                    foodId = item.food.id,
+                    date = LocalDate.now().toString(),
+                    quantityGrams = item.dietItem.quantityGrams,
+                    mealType = item.dietItem.mealType ?: "Outros",
+                    isConsumed = true
+                )
+                dailyLogDao.insertLog(log)
+                foodDao.incrementUsageCount(item.food.id)
+            }
+
+            clearSelection()
+            _snackbarMessages.send("${itemsToAdd.size} itens adicionados ao diário")
+        }
+    }
+
+    fun cloneSelectedToMeal(targetMeal: String) {
+        val currentDiet = dietDetails.value ?: return
+        val selectedIds = _selectedItemIds.value
+        if (selectedIds.isEmpty()) return
+
+        val itemsToClone = currentDiet.items.filter { selectedIds.contains(it.dietItem.id) }
+        val defaultTime = getDefaultTimeForMeal(targetMeal)
+
+        val newItems = itemsToClone.map { item ->
+            item.copy(
+                dietItem = item.dietItem.copy(
+                    id = UUID.randomUUID().hashCode(),
+                    mealType = targetMeal,
+                    consumptionTime = defaultTime
+                )
+            )
+        }
+
+        undoManager.recordAction(
+            UndoableAction.AddMultipleDietItems(items = newItems, mealType = targetMeal)
+        )
+
+        updateLocalState(currentDiet.copy(items = currentDiet.items + newItems))
+        clearSelection()
+
+        viewModelScope.launch {
+            _snackbarMessages.send("${newItems.size} itens copiados para $targetMeal")
+        }
+    }
+
+    /**
+     * Moves all selected items to a different meal with undo support.
+     */
+    fun moveSelectedToMeal(targetMeal: String) {
+        val currentDiet = dietDetails.value ?: return
+        val selectedIds = _selectedItemIds.value
+        if (selectedIds.isEmpty()) return
+
+        val itemsToMove = currentDiet.items.filter { selectedIds.contains(it.dietItem.id) }
+        val defaultTime = getDefaultTimeForMeal(targetMeal)
+
+        // Record undo action for each move
+        itemsToMove.forEach { item ->
+            val fromMeal = item.dietItem.mealType ?: "Outros"
+            val fromIndex =
+                _groupedItems.value[fromMeal]?.indexOfFirst { it.dietItem.id == item.dietItem.id }
+                    ?: 0
+            undoManager.recordAction(
+                UndoableAction.MoveDietItem(
+                    item = item,
+                    fromMeal = fromMeal,
+                    fromIndex = fromIndex,
+                    toMeal = targetMeal,
+                    toIndex = 0 // Will be appended at end
+                )
+            )
+        }
+
+        val updatedItems = currentDiet.items.map { item ->
+            if (selectedIds.contains(item.dietItem.id)) {
+                item.copy(
+                    dietItem = item.dietItem.copy(
+                        mealType = targetMeal,
+                        consumptionTime = defaultTime
+                    )
+                )
+            } else item
+        }
+
+        updateLocalState(currentDiet.copy(items = updatedItems))
+        clearSelection()
+
+        viewModelScope.launch {
+            _snackbarMessages.send("${itemsToMove.size} itens movidos para $targetMeal")
         }
     }
 }

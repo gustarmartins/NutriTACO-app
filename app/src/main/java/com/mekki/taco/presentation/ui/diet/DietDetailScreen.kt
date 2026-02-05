@@ -44,13 +44,19 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -58,6 +64,7 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -76,13 +83,16 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -100,14 +110,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.DietItem
 import com.mekki.taco.data.db.entity.Food
@@ -115,11 +122,13 @@ import com.mekki.taco.data.model.DietItemWithFood
 import com.mekki.taco.data.model.DietWithItems
 import com.mekki.taco.presentation.ui.components.DiscardChangesDialog
 import com.mekki.taco.presentation.ui.components.FilterBottomSheet
+import com.mekki.taco.presentation.ui.components.MacroIconRow
 import com.mekki.taco.presentation.ui.components.NutritionalSummaryCard
 import com.mekki.taco.presentation.ui.components.PortionControlInput
 import com.mekki.taco.presentation.ui.components.ScanResultDialog
 import com.mekki.taco.presentation.ui.components.SearchItem
 import com.mekki.taco.presentation.ui.components.TimeControlInput
+import com.mekki.taco.presentation.ui.components.UnifiedFoodItemActionsSheet
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.search.FoodFilterState
@@ -127,7 +136,6 @@ import com.mekki.taco.presentation.ui.search.FoodSearchState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
 import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
-import com.mekki.taco.presentation.ui.theme.LocalNutrientColors
 import com.mekki.taco.utils.NutrientCalculator
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
@@ -141,18 +149,19 @@ fun DietDetailScreen(
     viewModel: DietDetailViewModel,
     profileViewModel: ProfileViewModel,
     onEditFood: (Int) -> Unit,
-    onViewFood: (Int) -> Unit,
+    onViewFood: (Int, Double?) -> Unit,
     onTitleChange: (String) -> Unit,
     onFabChange: (@Composable (() -> Unit)?) -> Unit,
     onNavigateBack: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDiary: () -> Unit = {}
 ) {
     val groupedItems by viewModel.groupedItems.collectAsState()
     val dietTotalNutrition by viewModel.dietTotalNutrition.collectAsState()
     val dietDetails by viewModel.dietDetails.collectAsState()
     val isEditMode by viewModel.isEditMode.collectAsState()
     val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsState()
-    var itemToReplaceFood by remember { mutableStateOf<DietItemWithFood?>(null) }
+    val itemToReplaceFood by viewModel.replacingItem.collectAsState()
 
     // Scanner State
     val isScanning by viewModel.isScanning.collectAsState()
@@ -168,7 +177,12 @@ fun DietDetailScreen(
     val userProfile by viewModel.userProfile.collectAsState()
     val suggestedGoals by viewModel.suggestedGoals.collectAsState()
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    val canUndo by viewModel.canUndo.collectAsState()
+    val canRedo by viewModel.canRedo.collectAsState()
+
+    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+    val selectedItemIds by viewModel.selectedItemIds.collectAsState()
+
     val scope = rememberCoroutineScope()
     val searchSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -188,9 +202,6 @@ fun DietDetailScreen(
     LaunchedEffect(Unit) {
         viewModel.navigateToEditFood.collect { onEditFood(it) }
     }
-    LaunchedEffect(Unit) {
-        viewModel.snackbarMessages.collect { snackbarHostState.showSnackbar(it) }
-    }
 
     val dietName = dietDetails?.diet?.name ?: ""
     LaunchedEffect(dietName) {
@@ -200,14 +211,23 @@ fun DietDetailScreen(
 
     val dietId = dietDetails?.diet?.id ?: -1
     val handleBackPress = {
-        if (isEditMode) {
-            if (hasUnsavedChanges) {
-                showExitDialog = true
-            } else {
-                if (dietId != -1) viewModel.setEditMode(false) else onNavigateBack()
+        when {
+            // Priority 1: Clear selection mode (UI state)
+            isSelectionMode -> {
+                viewModel.clearSelection()
             }
-        } else {
-            onNavigateBack()
+            // Priority 2: Standard exit flow
+            isEditMode -> {
+                if (hasUnsavedChanges) {
+                    showExitDialog = true
+                } else {
+                    if (dietId != -1) viewModel.setEditMode(false) else onNavigateBack()
+                }
+            }
+
+            else -> {
+                onNavigateBack()
+            }
         }
     }
     BackHandler(onBack = handleBackPress)
@@ -243,6 +263,7 @@ fun DietDetailScreen(
         onDispose { onFabChange(null) }
     }
 
+
     DietDetailContent(
         groupedItems = groupedItems,
         dietTotalNutrition = dietTotalNutrition,
@@ -263,7 +284,22 @@ fun DietDetailScreen(
         onOpenProfile = { showProfileSheet = true },
         onSetFocusedMealType = viewModel::setFocusedMealType,
         onViewFood = onViewFood,
-        onShowItemOptions = { itemForSheet = it }
+        onShowItemOptions = { itemForSheet = it },
+        onSwipeAddToLog = { item ->
+            viewModel.addToDailyLog(item)
+        },
+        canUndo = canUndo,
+        canRedo = canRedo,
+        onUndo = viewModel::undo,
+        onRedo = viewModel::redo,
+        isSelectionMode = isSelectionMode,
+        selectedItemIds = selectedItemIds,
+        onToggleSelection = viewModel::toggleSelection,
+        onClearSelection = viewModel::clearSelection,
+        onDeleteSelected = viewModel::deleteSelectedItems,
+        onAddSelectedToLog = viewModel::addSelectedToDailyLog,
+        onMoveSelectedToMeal = viewModel::moveSelectedToMeal,
+        onCloneSelectedToMeal = viewModel::cloneSelectedToMeal
     )
 
     if (focusedMealType != null) {
@@ -316,8 +352,7 @@ fun DietDetailScreen(
     itemToReplaceFood?.let { currentItem ->
         ModalBottomSheet(
             onDismissRequest = {
-                itemToReplaceFood = null
-                viewModel.foodSearchManager.clear()
+                viewModel.setReplacingItem(null)
             },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
@@ -336,26 +371,29 @@ fun DietDetailScreen(
                 onAmountChange = viewModel.foodSearchManager::onQuickAddAmountChange,
                 onSelectFood = { newFood ->
                     viewModel.replaceFood(currentItem, newFood)
-                    itemToReplaceFood = null
-                    viewModel.foodSearchManager.clear()
+                    viewModel.setReplacingItem(null)
                 },
                 onNavigateToDetail = onViewFood,
                 onNavigateToCreate = { viewModel.onStartCreateFood() },
                 onCancel = {
-                    itemToReplaceFood = null
-                    viewModel.foodSearchManager.clear()
+                    viewModel.setReplacingItem(null)
                 }
             )
         }
     }
 
     itemForSheet?.let { currentItem ->
-        FoodItemActionsSheet(
-            item = currentItem,
+        UnifiedFoodItemActionsSheet(
+            foodName = currentItem.food.name,
+            food = currentItem.food,
+            currentQuantity = currentItem.dietItem.quantityGrams,
+            currentTime = currentItem.dietItem.consumptionTime ?: "",
+            currentMealType = currentItem.dietItem.mealType ?: viewModel.mealTypes.first(),
+            originalQuantity = currentItem.dietItem.quantityGrams,
             isEditMode = isEditMode,
             mealTypes = viewModel.mealTypes,
             onDismiss = { itemForSheet = null },
-            onViewDetails = { onViewFood(currentItem.food.id) },
+            onViewDetails = { onViewFood(currentItem.food.id, currentItem.dietItem.quantityGrams) },
             onUpdateItem = { qty, time, meal ->
                 viewModel.updateItem(
                     currentItem.dietItem.copy(
@@ -364,10 +402,12 @@ fun DietDetailScreen(
                 )
             },
             onEditNutrients = { viewModel.editFood(currentItem) },
-            onReplaceFood = { itemToReplaceFood = currentItem },
+            onReplaceFood = { viewModel.setReplacingItem(currentItem) },
             onCloneToMeal = { itemToClone = currentItem },
+            onMoveToMeal = { targetMeal -> viewModel.moveItemToMeal(currentItem, targetMeal) },
             onAddToLog = { viewModel.addToDailyLog(currentItem) },
-            onDelete = { itemToDelete = currentItem.dietItem })
+            onDelete = { itemToDelete = currentItem.dietItem }
+        )
     }
 
     itemToClone?.let { currentItem ->
@@ -429,42 +469,198 @@ fun DietDetailContent(
     onApplyGoal: (SmartGoal) -> Unit,
     onOpenProfile: () -> Unit,
     onSetFocusedMealType: (String?) -> Unit,
-    onViewFood: (Int) -> Unit,
-    onShowItemOptions: (DietItemWithFood) -> Unit
+    onViewFood: (Int, Double?) -> Unit,
+    onShowItemOptions: (DietItemWithFood) -> Unit,
+    onSwipeAddToLog: (DietItemWithFood) -> Unit = {},
+    canUndo: Boolean = false,
+    canRedo: Boolean = false,
+    onUndo: () -> Unit = {},
+    onRedo: () -> Unit = {},
+    isSelectionMode: Boolean = false,
+    selectedItemIds: Set<Int> = emptySet(),
+    onToggleSelection: (Int) -> Unit = {},
+    onClearSelection: () -> Unit = {},
+    onDeleteSelected: () -> Unit = {},
+    onAddSelectedToLog: () -> Unit = {},
+    onMoveSelectedToMeal: (String) -> Unit = {},
+    onCloneSelectedToMeal: (String) -> Unit = {}
 ) {
+    var showCopyMenu by remember { mutableStateOf(false) }
+    var showCopyMealPicker by remember { mutableStateOf(false) }
+    var showMoveMenu by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (isEditMode && dietDetails?.diet?.name?.isBlank() == true) "Nova Dieta" else dietDetails?.diet?.name
-                            ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                }, colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isEditMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
-                    titleContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
-                ), navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
-                    }
-                }, actions = {
-                    if (!isEditMode) {
-                        IconButton(onClick = onStartScan) {
-                            Icon(Icons.Default.CameraAlt, "Escanear")
+            if (isSelectionMode) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "${selectedItemIds.size} selecionado(s)",
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = onClearSelection) {
+                            Icon(Icons.Default.Close, "Cancelar seleção")
                         }
-                        IconButton(onClick = { onEditModeChange(true) }) {
-                            Icon(Icons.Default.Edit, "Editar")
-                        }
-                    } else {
-                        if (hasUnsavedChanges) {
-                            IconButton(onClick = onSaveDiet) {
-                                Icon(Icons.Default.Check, "Salvar")
+                    },
+                    actions = {
+                        Box {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showCopyMenu = true }
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    "Copiar para:",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showCopyMenu,
+                                onDismissRequest = { showCopyMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Diário") },
+                                    leadingIcon = { Icon(Icons.Default.Today, null) },
+                                    onClick = {
+                                        onAddSelectedToLog()
+                                        showCopyMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Refeição...") },
+                                    leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                                    onClick = {
+                                        showCopyMenu = false
+                                        showCopyMealPicker = true
+                                    }
+                                )
                             }
                         }
+
+                        Box {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showMoveMenu = true }
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.SwapHoriz,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    "Mover para:",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showMoveMenu,
+                                onDismissRequest = { showMoveMenu = false }
+                            ) {
+                                mealTypes.forEach { meal ->
+                                    DropdownMenuItem(
+                                        text = { Text(meal) },
+                                        onClick = {
+                                            onMoveSelectedToMeal(meal)
+                                            showMoveMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onDeleteSelected() }
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                "Excluir",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     }
-                })
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = if (isEditMode && dietDetails?.diet?.name?.isBlank() == true) "Nova Dieta" else dietDetails?.diet?.name
+                                ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                    }, colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = if (isEditMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
+                        titleContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = if (isEditMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                    ), navigationIcon = {
+                        IconButton(onClick = onBackClick) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
+                        }
+                    }, actions = {
+                        if (!isEditMode) {
+                            IconButton(onClick = onStartScan) {
+                                Icon(Icons.Default.CameraAlt, "Escanear")
+                            }
+                            IconButton(onClick = { onEditModeChange(true) }) {
+                                Icon(Icons.Default.Edit, "Editar")
+                            }
+                        } else {
+                            IconButton(
+                                onClick = onUndo,
+                                enabled = canUndo
+                            ) {
+                                Icon(
+                                    Icons.Default.Undo,
+                                    "Desfazer",
+                                    tint = if (canUndo) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                )
+                            }
+                            IconButton(
+                                onClick = onRedo,
+                                enabled = canRedo
+                            ) {
+                                Icon(
+                                    Icons.Default.Redo,
+                                    "Refazer",
+                                    tint = if (canRedo) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                )
+                            }
+                            if (hasUnsavedChanges) {
+                                IconButton(onClick = onSaveDiet) {
+                                    Icon(Icons.Default.Save, "Salvar")
+                                }
+                            }
+                        }
+                    })
+            }
         }
     ) { innerPadding ->
         if (dietDetails == null) {
@@ -554,22 +750,116 @@ fun DietDetailContent(
                         ReorderableItem(
                             reorderableState, key = "${mealType}_${dietItem.dietItem.id}"
                         ) { isDragging ->
-                            CompactFoodItemRow(
-                                item = dietItem,
-                                isEditMode = isEditMode,
-                                isDragging = isDragging,
-                                onShowOptions = { onShowItemOptions(dietItem) },
-                                onViewFood = { onViewFood(dietItem.food.id) },
-                                onEnableEditModeAndShowOptions = {
-                                    onEditModeChange(true)
-                                    onShowItemOptions(dietItem)
-                                },
-                                handle = { Modifier.draggableHandle() })
+                            if (isEditMode) {
+                                // Edit mode: drag reorder disabled (TODO: fix reorder persistence)
+                                CompactFoodItemRow(
+                                    item = dietItem,
+                                    isEditMode = true,
+                                    isDragging = false,
+                                    isSelected = selectedItemIds.contains(dietItem.dietItem.id),
+                                    isSelectionMode = isSelectionMode,
+                                    onShowOptions = { onShowItemOptions(dietItem) },
+                                    onViewFood = {
+                                        onViewFood(
+                                            dietItem.food.id,
+                                            dietItem.dietItem.quantityGrams
+                                        )
+                                    },
+                                    onToggleSelection = { onToggleSelection(dietItem.dietItem.id) },
+                                    onEnableEditModeAndShowOptions = {
+                                        onEditModeChange(true)
+                                        onShowItemOptions(dietItem)
+                                    },
+                                    handle = { it })
+                            } else {
+                                // View mode: swipe right to add to diary only
+                                val dismissState = rememberSwipeToDismissBoxState(
+                                    confirmValueChange = { dismissValue ->
+                                        if (dismissValue == SwipeToDismissBoxValue.StartToEnd) {
+                                            onSwipeAddToLog(dietItem)
+                                        }
+                                        false // Never actually dismiss, just trigger the action
+                                    }
+                                )
+
+                                SwipeToDismissBox(
+                                    state = dismissState,
+                                    backgroundContent = {
+                                        val direction = dismissState.dismissDirection
+                                        if (direction == SwipeToDismissBoxValue.StartToEnd) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                                                    .padding(horizontal = 20.dp),
+                                                contentAlignment = Alignment.CenterStart
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AddCircleOutline,
+                                                    contentDescription = "Adicionar ao diário",
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                        }
+                                    },
+                                    enableDismissFromStartToEnd = true,
+                                    enableDismissFromEndToStart = false // No delete in view mode!
+                                ) {
+                                    Surface(color = MaterialTheme.colorScheme.background) {
+                                        CompactFoodItemRow(
+                                            item = dietItem,
+                                            isEditMode = false,
+                                            isDragging = false,
+                                            isSelected = selectedItemIds.contains(dietItem.dietItem.id),
+                                            isSelectionMode = isSelectionMode,
+                                            onShowOptions = { onShowItemOptions(dietItem) },
+                                            onViewFood = {
+                                                onViewFood(
+                                                    dietItem.food.id,
+                                                    dietItem.dietItem.quantityGrams
+                                                )
+                                            },
+                                            onToggleSelection = { onToggleSelection(dietItem.dietItem.id) },
+                                            onEnableEditModeAndShowOptions = {
+                                                onEditModeChange(true)
+                                                onShowItemOptions(dietItem)
+                                            },
+                                            handle = { it })
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    if (showCopyMealPicker) {
+        AlertDialog(
+            onDismissRequest = { showCopyMealPicker = false },
+            title = { Text("Escolha a refeição:") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    mealTypes.forEach { meal ->
+                        TextButton(
+                            onClick = {
+                                onCloneSelectedToMeal(meal)
+                                showCopyMealPicker = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(meal)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCopyMealPicker = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 
@@ -670,8 +960,11 @@ fun CompactFoodItemRow(
     item: DietItemWithFood,
     isEditMode: Boolean,
     isDragging: Boolean,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
     onShowOptions: () -> Unit,
     onViewFood: () -> Unit,
+    onToggleSelection: () -> Unit = {},
     onEnableEditModeAndShowOptions: () -> Unit,
     handle: @Composable (Modifier) -> Modifier
 ) {
@@ -682,14 +975,19 @@ fun CompactFoodItemRow(
         )
     }
 
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+    } else if (isDragging) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isDragging) MaterialTheme.colorScheme.surfaceVariant
-            else MaterialTheme.colorScheme.surfaceContainerLow
-        ),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(if (isDragging) 4.dp else 0.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -697,19 +995,34 @@ fun CompactFoodItemRow(
             modifier = Modifier
                 .combinedClickable(
                     onClick = {
-                        if (isEditMode) onShowOptions() else onViewFood()
+                        when {
+                            isSelectionMode -> onToggleSelection()
+                            isEditMode -> onShowOptions()
+                            else -> onViewFood()
+                        }
                     },
                     onLongClick = {
-                        if (!isEditMode) onEnableEditModeAndShowOptions()
+                        if (isEditMode) {
+                            onToggleSelection()
+                        } else {
+                            onEnableEditModeAndShowOptions()
+                        }
                     }
                 )
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (isEditMode) {
+            // Leading: Checkbox (selection mode) or Drag handle (edit mode, not selection)
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelection() },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            } else if (isEditMode) {
                 Icon(
-                    Icons.Default.MoreVert,
-                    null,
+                    Icons.Default.DragHandle,
+                    contentDescription = "Arrastar para reordenar",
                     modifier = handle(Modifier).padding(end = 8.dp),
                     tint = MaterialTheme.colorScheme.outlineVariant
                 )
@@ -746,24 +1059,10 @@ fun CompactFoodItemRow(
                     }
                 }
 
-                val nutrientColors = LocalNutrientColors.current
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(SpanStyle(color = nutrientColors.protein)) {
-                            append("Proteínas ${df.format(calc.proteina ?: 0.0)}g")
-                        }
-                        append(" • ")
-                        withStyle(SpanStyle(color = nutrientColors.carbs)) {
-                            append("Carboidratos ${df.format(calc.carboidratos ?: 0.0)}g")
-                        }
-                        append(" • ")
-                        withStyle(SpanStyle(color = nutrientColors.fat)) {
-                            append("Gorduras ${df.format(calc.lipidios?.total ?: 0.0)}g")
-                        }
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                MacroIconRow(
+                    protein = calc.proteina ?: 0.0,
+                    carbs = calc.carboidratos ?: 0.0,
+                    fat = calc.lipidios?.total ?: 0.0
                 )
             }
 
@@ -774,9 +1073,25 @@ fun CompactFoodItemRow(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            if (isEditMode) {
+            // Quick action icons (view mode only, not selection mode)
+            if (!isSelectionMode && !isEditMode) {
+                IconButton(
+                    onClick = onViewFood,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.Info,
+                        contentDescription = "Ver detalhes",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Menu button (edit mode only, not selection mode)
+            if (isEditMode && !isSelectionMode) {
                 IconButton(onClick = onShowOptions) {
-                    Icon(Icons.Default.MoreVert, null)
+                    Icon(Icons.Default.MoreVert, contentDescription = "Opções")
                 }
             }
         }
@@ -1118,7 +1433,7 @@ fun ReplaceFoodSheetContent(
     onFoodToggled: (Int) -> Unit,
     onAmountChange: (String) -> Unit,
     onSelectFood: (Food) -> Unit,
-    onNavigateToDetail: (Int) -> Unit,
+    onNavigateToDetail: (Int, Double?) -> Unit,
     onNavigateToCreate: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -1409,7 +1724,12 @@ fun ReplaceFoodSheetContent(
                                         onFoodToggled(food.id)
                                         keyboardController?.hide()
                                     },
-                                    onNavigateToDetail = { onNavigateToDetail(food.id) },
+                                    onNavigateToDetail = {
+                                        onNavigateToDetail(
+                                            food.id,
+                                            searchState.quickAddAmount.toDoubleOrNull()
+                                        )
+                                    },
                                     currentAmount = searchState.quickAddAmount,
                                     onAmountChange = onAmountChange,
                                     onAddToDiet = { onSelectFood(food) },
@@ -1520,7 +1840,7 @@ fun SearchFoodSheetContent(
     onAmountChange: (String) -> Unit,
     onAddFood: (Food, Double) -> Unit,
     onRemoveItem: (DietItemWithFood) -> Unit,
-    onNavigateToDetail: (Int) -> Unit,
+    onNavigateToDetail: (Int, Double?) -> Unit,
     onNavigateToCreate: () -> Unit
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -1774,7 +2094,12 @@ fun SearchFoodSheetContent(
                                     onFoodToggled(food.id)
                                     keyboardController?.hide()
                                 },
-                                onNavigateToDetail = { onNavigateToDetail(food.id) },
+                                onNavigateToDetail = {
+                                    onNavigateToDetail(
+                                        food.id,
+                                        searchState.quickAddAmount.toDoubleOrNull()
+                                    )
+                                },
                                 currentAmount = searchState.quickAddAmount,
                                 onAmountChange = onAmountChange,
                                 onAddToDiet = { amount ->

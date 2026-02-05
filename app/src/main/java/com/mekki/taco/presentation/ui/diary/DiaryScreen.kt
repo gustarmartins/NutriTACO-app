@@ -36,7 +36,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
@@ -44,6 +43,7 @@ import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FilterList
@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -86,6 +87,11 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -95,6 +101,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -121,14 +128,17 @@ import androidx.compose.ui.unit.sp
 import com.mekki.taco.data.db.entity.Diet
 import com.mekki.taco.data.model.DailyLogWithFood
 import com.mekki.taco.presentation.ui.components.FilterBottomSheet
+import com.mekki.taco.presentation.ui.components.MacroIconRow
 import com.mekki.taco.presentation.ui.components.MacroPieChart
 import com.mekki.taco.presentation.ui.components.PieChartData
 import com.mekki.taco.presentation.ui.components.PortionControlInput
 import com.mekki.taco.presentation.ui.components.SearchItem
 import com.mekki.taco.presentation.ui.components.TimePickerDialog
+import com.mekki.taco.presentation.ui.components.UnifiedFoodItemActionsSheet
 import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSource
 import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -142,7 +152,7 @@ import java.util.Locale
 fun DiaryScreen(
     viewModel: DiaryViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateToDetail: (Int) -> Unit,
+    onNavigateToDetail: (Int, Double?) -> Unit,
     onActionsChange: ((@Composable () -> Unit)?) -> Unit
 ) {
     val currentDate by viewModel.currentDate.collectAsState()
@@ -167,6 +177,7 @@ fun DiaryScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var showPeriodDatePicker by remember { mutableStateOf(false) }
     var previousViewMode by remember { mutableStateOf<DiaryViewMode?>(null) }
+    var selectedLogForOptions by remember { mutableStateOf<DailyLogWithFood?>(null) }
 
     BackHandler(enabled = isSelectionMode) {
         viewModel.clearSelection()
@@ -209,33 +220,157 @@ fun DiaryScreen(
     }
 
     var showMoveDialog by remember { mutableStateOf(false) }
+    var showCopyMenu by remember { mutableStateOf(false) }
+    var showMoveMenu by remember { mutableStateOf(false) }
+    val mealTypes = listOf(
+        "Café da Manhã", "Almoço", "Lanche", "Jantar",
+        "Pré-treino", "Pós-treino", "Ceia"
+    )
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val canUndo by viewModel.canUndo.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.undoManager.clear()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.snackbarMessages.collect { message ->
+            val isDeletionMessage = message.contains("removido")
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = message,
+                    actionLabel = if (isDeletionMessage && canUndo) "DESFAZER" else null,
+                    duration = SnackbarDuration.Short
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    viewModel.undo()
+                }
+            }
+        }
+    }
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = MaterialTheme.colorScheme.inverseSurface,
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                    actionColor = MaterialTheme.colorScheme.primary
+                )
+            }
+        },
         topBar = {
             if (isSelectionMode) {
                 CenterAlignedTopAppBar(
-                    title = { Text("${selectedLogIds.size} selecionado(s)") },
+                    title = {
+                        Text(
+                            text = "${selectedLogIds.size} selecionado(s)",
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = { viewModel.clearSelection() }) {
                             Icon(Icons.Default.Close, contentDescription = "Cancelar seleção")
                         }
                     },
                     actions = {
-                        IconButton(onClick = { viewModel.markSelectedAsConsumed(true) }) {
-                            Icon(Icons.Default.Check, contentDescription = "Marcar como consumido")
+                        Box {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showCopyMenu = true }
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    "Copiar",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showCopyMenu,
+                                onDismissRequest = { showCopyMenu = false }
+                            ) {
+                                mealTypes.forEach { meal ->
+                                    DropdownMenuItem(
+                                        text = { Text(meal) },
+                                        onClick = {
+                                            viewModel.cloneSelectedToMeal(meal)
+                                            showCopyMenu = false
+                                        }
+                                    )
+                                }
+                            }
                         }
-                        IconButton(onClick = { showMoveDialog = true }) {
+
+                        Box {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showMoveMenu = true }
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.SwapHoriz,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    "Mover",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showMoveMenu,
+                                onDismissRequest = { showMoveMenu = false }
+                            ) {
+                                mealTypes.forEach { meal ->
+                                    DropdownMenuItem(
+                                        text = { Text(meal) },
+                                        onClick = {
+                                            viewModel.moveSelectedToMeal(meal)
+                                            showMoveMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { viewModel.deleteSelectedLogs() }
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "Mover para próximo dia"
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
                             )
-                        }
-                        IconButton(onClick = { viewModel.deleteSelectedLogs() }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Excluir selecionados")
+                            Text(
+                                "Excluir",
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 )
             } else {
@@ -538,6 +673,7 @@ fun DiaryScreen(
                                                         viewModel.toggleSelection(item.log.id)
                                                     }
                                                 },
+                                                onShowOptions = { selectedLogForOptions = item },
                                                 onToggleConsumed = { viewModel.toggleConsumed(item.log) },
                                                 onQuantityChange = { newQty: Double ->
                                                     viewModel.updateQuantity(item.log, newQty)
@@ -692,6 +828,45 @@ fun DiaryScreen(
             onCloneToMeal = { mealType ->
                 viewModel.cloneSelectedToMeal(mealType)
                 showMoveDialog = false
+            }
+        )
+    }
+
+    selectedLogForOptions?.let { item ->
+        val timeStr = remember(item.log.entryTimestamp) {
+            val instant = Instant.ofEpochMilli(item.log.entryTimestamp)
+            LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("HH:mm"))
+        }
+
+        UnifiedFoodItemActionsSheet(
+            foodName = item.food.name,
+            food = item.food,
+            currentQuantity = item.log.quantityGrams,
+            currentTime = timeStr,
+            currentMealType = item.log.mealType,
+            originalQuantity = item.log.quantityGrams,
+            isEditMode = true,
+            mealTypes = mealTypes,
+            onDismiss = { selectedLogForOptions = null },
+            onViewDetails = {
+                selectedLogForOptions = null
+                onNavigateToDetail(item.food.id, item.log.quantityGrams)
+            },
+            onUpdateItem = { quantity, time, mealType ->
+                viewModel.updateLog(item.log, quantity, time, mealType)
+            },
+            onCloneToMeal = {
+                viewModel.cloneLogToMeal(item, item.log.mealType)
+                selectedLogForOptions = null
+            },
+            onMoveToMeal = { targetMeal ->
+                viewModel.moveLogToMeal(item.log, targetMeal)
+                selectedLogForOptions = null
+            },
+            onDelete = {
+                viewModel.deleteLog(item.log)
+                selectedLogForOptions = null
             }
         )
     }
@@ -917,7 +1092,7 @@ fun WaterTrackerCard(
 @Composable
 fun DiarySearchSheetContent(
     viewModel: DiaryViewModel,
-    onNavigateToDetail: (Int) -> Unit,
+    onNavigateToDetail: (Int, Double?) -> Unit,
     onClose: () -> Unit
 ) {
     val searchState by viewModel.searchState.collectAsState()
@@ -1140,7 +1315,12 @@ fun DiarySearchSheetContent(
                             },
                             currentAmount = searchState.quickAddAmount,
                             onAmountChange = viewModel::onQuickAddAmountChange,
-                            onNavigateToDetail = { onNavigateToDetail(food.id) },
+                            onNavigateToDetail = {
+                                onNavigateToDetail(
+                                    food.id,
+                                    searchState.quickAddAmount.toDoubleOrNull()
+                                )
+                            },
                             onAddToDiet = {
                                 viewModel.addFoodToLog(food, selectedMealType, selectedTime)
                                 viewModel.clearSearch()
@@ -1379,11 +1559,22 @@ fun MealSectionHeader(section: MealSection) {
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold
         )
-        Text(
-            text = "${section.totalKcal.toInt()} kcal",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MacroIconRow(
+                protein = section.totalProtein,
+                carbs = section.totalCarbs,
+                fat = section.totalFat
+            )
+            Text(
+                text = "${section.totalKcal.toInt()} kcal",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -1394,6 +1585,7 @@ fun DiaryLogItem(
     isSelectionMode: Boolean,
     onLongClick: () -> Unit,
     onClick: () -> Unit,
+    onShowOptions: () -> Unit,
     onToggleConsumed: () -> Unit,
     onQuantityChange: (Double) -> Unit,
     onNotesChange: (String) -> Unit,
@@ -1405,6 +1597,14 @@ fun DiaryLogItem(
         mutableStateOf(
             item.log.quantityGrams.toInt().toString()
         )
+    }
+    var notesValue by remember(item.log.id) { mutableStateOf(item.log.notes ?: "") }
+
+    LaunchedEffect(notesValue) {
+        if (notesValue != (item.log.notes ?: "")) {
+            delay(500)
+            onNotesChange(notesValue)
+        }
     }
 
     // Visual State
@@ -1424,7 +1624,7 @@ fun DiaryLogItem(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
-            .pointerInput(Unit) {
+            .pointerInput(isSelectionMode) {
                 detectTapGestures(
                     onLongPress = { onLongClick() },
                     onTap = {
@@ -1506,19 +1706,41 @@ fun DiaryLogItem(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
                         text = "${item.log.quantityGrams.toInt()}g",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.width(8.dp))
+                    val ratio = item.log.quantityGrams / 100.0
+                    MacroIconRow(
+                        protein = (item.food.proteina ?: 0.0) * ratio,
+                        carbs = (item.food.carboidratos ?: 0.0) * ratio,
+                        fat = (item.food.lipidios?.total ?: 0.0) * ratio
+                    )
                     val scaledKcal =
                         ((item.food.energiaKcal ?: 0.0) * item.log.quantityGrams / 100).toInt()
                     Text(
                         text = "$scaledKcal kcal",
                         style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (!isSelectionMode) {
+                IconButton(
+                    onClick = onShowOptions,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Opções",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1565,8 +1787,8 @@ fun DiaryLogItem(
                 Spacer(Modifier.height(8.dp))
 
                 OutlinedTextField(
-                    value = item.log.notes ?: "",
-                    onValueChange = onNotesChange,
+                    value = notesValue,
+                    onValueChange = { notesValue = it },
                     label = { Text("Observações") },
                     modifier = Modifier.fillMaxWidth(),
                     textStyle = MaterialTheme.typography.bodySmall,
@@ -1690,7 +1912,7 @@ fun ImportDietDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Importar Dieta") },
+        title = { Text("Importar itens") },
         text = {
             LazyColumn(
                 modifier = Modifier.heightIn(max = 300.dp)

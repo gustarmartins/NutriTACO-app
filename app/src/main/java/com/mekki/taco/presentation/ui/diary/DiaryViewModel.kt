@@ -1,6 +1,7 @@
 package com.mekki.taco.presentation.ui.diary
 
 import android.app.Application
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mekki.taco.data.db.dao.DietDao
@@ -17,19 +18,21 @@ import com.mekki.taco.data.repository.DiaryRepository
 import com.mekki.taco.data.repository.UserProfileRepository
 import com.mekki.taco.presentation.ui.search.FoodSearchManager
 import com.mekki.taco.presentation.ui.search.FoodSearchState
+import com.mekki.taco.presentation.undo.UndoManager
+import com.mekki.taco.presentation.undo.UndoableAction
 import com.mekki.taco.utils.NutrientCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -67,6 +70,7 @@ enum class DiaryViewMode {
 @HiltViewModel
 class DiaryViewModel @Inject constructor(
     private val application: Application,
+    private val savedStateHandle: SavedStateHandle,
     private val database: AppDatabase,
     private val repository: DiaryRepository,
     private val dietDao: DietDao,
@@ -106,6 +110,13 @@ class DiaryViewModel @Inject constructor(
     private val _isSelectionMode = MutableStateFlow(false)
     val isSelectionMode = _isSelectionMode.asStateFlow()
 
+    val undoManager = UndoManager()
+    val canUndo = undoManager.canUndo
+    val canRedo = undoManager.canRedo
+
+    private val _snackbarMessages = Channel<String>(Channel.BUFFERED)
+    val snackbarMessages = _snackbarMessages.receiveAsFlow()
+
     private val _goalMode = MutableStateFlow(DiaryGoalMode.DEFICIT)
     val goalMode = _goalMode.asStateFlow()
 
@@ -114,7 +125,7 @@ class DiaryViewModel @Inject constructor(
     }
 
     // --- State: Search ---
-    val foodSearchManager = FoodSearchManager(foodDao, viewModelScope)
+    val foodSearchManager = FoodSearchManager(foodDao, viewModelScope, savedStateHandle)
     val searchState: StateFlow<FoodSearchState> = foodSearchManager.state
 
     init {
@@ -411,11 +422,20 @@ class DiaryViewModel @Inject constructor(
 
         viewModelScope.launch {
             val currentSections = mealSections.value
-            val allLogs = currentSections.flatMap { it.logs.map { l -> l.log } }
-            val logsToDelete = allLogs.filter { idsToDelete.contains(it.id) }
+            val allLogsWithFood = currentSections.flatMap { it.logs }
+            val itemsToDelete = allLogsWithFood
+                .filter { idsToDelete.contains(it.log.id) }
+                .mapIndexed { index, item -> Triple(item.log, item.food, index) }
 
-            logsToDelete.forEach { repository.deleteLog(it) }
+            if (itemsToDelete.isNotEmpty()) {
+                undoManager.recordAction(UndoableAction.DeleteMultipleDailyLogs(itemsToDelete))
+            }
+
+            itemsToDelete.forEach { (log, _, _) -> repository.deleteLog(log) }
             clearSelection()
+
+            val count = itemsToDelete.size
+            _snackbarMessages.send("$count ${if (count == 1) "item removido" else "itens removidos"}")
         }
     }
 
@@ -470,6 +490,23 @@ class DiaryViewModel @Inject constructor(
                     isConsumed = false
                 )
                 repository.addLog(newLog)
+            }
+            clearSelection()
+        }
+    }
+
+    fun moveSelectedToMeal(targetMealType: String) {
+        val ids = _selectedLogIds.value
+        if (ids.isEmpty()) return
+
+        viewModelScope.launch {
+            val currentSections = mealSections.value
+            val allLogs = currentSections.flatMap { it.logs.map { l -> l.log } }
+            val logsToMove = allLogs.filter { ids.contains(it.id) }
+
+            logsToMove.forEach { log ->
+                val updatedLog = log.copy(mealType = targetMealType)
+                repository.updateLog(updatedLog)
             }
             clearSelection()
         }
@@ -546,6 +583,48 @@ class DiaryViewModel @Inject constructor(
         }
     }
 
+    fun updateLog(log: DailyLog, quantity: Double, time: String, mealType: String) {
+        viewModelScope.launch {
+            val parts = time.split(":")
+            val hour = parts.getOrNull(0)?.toIntOrNull() ?: 12
+            val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+
+            val date = try {
+                LocalDate.parse(log.date)
+            } catch (e: Exception) {
+                LocalDate.now()
+            }
+            val localTime = LocalTime.of(hour, minute)
+            val dateTime = LocalDateTime.of(date, localTime)
+            val timestamp = dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+            val updatedLog = log.copy(
+                quantityGrams = quantity,
+                entryTimestamp = timestamp,
+                mealType = mealType
+            )
+            repository.updateLog(updatedLog)
+        }
+    }
+
+    fun moveLogToMeal(log: DailyLog, targetMeal: String) {
+        viewModelScope.launch {
+            val updatedLog = log.copy(mealType = targetMeal)
+            repository.updateLog(updatedLog)
+        }
+    }
+
+    fun cloneLogToMeal(logWithFood: DailyLogWithFood, targetMeal: String) {
+        viewModelScope.launch {
+            val newLog = logWithFood.log.copy(
+                id = 0,
+                mealType = targetMeal,
+                isConsumed = false
+            )
+            repository.addLog(newLog)
+        }
+    }
+
     fun updateTimestamp(log: DailyLog, newHour: Int, newMinute: Int) {
         val date = try {
             LocalDate.parse(log.date)
@@ -563,7 +642,92 @@ class DiaryViewModel @Inject constructor(
 
     fun deleteLog(log: DailyLog) {
         viewModelScope.launch {
+            val food = mealSections.value
+                .flatMap { it.logs }
+                .find { it.log.id == log.id }
+                ?.food
+
+            if (food != null) {
+                undoManager.recordAction(
+                    UndoableAction.DeleteDailyLog(
+                        log,
+                        food,
+                        log.mealType,
+                        log.sortOrder
+                    )
+                )
+            }
+
             repository.deleteLog(log)
+            _snackbarMessages.send("${food?.name ?: "Item"} removido")
+        }
+    }
+
+    fun undo() {
+        val action = undoManager.popUndo() ?: return
+        viewModelScope.launch {
+            performUndo(action)
+            undoManager.confirmUndo(action)
+            _snackbarMessages.send("Desfeito: ${action.description}")
+        }
+    }
+
+    fun redo() {
+        val action = undoManager.popRedo() ?: return
+        viewModelScope.launch {
+            performRedo(action)
+            undoManager.confirmRedo(action)
+            _snackbarMessages.send("Refeito: ${action.description}")
+        }
+    }
+
+    private suspend fun performUndo(action: UndoableAction) {
+        when (action) {
+            is UndoableAction.DeleteDailyLog -> {
+                repository.insertLog(action.log)
+            }
+
+            is UndoableAction.DeleteMultipleDailyLogs -> {
+                action.logs.forEach { (log, _, _) ->
+                    repository.insertLog(log)
+                }
+            }
+
+            is UndoableAction.ToggleDailyLogConsumed -> {
+                repository.updateConsumedById(action.logId, action.wasConsumed)
+            }
+
+            is UndoableAction.UpdateDailyLogPortion -> {
+                repository.updatePortionById(action.logId, action.oldQuantity)
+            }
+
+            else -> { /* Other actions handled as needed */
+            }
+        }
+    }
+
+    private suspend fun performRedo(action: UndoableAction) {
+        when (action) {
+            is UndoableAction.DeleteDailyLog -> {
+                repository.deleteLog(action.log)
+            }
+
+            is UndoableAction.DeleteMultipleDailyLogs -> {
+                action.logs.forEach { (log, _, _) ->
+                    repository.deleteLog(log)
+                }
+            }
+
+            is UndoableAction.ToggleDailyLogConsumed -> {
+                repository.updateConsumedById(action.logId, !action.wasConsumed)
+            }
+
+            is UndoableAction.UpdateDailyLogPortion -> {
+                repository.updatePortionById(action.logId, action.newQuantity)
+            }
+
+            else -> { /* Other actions handled as needed */
+            }
         }
     }
 
