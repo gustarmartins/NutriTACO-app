@@ -65,7 +65,7 @@ class FoodDetailViewModel @Inject constructor(
     }
 
     private fun loadFood() {
-        if (alimentoId == 0) {
+        if (alimentoId <= 0) {  // Handle both 0 and -1 for new food creation
             val newUuid = UUID.randomUUID().toString()
             val newFood = Food(
                 id = 0,
