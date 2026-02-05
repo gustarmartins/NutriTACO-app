@@ -116,17 +116,20 @@ fun DietListScreen(
         }
     }
 
+    onFabChange {
+        FloatingActionButton(onClick = onNavigateToCreateDiet) {
+            Icon(Icons.Filled.Add, contentDescription = "Criar Nova Dieta")
+        }
+    }
+    onActionsChange {
+        TextButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
+            Icon(Icons.Filled.ArrowDownward, contentDescription = null)
+            Spacer(Modifier.width(4.dp))
+            Text("Importar", fontWeight = FontWeight.Medium)
+        }
+    }
+
     DisposableEffect(Unit) {
-        onFabChange {
-            FloatingActionButton(onClick = onNavigateToCreateDiet) {
-                Icon(Icons.Filled.Add, contentDescription = "Criar Nova Dieta")
-            }
-        }
-        onActionsChange {
-            IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
-                Icon(Icons.Filled.ArrowDownward, contentDescription = "Importar Dieta")
-            }
-        }
         onDispose {
             onFabChange(null)
             onActionsChange(null)

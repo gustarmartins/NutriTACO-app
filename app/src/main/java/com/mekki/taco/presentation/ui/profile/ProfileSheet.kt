@@ -194,7 +194,9 @@ fun ProfileSheetContent(
 @Composable
 fun SexSelector(selectedSex: String?, onSexSelected: (String) -> Unit) {
     val options = listOf("Masculino", "Feminino")
-    Column {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Text("Sexo", style = MaterialTheme.typography.bodyLarge)
         Row(Modifier.selectableGroup()) {
             options.forEach { text ->
