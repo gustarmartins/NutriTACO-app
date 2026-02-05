@@ -74,7 +74,24 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "onCreate: Iniciando MainActivity.")
+        Log.d(TAG, "onCreate: creating MainActivity.")
+
+        // cache the incoming file immediately while the intent URI grant is still active
+        var cachedImportUri: android.net.Uri? = null
+        if (savedInstanceState == null && intent?.action == android.content.Intent.ACTION_VIEW) {
+            intent?.data?.let { uri ->
+                try {
+                    val tempFile = java.io.File(cacheDir, "import_temp")
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        tempFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    cachedImportUri = android.net.Uri.fromFile(tempFile)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to cache incoming file, will try original URI", e)
+                    cachedImportUri = uri
+                }
+            }
+        }
 
         enableEdgeToEdge()
 
@@ -122,12 +139,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Handle .json file intents
-                val incomingUri = remember(savedInstanceState) {
-                    if (savedInstanceState == null && intent?.action == android.content.Intent.ACTION_VIEW) {
-                        intent?.data
-                    } else null
-                }
+                // Handle file intents (.dieta, .json)
+                val incomingUri = remember(savedInstanceState) { cachedImportUri }
                 var pendingImportUri by remember { mutableStateOf(incomingUri) }
                 var detectedFileType by remember { mutableStateOf<NutriTacoFileType?>(null) }
 

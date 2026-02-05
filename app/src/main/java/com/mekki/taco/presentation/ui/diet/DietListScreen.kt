@@ -26,17 +26,21 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -82,20 +86,33 @@ fun DietListScreen(
     var dietToDelete by remember { mutableStateOf<Diet?>(null) }
     var showShareInstructions by remember { mutableStateOf(false) }
     var dietToShareId by remember { mutableIntStateOf(-1) }
+    var dietToShareName by remember { mutableStateOf("") }
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { viewModel.importDiet(it) }
+    }
+
+    val saveToDeviceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        uri?.let {
+            if (dietToShareId != -1) {
+                viewModel.exportDiet(dietToShareId, it)
+                dietToShareId = -1
+                dietToShareName = ""
+            }
+        }
     }
 
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                type = "application/json"
+                type = "application/octet-stream"
                 putExtra(android.content.Intent.EXTRA_STREAM, uri)
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
@@ -122,7 +139,7 @@ fun DietListScreen(
         }
     }
     onActionsChange {
-        TextButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
+        TextButton(onClick = { importLauncher.launch("*/*") }) {
             Icon(Icons.Filled.ArrowDownward, contentDescription = null)
             Spacer(Modifier.width(4.dp))
             Text("Importar", fontWeight = FontWeight.Medium)
@@ -174,6 +191,7 @@ fun DietListScreen(
                     onDeleteClick = { dietToDelete = dieta },
                     onExportClick = {
                         dietToShareId = dieta.id
+                        dietToShareName = dieta.name
                         showShareInstructions = true
                     }
                 )
@@ -209,35 +227,60 @@ fun DietListScreen(
             onDismissRequest = {
                 showShareInstructions = false
                 dietToShareId = -1
+                dietToShareName = ""
             },
             icon = { Icon(Icons.Filled.Share, contentDescription = null) },
-            title = { Text("Compartilhar Dieta") },
+            title = { Text("Exportar Dieta") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("O destinatário poderá:")
-                    Text("• Abrir diretamente com o NutriTACO (se instalado)")
-                    Text("• Ou salvar o arquivo .json e importar manualmente")
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showShareInstructions = false
-                        if (dietToShareId != -1) {
-                            viewModel.shareDiet(dietToShareId)
-                            dietToShareId = -1
-                        }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Escolha como deseja exportar:")
+
+                    FilledTonalButton(
+                        onClick = {
+                            showShareInstructions = false
+                            if (dietToShareId != -1) {
+                                val fileName = dietToShareName
+                                    .replace(Regex("[^a-zA-ZÀ-ú0-9._\\- ]"), "")
+                                    .trim()
+                                    .ifEmpty { "dieta" }
+                                saveToDeviceLauncher.launch("$fileName.dieta")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.SaveAlt, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Salvar no Dispositivo")
                     }
-                ) {
-                    Text("Compartilhar")
+
+                    OutlinedButton(
+                        onClick = {
+                            showShareInstructions = false
+                            if (dietToShareId != -1) {
+                                viewModel.shareDiet(dietToShareId)
+                                dietToShareId = -1
+                                dietToShareName = ""
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Share, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Enviar para Alguém")
+                    }
                 }
             },
+            confirmButton = {},
             dismissButton = {
                 TextButton(
                     onClick = {
                         showShareInstructions = false
                         dietToShareId = -1
-                    }
+                        dietToShareName = ""
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 ) {
                     Text("Cancelar")
                 }
