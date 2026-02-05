@@ -66,7 +66,8 @@ fun FilterBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showMacroFilters by remember { mutableStateOf(filterState.hasMacroFilters) }
-    var showMicroFilters by remember { mutableStateOf(filterState.hasMicroFilters) }
+    var showMineralFilters by remember { mutableStateOf(filterState.hasMineralFilters) }
+    var showVitaminFilters by remember { mutableStateOf(filterState.hasVitaminFilters) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -181,12 +182,24 @@ fun FilterBottomSheet(
                 }
 
                 ExpandableFilterSection(
-                    title = "Micronutrientes",
-                    isExpanded = showMicroFilters,
-                    hasActiveFilters = filterState.hasMicroFilters,
-                    onToggle = { showMicroFilters = !showMicroFilters }
+                    title = "Minerais",
+                    isExpanded = showMineralFilters,
+                    hasActiveFilters = filterState.hasMineralFilters,
+                    onToggle = { showMineralFilters = !showMineralFilters }
                 ) {
-                    MicroFiltersContent(
+                    MineralFiltersContent(
+                        filterState = filterState,
+                        onFilterStateChange = onFilterStateChange
+                    )
+                }
+
+                ExpandableFilterSection(
+                    title = "Vitaminas",
+                    isExpanded = showVitaminFilters,
+                    hasActiveFilters = filterState.hasVitaminFilters,
+                    onToggle = { showVitaminFilters = !showVitaminFilters }
+                ) {
+                    VitaminFiltersContent(
                         filterState = filterState,
                         onFilterStateChange = onFilterStateChange
                     )
@@ -251,6 +264,13 @@ private fun MacroFiltersContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         NutrientRangeRow(
+            label = "Calorias (kcal)",
+            minValue = filterState.minCalories,
+            maxValue = filterState.maxCalories,
+            onMinChange = { onFilterStateChange(filterState.copy(minCalories = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxCalories = it)) }
+        )
+        NutrientRangeRow(
             label = "Proteínas (g)",
             minValue = filterState.minProtein,
             maxValue = filterState.maxProtein,
@@ -265,81 +285,18 @@ private fun MacroFiltersContent(
             onMaxChange = { onFilterStateChange(filterState.copy(maxCarbs = it)) }
         )
         NutrientRangeRow(
-            label = "Gorduras (g)",
+            label = "Gorduras Totais (g)",
             minValue = filterState.minFat,
             maxValue = filterState.maxFat,
             onMinChange = { onFilterStateChange(filterState.copy(minFat = it)) },
             onMaxChange = { onFilterStateChange(filterState.copy(maxFat = it)) }
         )
         NutrientRangeRow(
-            label = "Calorias (kcal)",
-            minValue = filterState.minCalories,
-            maxValue = filterState.maxCalories,
-            onMinChange = { onFilterStateChange(filterState.copy(minCalories = it)) },
-            onMaxChange = { onFilterStateChange(filterState.copy(maxCalories = it)) }
-        )
-    }
-}
-
-@Composable
-private fun MicroFiltersContent(
-    filterState: FoodFilterState,
-    onFilterStateChange: (FoodFilterState) -> Unit
-) {
-    Column(
-        modifier = Modifier.padding(start = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            "Vitaminas",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        NutrientMinRow(
-            label = "Vitamina C (mg)",
-            value = filterState.minVitaminaC,
-            onChange = { onFilterStateChange(filterState.copy(minVitaminaC = it)) }
-        )
-        NutrientMinRow(
-            label = "Vitamina A (mcg)",
-            value = filterState.minRetinol,
-            onChange = { onFilterStateChange(filterState.copy(minRetinol = it)) }
-        )
-
-        Spacer(Modifier.size(4.dp))
-        Text(
-            "Minerais",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        NutrientMinRow(
-            label = "Ferro (mg)",
-            value = filterState.minFerro,
-            onChange = { onFilterStateChange(filterState.copy(minFerro = it)) }
-        )
-        NutrientMinRow(
-            label = "Cálcio (mg)",
-            value = filterState.minCalcio,
-            onChange = { onFilterStateChange(filterState.copy(minCalcio = it)) }
-        )
-        NutrientRangeRow(
-            label = "Sódio (mg)",
-            minValue = filterState.minSodio,
-            maxValue = filterState.maxSodio,
-            onMinChange = { onFilterStateChange(filterState.copy(minSodio = it)) },
-            onMaxChange = { onFilterStateChange(filterState.copy(maxSodio = it)) }
-        )
-        NutrientMinRow(
-            label = "Potássio (mg)",
-            value = filterState.minPotassio,
-            onChange = { onFilterStateChange(filterState.copy(minPotassio = it)) }
-        )
-
-        Spacer(Modifier.size(4.dp))
-        Text(
-            "Outros",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
+            label = "Fibra (g)",
+            minValue = filterState.minFibra,
+            maxValue = filterState.maxFibra,
+            onMinChange = { onFilterStateChange(filterState.copy(minFibra = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxFibra = it)) }
         )
         NutrientRangeRow(
             label = "Colesterol (mg)",
@@ -348,10 +305,162 @@ private fun MicroFiltersContent(
             onMinChange = { onFilterStateChange(filterState.copy(minColesterol = it)) },
             onMaxChange = { onFilterStateChange(filterState.copy(maxColesterol = it)) }
         )
-        NutrientMinRow(
-            label = "Fibra (g)",
-            value = filterState.minFibra,
-            onChange = { onFilterStateChange(filterState.copy(minFibra = it)) }
+
+        Spacer(Modifier.size(4.dp))
+        Text(
+            "Gorduras por tipo",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        NutrientRangeRow(
+            label = "Saturadas (g)",
+            minValue = filterState.minSaturados,
+            maxValue = filterState.maxSaturados,
+            onMinChange = { onFilterStateChange(filterState.copy(minSaturados = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxSaturados = it)) }
+        )
+        NutrientRangeRow(
+            label = "Monoinsaturadas (g)",
+            minValue = filterState.minMonoinsaturados,
+            maxValue = filterState.maxMonoinsaturados,
+            onMinChange = { onFilterStateChange(filterState.copy(minMonoinsaturados = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxMonoinsaturados = it)) }
+        )
+        NutrientRangeRow(
+            label = "Poliinsaturadas (g)",
+            minValue = filterState.minPoliinsaturados,
+            maxValue = filterState.maxPoliinsaturados,
+            onMinChange = { onFilterStateChange(filterState.copy(minPoliinsaturados = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxPoliinsaturados = it)) }
+        )
+    }
+}
+
+@Composable
+private fun MineralFiltersContent(
+    filterState: FoodFilterState,
+    onFilterStateChange: (FoodFilterState) -> Unit
+) {
+    Column(
+        modifier = Modifier.padding(start = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        NutrientRangeRow(
+            label = "Cálcio (mg)",
+            minValue = filterState.minCalcio,
+            maxValue = filterState.maxCalcio,
+            onMinChange = { onFilterStateChange(filterState.copy(minCalcio = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxCalcio = it)) }
+        )
+        NutrientRangeRow(
+            label = "Ferro (mg)",
+            minValue = filterState.minFerro,
+            maxValue = filterState.maxFerro,
+            onMinChange = { onFilterStateChange(filterState.copy(minFerro = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxFerro = it)) }
+        )
+        NutrientRangeRow(
+            label = "Sódio (mg)",
+            minValue = filterState.minSodio,
+            maxValue = filterState.maxSodio,
+            onMinChange = { onFilterStateChange(filterState.copy(minSodio = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxSodio = it)) }
+        )
+        NutrientRangeRow(
+            label = "Potássio (mg)",
+            minValue = filterState.minPotassio,
+            maxValue = filterState.maxPotassio,
+            onMinChange = { onFilterStateChange(filterState.copy(minPotassio = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxPotassio = it)) }
+        )
+        NutrientRangeRow(
+            label = "Magnésio (mg)",
+            minValue = filterState.minMagnesio,
+            maxValue = filterState.maxMagnesio,
+            onMinChange = { onFilterStateChange(filterState.copy(minMagnesio = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxMagnesio = it)) }
+        )
+        NutrientRangeRow(
+            label = "Zinco (mg)",
+            minValue = filterState.minZinco,
+            maxValue = filterState.maxZinco,
+            onMinChange = { onFilterStateChange(filterState.copy(minZinco = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxZinco = it)) }
+        )
+        NutrientRangeRow(
+            label = "Cobre (mg)",
+            minValue = filterState.minCobre,
+            maxValue = filterState.maxCobre,
+            onMinChange = { onFilterStateChange(filterState.copy(minCobre = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxCobre = it)) }
+        )
+        NutrientRangeRow(
+            label = "Fósforo (mg)",
+            minValue = filterState.minFosforo,
+            maxValue = filterState.maxFosforo,
+            onMinChange = { onFilterStateChange(filterState.copy(minFosforo = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxFosforo = it)) }
+        )
+        NutrientRangeRow(
+            label = "Manganês (mg)",
+            minValue = filterState.minManganes,
+            maxValue = filterState.maxManganes,
+            onMinChange = { onFilterStateChange(filterState.copy(minManganes = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxManganes = it)) }
+        )
+    }
+}
+
+@Composable
+private fun VitaminFiltersContent(
+    filterState: FoodFilterState,
+    onFilterStateChange: (FoodFilterState) -> Unit
+) {
+    Column(
+        modifier = Modifier.padding(start = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        NutrientRangeRow(
+            label = "Vitamina C (mg)",
+            minValue = filterState.minVitaminaC,
+            maxValue = filterState.maxVitaminaC,
+            onMinChange = { onFilterStateChange(filterState.copy(minVitaminaC = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxVitaminaC = it)) }
+        )
+        NutrientRangeRow(
+            label = "Vitamina A / Retinol (µg)",
+            minValue = filterState.minRetinol,
+            maxValue = filterState.maxRetinol,
+            onMinChange = { onFilterStateChange(filterState.copy(minRetinol = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxRetinol = it)) }
+        )
+        NutrientRangeRow(
+            label = "Tiamina / B1 (mg)",
+            minValue = filterState.minTiamina,
+            maxValue = filterState.maxTiamina,
+            onMinChange = { onFilterStateChange(filterState.copy(minTiamina = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxTiamina = it)) }
+        )
+        NutrientRangeRow(
+            label = "Riboflavina / B2 (mg)",
+            minValue = filterState.minRiboflavina,
+            maxValue = filterState.maxRiboflavina,
+            onMinChange = { onFilterStateChange(filterState.copy(minRiboflavina = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxRiboflavina = it)) }
+        )
+        NutrientRangeRow(
+            label = "Niacina / B3 (mg)",
+            minValue = filterState.minNiacina,
+            maxValue = filterState.maxNiacina,
+            onMinChange = { onFilterStateChange(filterState.copy(minNiacina = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxNiacina = it)) }
+        )
+        NutrientRangeRow(
+            label = "Piridoxina / B6 (mg)",
+            minValue = filterState.minPiridoxina,
+            maxValue = filterState.maxPiridoxina,
+            onMinChange = { onFilterStateChange(filterState.copy(minPiridoxina = it)) },
+            onMaxChange = { onFilterStateChange(filterState.copy(maxPiridoxina = it)) }
         )
     }
 }
@@ -388,7 +497,7 @@ private fun NutrientRangeRow(
                     }
                 },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Mín") },
+                placeholder = { Text("Mín.") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 trailingIcon = if (minText.isNotEmpty()) {
@@ -411,7 +520,7 @@ private fun NutrientRangeRow(
                     }
                 },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Máx") },
+                placeholder = { Text("Máx.") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 trailingIcon = if (maxText.isNotEmpty()) {
@@ -434,8 +543,12 @@ private fun formatFilterValue(value: Double): String {
     }
 }
 
+/**
+ * (min only)
+ * potential use in the future.
+ */
 @Composable
-private fun NutrientMinRow(
+fun NutrientMinRow(
     label: String,
     value: Double?,
     onChange: (Double?) -> Unit

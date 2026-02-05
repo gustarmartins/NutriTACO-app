@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.KeyboardDoubleArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.outlined.Balance
 import androidx.compose.material3.Badge
@@ -90,7 +91,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.presentation.ui.components.FilterBottomSheet
-import com.mekki.taco.presentation.ui.search.FoodFilterState
 import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -117,7 +117,7 @@ private enum class ScrollFabTarget {
 fun FoodDatabaseScreen(
     viewModel: FoodDatabaseViewModel,
     onNavigateBack: () -> Unit,
-    onFoodClick: (Int) -> Unit,
+    onFoodClick: (Int, Double?) -> Unit,
     onAddFood: () -> Unit,
     onBottomBarVisibilityChange: (Boolean) -> Unit = {}
 ) {
@@ -257,11 +257,11 @@ fun FoodDatabaseScreen(
 
     val activeFilterCount = listOfNotNull(
         if (uiState.selectedSource != FoodSource.ALL) 1 else null,
-        if (uiState.selectedCategories.isNotEmpty()) uiState.selectedCategories.size else null
+        if (uiState.selectedCategories.isNotEmpty()) uiState.selectedCategories.size else null,
+        if (uiState.filterState.hasAdvancedFilters) uiState.filterState.activeAdvancedFilterCount else null
     ).sum()
 
-    val hasClearableFilters = uiState.selectedSource != FoodSource.ALL ||
-            uiState.selectedCategories.isNotEmpty()
+    val hasClearableFilters = uiState.hasClearableFilters
 
     Scaffold(
         topBar = {
@@ -435,7 +435,7 @@ fun FoodDatabaseScreen(
                             totalCount = uiState.foods.size,
                             portionGrams = portionGrams,
                             sortOption = uiState.sortOption,
-                            onClick = { onFoodClick(food.id) }
+                            onClick = { onFoodClick(food.id, portionGrams.toDouble()) }
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
@@ -465,7 +465,7 @@ fun FoodDatabaseScreen(
 
     if (showFilterSheet) {
         FilterBottomSheet(
-            filterState = FoodFilterState(
+            filterState = uiState.filterState.copy(
                 searchQuery = uiState.searchQuery,
                 source = uiState.selectedSource,
                 sortOption = uiState.sortOption,
@@ -478,7 +478,8 @@ fun FoodDatabaseScreen(
             onClearCategories = viewModel::onClearCategories,
             onSortChange = viewModel::onSortChange,
             onResetFilters = viewModel::onResetFilters,
-            showAdvancedFilters = false
+            onFilterStateChange = viewModel::onFilterStateChange,
+            showAdvancedFilters = true
         )
     }
 }
@@ -796,7 +797,6 @@ private fun FilterChipsRow(
                 )
             }
         }
-
         items(uiState.selectedCategories.toList()) { category ->
             InputChip(
                 selected = true,
@@ -804,12 +804,34 @@ private fun FilterChipsRow(
                 label = { Text(category, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 trailingIcon = {
                     Icon(
-                        Icons.Default.Close,
+                        imageVector = Icons.Default.Close,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
                 }
             )
+        }
+
+        if (uiState.filterState.hasAdvancedFilters) {
+            item {
+                InputChip(
+                    selected = true,
+                    onClick = onOpenFilters,
+                    label = {
+                        Text(
+                            text = "+${uiState.filterState.activeAdvancedFilterCount} filtros",
+                            maxLines = 1
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Tune,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
+            }
         }
 
         if (hasClearableFilters) {

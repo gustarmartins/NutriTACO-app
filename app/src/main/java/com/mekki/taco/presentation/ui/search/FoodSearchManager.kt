@@ -35,6 +35,7 @@ private const val KEY_SM_QUICK_ADD = "sm_quick_add"
 private const val KEY_SM_SORT = "sm_sort_option"
 private const val KEY_SM_EXPANDED = "sm_expanded_id"
 private const val KEY_SM_SOURCE = "sm_source"
+private const val KEY_SM_FILTER_STATE = "sm_filter_state"
 
 /**
  * Reusable food search manager with FTS support, synonyms, and sorting.
@@ -60,7 +61,10 @@ class FoodSearchManager(
     private val sourceFilterFlow = savedStateHandle?.getStateFlow(KEY_SM_SOURCE, FoodSource.ALL)
         ?: _localSourceFilter.asStateFlow()
 
-    private val _filterState = MutableStateFlow(FoodFilterState.DEFAULT)
+    private val _localFilterState = MutableStateFlow(FoodFilterState.DEFAULT)
+    private val filterStateFlow =
+        savedStateHandle?.getStateFlow(KEY_SM_FILTER_STATE, FoodFilterState.DEFAULT)
+            ?: _localFilterState.asStateFlow()
 
     val categories: StateFlow<List<String>> = foodDao.getAllCategories()
         .stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Lazily, emptyList())
@@ -75,9 +79,10 @@ class FoodSearchManager(
             _rawResults,
             expandedIdFlow,
             quickAddFlow,
-            _filterState
+            filterStateFlow
         )
     ) { args ->
+        @Suppress("UNCHECKED_CAST")
         val term = args[0] as String
         val loading = args[1] as Boolean
         val raw = args[2] as List<Food>
@@ -154,7 +159,7 @@ class FoodSearchManager(
     }
 
     private fun observeSearchTerm() {
-        combine(searchTermFlow, _filterState) { term, filters -> Pair(term, filters) }
+        combine(searchTermFlow, filterStateFlow) { term, filters -> Pair(term, filters) }
             .debounce(300)
             .distinctUntilChanged()
             .flatMapLatest { (term, filters) ->
@@ -229,7 +234,7 @@ class FoodSearchManager(
     }
 
     fun onSortOptionChange(option: FoodSortOption) {
-        _filterState.value = _filterState.value.copy(sortOption = option)
+        updateFilterState(filterStateFlow.value.copy(sortOption = option))
     }
 
     fun onFoodToggled(foodId: Int) {
@@ -266,13 +271,14 @@ class FoodSearchManager(
             savedStateHandle[KEY_SM_TERM] = ""
             savedStateHandle[KEY_SM_EXPANDED] = null
             savedStateHandle[KEY_SM_QUICK_ADD] = "100"
+            savedStateHandle[KEY_SM_FILTER_STATE] = FoodFilterState.DEFAULT
         } else {
             _localSearchTerm.value = ""
             _localExpandedId.value = null
             _localQuickAdd.value = "100"
+            _localFilterState.value = FoodFilterState.DEFAULT
         }
         _rawResults.value = emptyList()
-        _filterState.value = FoodFilterState.DEFAULT
     }
 
     fun restoreState(
@@ -285,33 +291,41 @@ class FoodSearchManager(
             savedStateHandle[KEY_SM_TERM] = searchTerm
             savedStateHandle[KEY_SM_EXPANDED] = expandedId
             savedStateHandle[KEY_SM_QUICK_ADD] = quickAddAmount
+            savedStateHandle[KEY_SM_FILTER_STATE] = filterState
         } else {
             _localSearchTerm.value = searchTerm
             _localExpandedId.value = expandedId
             _localQuickAdd.value = quickAddAmount
+            _localFilterState.value = filterState
         }
-        _filterState.value = filterState
     }
 
     fun onFilterStateChange(newState: FoodFilterState) {
-        _filterState.value = newState
+        updateFilterState(newState)
     }
 
     fun onSourceFilterChange(source: FoodSource) {
-        _filterState.value = _filterState.value.copy(source = source)
+        updateFilterState(filterStateFlow.value.copy(source = source))
     }
 
     fun onCategoryToggle(category: String) {
-        val current = _filterState.value.selectedCategories
+        val current = filterStateFlow.value.selectedCategories
         val updated = if (category in current) current - category else current + category
-        _filterState.value = _filterState.value.copy(selectedCategories = updated)
+        updateFilterState(filterStateFlow.value.copy(selectedCategories = updated))
     }
 
     fun onClearCategories() {
-        _filterState.value = _filterState.value.copy(selectedCategories = emptySet())
+        updateFilterState(filterStateFlow.value.copy(selectedCategories = emptySet()))
     }
 
-    @Suppress("DEPRECATION")
+    private fun updateFilterState(newState: FoodFilterState) {
+        if (savedStateHandle != null) {
+            savedStateHandle[KEY_SM_FILTER_STATE] = newState
+        } else {
+            _localFilterState.value = newState
+        }
+    }
+
     private fun applyFilters(foods: List<Food>, filters: FoodFilterState): List<Food> {
         return foods.filter { food ->
             val sourceMatch = when (filters.source) {
@@ -333,28 +347,176 @@ class FoodSearchManager(
             filters.maxFat?.let { if ((food.lipidios?.total ?: 0.0) > it) return@filter false }
             filters.minCalories?.let { if ((food.energiaKcal ?: 0.0) < it) return@filter false }
             filters.maxCalories?.let { if ((food.energiaKcal ?: 0.0) > it) return@filter false }
+            filters.minFibra?.let { if ((food.fibraAlimentar ?: 0.0) < it) return@filter false }
+            filters.maxFibra?.let { if ((food.fibraAlimentar ?: 0.0) > it) return@filter false }
+            filters.minColesterol?.let { if ((food.colesterol ?: 0.0) < it) return@filter false }
+            filters.maxColesterol?.let { if ((food.colesterol ?: 0.0) > it) return@filter false }
+
+            filters.minSaturados?.let {
+                if ((food.lipidios?.saturados ?: 0.0) < it) return@filter false
+            }
+            filters.maxSaturados?.let {
+                if ((food.lipidios?.saturados ?: 0.0) > it) return@filter false
+            }
+            filters.minMonoinsaturados?.let {
+                if ((food.lipidios?.monoinsaturados ?: 0.0) < it) return@filter false
+            }
+            filters.maxMonoinsaturados?.let {
+                if ((food.lipidios?.monoinsaturados ?: 0.0) > it) return@filter false
+            }
+            filters.minPoliinsaturados?.let {
+                if ((food.lipidios?.poliinsaturados ?: 0.0) < it) return@filter false
+            }
+            filters.maxPoliinsaturados?.let {
+                if ((food.lipidios?.poliinsaturados ?: 0.0) > it) return@filter false
+            }
 
             filters.minVitaminaC?.let { if ((food.vitaminaC ?: 0.0) < it) return@filter false }
+            filters.maxVitaminaC?.let { if ((food.vitaminaC ?: 0.0) > it) return@filter false }
             filters.minRetinol?.let { if ((food.retinol ?: 0.0) < it) return@filter false }
+            filters.maxRetinol?.let { if ((food.retinol ?: 0.0) > it) return@filter false }
             filters.minTiamina?.let { if ((food.tiamina ?: 0.0) < it) return@filter false }
+            filters.maxTiamina?.let { if ((food.tiamina ?: 0.0) > it) return@filter false }
             filters.minRiboflavina?.let { if ((food.riboflavina ?: 0.0) < it) return@filter false }
+            filters.maxRiboflavina?.let { if ((food.riboflavina ?: 0.0) > it) return@filter false }
             filters.minPiridoxina?.let { if ((food.piridoxina ?: 0.0) < it) return@filter false }
+            filters.maxPiridoxina?.let { if ((food.piridoxina ?: 0.0) > it) return@filter false }
             filters.minNiacina?.let { if ((food.niacina ?: 0.0) < it) return@filter false }
+            filters.maxNiacina?.let { if ((food.niacina ?: 0.0) > it) return@filter false }
 
             filters.minCalcio?.let { if ((food.calcio ?: 0.0) < it) return@filter false }
+            filters.maxCalcio?.let { if ((food.calcio ?: 0.0) > it) return@filter false }
             filters.minFerro?.let { if ((food.ferro ?: 0.0) < it) return@filter false }
+            filters.maxFerro?.let { if ((food.ferro ?: 0.0) > it) return@filter false }
             filters.minSodio?.let { if ((food.sodio ?: 0.0) < it) return@filter false }
             filters.maxSodio?.let { if ((food.sodio ?: 0.0) > it) return@filter false }
             filters.minPotassio?.let { if ((food.potassio ?: 0.0) < it) return@filter false }
+            filters.maxPotassio?.let { if ((food.potassio ?: 0.0) > it) return@filter false }
             filters.minMagnesio?.let { if ((food.magnesio ?: 0.0) < it) return@filter false }
+            filters.maxMagnesio?.let { if ((food.magnesio ?: 0.0) > it) return@filter false }
             filters.minZinco?.let { if ((food.zinco ?: 0.0) < it) return@filter false }
+            filters.maxZinco?.let { if ((food.zinco ?: 0.0) > it) return@filter false }
             filters.minCobre?.let { if ((food.cobre ?: 0.0) < it) return@filter false }
+            filters.maxCobre?.let { if ((food.cobre ?: 0.0) > it) return@filter false }
             filters.minFosforo?.let { if ((food.fosforo ?: 0.0) < it) return@filter false }
+            filters.maxFosforo?.let { if ((food.fosforo ?: 0.0) > it) return@filter false }
             filters.minManganes?.let { if ((food.manganes ?: 0.0) < it) return@filter false }
+            filters.maxManganes?.let { if ((food.manganes ?: 0.0) > it) return@filter false }
 
-            filters.minColesterol?.let { if ((food.colesterol ?: 0.0) < it) return@filter false }
-            filters.maxColesterol?.let { if ((food.colesterol ?: 0.0) > it) return@filter false }
-            filters.minFibra?.let { if ((food.fibraAlimentar ?: 0.0) < it) return@filter false }
+            filters.minUmidade?.let { if ((food.umidade ?: 0.0) < it) return@filter false }
+            filters.maxUmidade?.let { if ((food.umidade ?: 0.0) > it) return@filter false }
+            filters.minCinzas?.let { if ((food.cinzas ?: 0.0) < it) return@filter false }
+            filters.maxCinzas?.let { if ((food.cinzas ?: 0.0) > it) return@filter false }
+
+            // TODO: Amino acid filters - add UI implementation (most foods don't have this data)
+            filters.minTriptofano?.let {
+                if ((food.aminoacidos?.triptofano ?: 0.0) < it) return@filter false
+            }
+            filters.maxTriptofano?.let {
+                if ((food.aminoacidos?.triptofano ?: 0.0) > it) return@filter false
+            }
+            filters.minTreonina?.let {
+                if ((food.aminoacidos?.treonina ?: 0.0) < it) return@filter false
+            }
+            filters.maxTreonina?.let {
+                if ((food.aminoacidos?.treonina ?: 0.0) > it) return@filter false
+            }
+            filters.minIsoleucina?.let {
+                if ((food.aminoacidos?.isoleucina ?: 0.0) < it) return@filter false
+            }
+            filters.maxIsoleucina?.let {
+                if ((food.aminoacidos?.isoleucina ?: 0.0) > it) return@filter false
+            }
+            filters.minLeucina?.let {
+                if ((food.aminoacidos?.leucina ?: 0.0) < it) return@filter false
+            }
+            filters.maxLeucina?.let {
+                if ((food.aminoacidos?.leucina ?: 0.0) > it) return@filter false
+            }
+            filters.minLisina?.let {
+                if ((food.aminoacidos?.lisina ?: 0.0) < it) return@filter false
+            }
+            filters.maxLisina?.let {
+                if ((food.aminoacidos?.lisina ?: 0.0) > it) return@filter false
+            }
+            filters.minMetionina?.let {
+                if ((food.aminoacidos?.metionina ?: 0.0) < it) return@filter false
+            }
+            filters.maxMetionina?.let {
+                if ((food.aminoacidos?.metionina ?: 0.0) > it) return@filter false
+            }
+            filters.minCistina?.let {
+                if ((food.aminoacidos?.cistina ?: 0.0) < it) return@filter false
+            }
+            filters.maxCistina?.let {
+                if ((food.aminoacidos?.cistina ?: 0.0) > it) return@filter false
+            }
+            filters.minFenilalanina?.let {
+                if ((food.aminoacidos?.fenilalanina ?: 0.0) < it) return@filter false
+            }
+            filters.maxFenilalanina?.let {
+                if ((food.aminoacidos?.fenilalanina ?: 0.0) > it) return@filter false
+            }
+            filters.minTirosina?.let {
+                if ((food.aminoacidos?.tirosina ?: 0.0) < it) return@filter false
+            }
+            filters.maxTirosina?.let {
+                if ((food.aminoacidos?.tirosina ?: 0.0) > it) return@filter false
+            }
+            filters.minValina?.let {
+                if ((food.aminoacidos?.valina ?: 0.0) < it) return@filter false
+            }
+            filters.maxValina?.let {
+                if ((food.aminoacidos?.valina ?: 0.0) > it) return@filter false
+            }
+            filters.minArginina?.let {
+                if ((food.aminoacidos?.arginina ?: 0.0) < it) return@filter false
+            }
+            filters.maxArginina?.let {
+                if ((food.aminoacidos?.arginina ?: 0.0) > it) return@filter false
+            }
+            filters.minHistidina?.let {
+                if ((food.aminoacidos?.histidina ?: 0.0) < it) return@filter false
+            }
+            filters.maxHistidina?.let {
+                if ((food.aminoacidos?.histidina ?: 0.0) > it) return@filter false
+            }
+            filters.minAlanina?.let {
+                if ((food.aminoacidos?.alanina ?: 0.0) < it) return@filter false
+            }
+            filters.maxAlanina?.let {
+                if ((food.aminoacidos?.alanina ?: 0.0) > it) return@filter false
+            }
+            filters.minAcidoAspartico?.let {
+                if ((food.aminoacidos?.acidoAspartico ?: 0.0) < it) return@filter false
+            }
+            filters.maxAcidoAspartico?.let {
+                if ((food.aminoacidos?.acidoAspartico ?: 0.0) > it) return@filter false
+            }
+            filters.minAcidoGlutamico?.let {
+                if ((food.aminoacidos?.acidoGlutamico ?: 0.0) < it) return@filter false
+            }
+            filters.maxAcidoGlutamico?.let {
+                if ((food.aminoacidos?.acidoGlutamico ?: 0.0) > it) return@filter false
+            }
+            filters.minGlicina?.let {
+                if ((food.aminoacidos?.glicina ?: 0.0) < it) return@filter false
+            }
+            filters.maxGlicina?.let {
+                if ((food.aminoacidos?.glicina ?: 0.0) > it) return@filter false
+            }
+            filters.minProlina?.let {
+                if ((food.aminoacidos?.prolina ?: 0.0) < it) return@filter false
+            }
+            filters.maxProlina?.let {
+                if ((food.aminoacidos?.prolina ?: 0.0) > it) return@filter false
+            }
+            filters.minSerina?.let {
+                if ((food.aminoacidos?.serina ?: 0.0) < it) return@filter false
+            }
+            filters.maxSerina?.let {
+                if ((food.aminoacidos?.serina ?: 0.0) > it) return@filter false
+            }
 
             true
         }
