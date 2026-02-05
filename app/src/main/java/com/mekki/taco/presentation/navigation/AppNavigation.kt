@@ -48,7 +48,8 @@ fun AppNavigation(
     context: Context,
     onFabChange: (@Composable (() -> Unit)?) -> Unit,
     onActionsChange: (@Composable (() -> Unit)?) -> Unit,
-    onTitleChange: (String) -> Unit
+    onTitleChange: (String) -> Unit,
+    onBottomBarVisibilityChange: (Boolean) -> Unit = {}
 ) {
     val homeViewModel: HomeViewModel = hiltViewModel()
     val profileViewModel: ProfileViewModel = hiltViewModel()
@@ -102,8 +103,9 @@ fun AppNavigation(
             DiaryScreen(
                 viewModel = diaryViewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToDetail = { foodId ->
-                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
+                onNavigateToDetail = { foodId, portion ->
+                    val portionArg = if (portion != null) "?initialPortion=$portion" else ""
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId$portionArg")
                 },
                 onActionsChange = onActionsChange
             )
@@ -120,6 +122,8 @@ fun AppNavigation(
             )
         ) { backStackEntry ->
             val importUri = backStackEntry.arguments?.getString("importUri")
+
+            onTitleChange("Dietas")
 
             LaunchedEffect(importUri) {
                 importUri?.let { encodedUri ->
@@ -176,13 +180,15 @@ fun AppNavigation(
                 onEditFood = { foodId ->
                     navController.navigate("$FOOD_DETAIL_ROUTE/$foodId?edit=true")
                 },
-                onViewFood = { foodId ->
-                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
+                onViewFood = { foodId, portion ->
+                    val portionArg = if (portion != null) "?initialPortion=$portion" else ""
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId$portionArg")
                 },
                 onTitleChange = onTitleChange,
                 onFabChange = onFabChange,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToSettings = { navController.navigate(SETTINGS_ROUTE) }
+                onNavigateToSettings = { navController.navigate(SETTINGS_ROUTE) },
+                onNavigateToDiary = { navController.navigate(DIARY_ROUTE) }
             )
         }
 
@@ -303,9 +309,14 @@ fun AppNavigation(
             FoodDatabaseScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onFoodClick = { foodId ->
-                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId")
-                }
+                onFoodClick = { foodId, portion ->
+                    val portionArg = if (portion != null) "?initialPortion=$portion" else ""
+                    navController.navigate("$FOOD_DETAIL_ROUTE/$foodId$portionArg")
+                },
+                onAddFood = {
+                    navController.navigate("$FOOD_DETAIL_ROUTE/-1?edit=true")
+                },
+                onBottomBarVisibilityChange = onBottomBarVisibilityChange
             )
         }
 

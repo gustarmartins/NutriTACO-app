@@ -5,6 +5,9 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -130,7 +133,7 @@ class MainActivity : ComponentActivity() {
 
                 androidx.compose.runtime.LaunchedEffect(pendingImportUri) {
                     pendingImportUri?.let { uri ->
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        kotlinx.coroutines.withContext(Dispatchers.IO) {
                             detectedFileType = dietSharingManager.detectFileType(uri)
                         }
                         when (detectedFileType) {
@@ -179,9 +182,14 @@ class MainActivity : ComponentActivity() {
                     else -> true
                 }
 
-                val shouldShowBottomBar = currentRoute in listOf(
-                    "home", "diet_list", "diary", FOOD_DATABASE_ROUTE
-                )
+                val shouldShowBottomBar = when {
+                    currentRoute == "home" -> true
+                    currentRoute?.startsWith("diet_list") == true -> true
+                    currentRoute == "diary" -> true
+                    currentRoute == FOOD_DATABASE_ROUTE -> true
+                    else -> false
+                }
+                var isBottomBarVisible by remember { mutableStateOf(true) }
 
                 val canNavigateBack = navController.previousBackStackEntry != null
 
@@ -189,14 +197,16 @@ class MainActivity : ComponentActivity() {
                     val route = navBackStackEntry?.destination?.route
                     val defaultTitle = when {
                         route?.startsWith("create_diet") == true -> "Editar Dieta"
-                        route == "diet_list" -> "Minhas Dietas"
-                        route == "diary" -> "Diário Alimentar"
+                        route == "diet_list" -> "Dietas"
+                        route?.startsWith("diet_list") == true -> "Dietas"
+                        route == "diary" -> "Diário"
                         route == SETTINGS_ROUTE -> "Configurações"
                         else -> "NutriTACO"
                     }
                     if (route != "diet_detail/{dietId}") {
                         screenTitle = defaultTitle
                     }
+                    isBottomBarVisible = true
                     onDispose {}
                 }
 
@@ -237,13 +247,18 @@ class MainActivity : ComponentActivity() {
                         fab?.invoke()
                     },
                     bottomBar = {
-                        if (shouldShowBottomBar) {
+                        AnimatedVisibility(
+                            visible = shouldShowBottomBar && isBottomBarVisible,
+                            enter = slideInVertically { it },
+                            exit = slideOutVertically { it }
+                        ) {
                             NavigationBar {
                                 BottomNavItem.items.forEach { item ->
+                                    val isSelected = currentRoute?.startsWith(item.route) == true
                                     NavigationBarItem(
-                                        selected = currentRoute == item.route,
+                                        selected = isSelected,
                                         onClick = {
-                                            if (currentRoute != item.route) {
+                                            if (!isSelected) {
                                                 navController.navigate(item.route) {
                                                     popUpTo(HOME_ROUTE) { saveState = true }
                                                     launchSingleTop = true
@@ -273,7 +288,8 @@ class MainActivity : ComponentActivity() {
                         context = LocalContext.current,
                         onFabChange = { newFab -> fab = newFab },
                         onActionsChange = { newActions -> extraActions = newActions ?: {} },
-                        onTitleChange = { newTitle -> screenTitle = newTitle }
+                        onTitleChange = { newTitle -> screenTitle = newTitle },
+                        onBottomBarVisibilityChange = { isBottomBarVisible = it }
                     )
                 }
 
