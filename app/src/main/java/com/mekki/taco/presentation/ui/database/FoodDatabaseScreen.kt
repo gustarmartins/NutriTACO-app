@@ -10,23 +10,28 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -82,13 +87,20 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.presentation.ui.components.FilterBottomSheet
 import com.mekki.taco.presentation.ui.search.FoodSortOption
@@ -97,6 +109,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
+import kotlin.math.roundToInt
 
 private val COLOR_KCAL = Color(0xFFA83C3C)
 private val COLOR_PROTEIN = Color(0xFF2E7A7A)
@@ -142,13 +155,6 @@ fun FoodDatabaseScreen(
 
     val currentIndex by remember {
         derivedStateOf { lazyListState.firstVisibleItemIndex }
-    }
-
-    val isAtTop by remember {
-        derivedStateOf {
-            lazyListState.firstVisibleItemIndex == 0 &&
-                    lazyListState.firstVisibleItemScrollOffset < 100
-        }
     }
 
     val isAtBottom by remember {
@@ -365,22 +371,27 @@ fun FoodDatabaseScreen(
                                     lazyListState.animateScrollToItem(totalItems - 1)
                                 }
 
-                                ScrollFabTarget.NONE -> { /* Won't happen */
-                                }
+                                ScrollFabTarget.NONE -> {}
                             }
                         }
                     },
+                    modifier = Modifier.size(40.dp),
                     containerColor = when (fabTarget) {
-                        ScrollFabTarget.TOP -> MaterialTheme.colorScheme.primaryContainer
-                        ScrollFabTarget.BOTTOM -> MaterialTheme.colorScheme.secondaryContainer
-                        ScrollFabTarget.NONE -> MaterialTheme.colorScheme.primaryContainer
+                        ScrollFabTarget.TOP -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
+                        ScrollFabTarget.BOTTOM -> MaterialTheme.colorScheme.secondaryContainer.copy(
+                            alpha = 0.85f
+                        )
+
+                        ScrollFabTarget.NONE -> MaterialTheme.colorScheme.primaryContainer.copy(
+                            alpha = 0.85f
+                        )
                     },
                     contentColor = when (fabTarget) {
                         ScrollFabTarget.TOP -> MaterialTheme.colorScheme.onPrimaryContainer
                         ScrollFabTarget.BOTTOM -> MaterialTheme.colorScheme.onSecondaryContainer
                         ScrollFabTarget.NONE -> MaterialTheme.colorScheme.onPrimaryContainer
                     },
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp)
                 ) {
                     Icon(
                         imageVector = when (fabTarget) {
@@ -392,7 +403,8 @@ fun FoodDatabaseScreen(
                             ScrollFabTarget.TOP -> "Ir ao topo"
                             ScrollFabTarget.BOTTOM -> "Ir ao fundo"
                             ScrollFabTarget.NONE -> null
-                        }
+                        },
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -423,40 +435,51 @@ fun FoodDatabaseScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = lazyListState,
-                    contentPadding = PaddingValues(bottom = 88.dp)
-                ) {
-                    itemsIndexed(uiState.foods, key = { _, food -> food.id }) { index, food ->
-                        FoodDatabaseItem(
-                            food = food,
-                            position = index + 1,
-                            totalCount = uiState.foods.size,
-                            portionGrams = portionGrams,
-                            sortOption = uiState.sortOption,
-                            onClick = { onFoodClick(food.id, portionGrams.toDouble()) }
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = lazyListState,
+                        contentPadding = PaddingValues(bottom = 88.dp, end = 16.dp)
+                    ) {
+                        itemsIndexed(uiState.foods, key = { _, food -> food.id }) { index, food ->
+                            FoodDatabaseItem(
+                                food = food,
+                                position = index + 1,
+                                totalCount = uiState.foods.size,
+                                portionGrams = portionGrams,
+                                sortOption = uiState.sortOption,
+                                onClick = { onFoodClick(food.id, portionGrams.toDouble()) }
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+                        }
 
-                    if (uiState.foods.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    "Nenhum alimento encontrado.",
-                                    color = MaterialTheme.colorScheme.outline
-                                )
+                        if (uiState.foods.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "Nenhum alimento encontrado.",
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
                             }
                         }
+                    }
+
+                    if (hasEnoughItems) {
+                        FastScrollBar(
+                            listState = lazyListState,
+                            foods = uiState.foods,
+                            sortOption = uiState.sortOption,
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        )
                     }
                 }
             }
@@ -1011,5 +1034,204 @@ private fun NutrientLabel(
             fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
             color = color
         )
+    }
+}
+
+private fun getNutrientValue(food: Food, sortOption: FoodSortOption): Double? {
+    return when (sortOption) {
+        FoodSortOption.CALORIES -> food.energiaKcal
+        FoodSortOption.PROTEIN -> food.proteina
+        FoodSortOption.CARBS -> food.carboidratos
+        FoodSortOption.FAT -> food.lipidios?.total
+        FoodSortOption.FIBER -> food.fibraAlimentar
+        FoodSortOption.CHOLESTEROL -> food.colesterol
+        FoodSortOption.SODIUM -> food.sodio
+        FoodSortOption.POTASSIUM -> food.potassio
+        FoodSortOption.CALCIUM -> food.calcio
+        FoodSortOption.MAGNESIUM -> food.magnesio
+        FoodSortOption.PHOSPHORUS -> food.fosforo
+        FoodSortOption.IRON -> food.ferro
+        FoodSortOption.ZINC -> food.zinco
+        FoodSortOption.COPPER -> food.cobre
+        FoodSortOption.MANGANESE -> food.manganes
+        FoodSortOption.VITAMIN_C -> food.vitaminaC
+        FoodSortOption.RETINOL -> food.retinol
+        FoodSortOption.THIAMINE -> food.tiamina
+        FoodSortOption.RIBOFLAVIN -> food.riboflavina
+        FoodSortOption.PYRIDOXINE -> food.piridoxina
+        FoodSortOption.NIACIN -> food.niacina
+        else -> null
+    }
+}
+
+private fun getScrollLabel(
+    foods: List<Food>,
+    index: Int,
+    sortOption: FoodSortOption
+): String {
+    if (foods.isEmpty() || index !in foods.indices) return ""
+    val food = foods[index]
+    return when (sortOption) {
+        FoodSortOption.NAME -> food.name.firstOrNull()?.uppercaseChar()?.toString() ?: ""
+        FoodSortOption.RELEVANCE -> "#${index + 1}"
+        else -> {
+            val value = getNutrientValue(food, sortOption)
+            if (value == null) "-"
+            else DecimalFormat("#.#").format(value)
+        }
+    }
+}
+
+@Composable
+private fun FastScrollBar(
+    listState: LazyListState,
+    foods: List<Food>,
+    sortOption: FoodSortOption,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val totalItems = foods.size
+
+    var isDragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableFloatStateOf(0f) }
+    var trackHeightPx by remember { mutableFloatStateOf(0f) }
+    var currentLabel by remember { mutableStateOf("") }
+    var lastLabel by remember { mutableStateOf("") }
+
+    val scrollFraction by remember {
+        derivedStateOf {
+            if (totalItems <= 1) 0f
+            else {
+                val firstVisible = listState.layoutInfo.visibleItemsInfo.firstOrNull()
+                    ?: return@derivedStateOf 0f
+                val itemFraction = firstVisible.index.toFloat() / (totalItems - 1).coerceAtLeast(1)
+                itemFraction.coerceIn(0f, 1f)
+            }
+        }
+    }
+
+    val displayFraction = if (isDragging) dragFraction else scrollFraction
+
+    val thumbRadiusPx = with(density) { 6.dp.toPx() }
+
+    val thumbOffsetY = remember(displayFraction, trackHeightPx) {
+        val usableHeight = trackHeightPx - thumbRadiusPx * 2
+        (displayFraction * usableHeight + thumbRadiusPx).roundToInt()
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(16.dp)
+            .padding(vertical = 8.dp)
+            .onGloballyPositioned { trackHeightPx = it.size.height.toFloat() }
+            .pointerInput(totalItems) {
+                detectVerticalDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        val usableHeight = trackHeightPx - thumbRadiusPx * 2
+                        val fraction = ((offset.y - thumbRadiusPx) / usableHeight).coerceIn(0f, 1f)
+                        dragFraction = fraction
+                        val targetIndex = (fraction * (totalItems - 1)).roundToInt()
+                            .coerceIn(0, totalItems - 1)
+                        val label = getScrollLabel(foods, targetIndex, sortOption)
+                        currentLabel = label
+                        if (label != lastLabel) {
+                            lastLabel = label
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                        scope.launch { listState.scrollToItem(targetIndex) }
+                    },
+                    onDragEnd = { isDragging = false },
+                    onDragCancel = { isDragging = false },
+                    onVerticalDrag = { change, _ ->
+                        change.consume()
+                        val usableHeight = trackHeightPx - thumbRadiusPx * 2
+                        val fraction = ((change.position.y - thumbRadiusPx) / usableHeight)
+                            .coerceIn(0f, 1f)
+                        dragFraction = fraction
+                        val targetIndex = (fraction * (totalItems - 1)).roundToInt()
+                            .coerceIn(0, totalItems - 1)
+                        val label = getScrollLabel(foods, targetIndex, sortOption)
+                        currentLabel = label
+                        if (label != lastLabel) {
+                            lastLabel = label
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                        scope.launch { listState.scrollToItem(targetIndex) }
+                    }
+                )
+            }
+    ) {
+        val dotCount = 5
+        val usableHeight = trackHeightPx - thumbRadiusPx * 2
+
+        for (i in 0 until dotCount) {
+            val dotFraction = i.toFloat() / (dotCount - 1)
+            val dotY = (dotFraction * usableHeight + thumbRadiusPx).roundToInt()
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset {
+                        IntOffset(0, dotY - with(density) { 1.5.dp.toPx().roundToInt() })
+                    }
+                    .size(3.dp)
+                    .clip(CircleShape)
+                    .background(
+                        MaterialTheme.colorScheme.outlineVariant.copy(
+                            alpha = if (isDragging) 0.7f else 0.4f
+                        )
+                    )
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset {
+                    IntOffset(0, thumbOffsetY - with(density) { 6.dp.toPx().roundToInt() })
+                }
+                .size(12.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isDragging) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                )
+        )
+
+        AnimatedVisibility(
+            visible = isDragging,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset {
+                    val bubbleSizePx = with(density) { 48.dp.toPx().roundToInt() }
+                    IntOffset(
+                        x = -bubbleSizePx - with(density) { 4.dp.toPx().roundToInt() },
+                        y = thumbOffsetY - bubbleSizePx / 2
+                    )
+                }
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = currentLabel,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontSize = if (currentLabel.length > 4) 10.sp else 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
