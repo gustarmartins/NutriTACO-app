@@ -133,16 +133,18 @@ fun DietListScreen(
         }
     }
 
-    onFabChange {
-        FloatingActionButton(onClick = onNavigateToCreateDiet) {
-            Icon(Icons.Filled.Add, contentDescription = "Criar Nova Dieta")
+    LaunchedEffect(Unit) {
+        onFabChange {
+            FloatingActionButton(onClick = onNavigateToCreateDiet) {
+                Icon(Icons.Filled.Add, contentDescription = "Criar Nova Dieta")
+            }
         }
-    }
-    onActionsChange {
-        TextButton(onClick = { importLauncher.launch("*/*") }) {
-            Icon(Icons.Filled.ArrowDownward, contentDescription = null)
-            Spacer(Modifier.width(4.dp))
-            Text("Importar", fontWeight = FontWeight.Medium)
+        onActionsChange {
+            TextButton(onClick = { importLauncher.launch("*/*") }) {
+                Icon(Icons.Filled.ArrowDownward, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
+                Text("Importar", fontWeight = FontWeight.Medium)
+            }
         }
     }
 

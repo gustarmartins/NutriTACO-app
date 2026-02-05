@@ -123,7 +123,9 @@ fun AppNavigation(
         ) { backStackEntry ->
             val importUri = backStackEntry.arguments?.getString("importUri")
 
-            onTitleChange("Dietas")
+            LaunchedEffect(Unit) {
+                onTitleChange("Dietas")
+            }
 
             LaunchedEffect(importUri) {
                 importUri?.let { encodedUri ->
