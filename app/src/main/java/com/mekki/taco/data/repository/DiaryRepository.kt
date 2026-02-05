@@ -97,6 +97,18 @@ class DiaryRepository @Inject constructor(
         dailyLogDao.deleteLog(log)
     }
 
+    suspend fun insertLog(log: DailyLog) {
+        dailyLogDao.insertLog(log)
+    }
+
+    suspend fun updateConsumedById(logId: Int, isConsumed: Boolean) {
+        dailyLogDao.updateConsumedById(logId, isConsumed)
+    }
+
+    suspend fun updatePortionById(logId: Int, quantity: Double) {
+        dailyLogDao.updatePortionById(logId, quantity)
+    }
+
     fun getLogsForDateRange(startDate: String, endDate: String): Flow<List<DailyLogWithFood>> {
         return dailyLogDao.getLogsForDateRange(startDate, endDate)
     }

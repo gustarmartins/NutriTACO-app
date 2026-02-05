@@ -42,4 +42,10 @@ interface DailyLogDao {
     @Transaction
     @Query("SELECT * FROM daily_log WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC, entryTimestamp ASC")
     fun getLogsForDateRange(startDate: String, endDate: String): Flow<List<DailyLogWithFood>>
+
+    @Query("UPDATE daily_log SET isConsumed = :isConsumed WHERE id = :logId")
+    suspend fun updateConsumedById(logId: Int, isConsumed: Boolean)
+
+    @Query("UPDATE daily_log SET quantityGrams = :quantity WHERE id = :logId")
+    suspend fun updatePortionById(logId: Int, quantity: Double)
 }
