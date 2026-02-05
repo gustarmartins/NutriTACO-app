@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -213,3 +214,132 @@ fun TimePickerDialog(
         }
     )
 }
+
+/**
+ * Drop zone placeholder for drag-and-drop reordering.
+ * Shows a dashed border with a circle icon indicating where items can be dropped.
+ *
+ * @param mealType The meal type this drop zone belongs to (used as key for reorderable)
+ * @param isEmpty Whether the meal section is empty (shows different text)
+ * @param isHighlighted Whether a dragged item is hovering over this zone
+ * @param modifier Modifier for the composable
+ */
+@Composable
+fun DropZonePlaceholder(
+    mealType: String,
+    isEmpty: Boolean = false,
+    isHighlighted: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (isHighlighted) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
+    }
+    val backgroundColor = if (isHighlighted) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+    }
+
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .background(
+                color = backgroundColor,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .dashedBorder(
+                color = borderColor,
+                shape = RoundedCornerShape(12.dp),
+                strokeWidth = 1.5.dp,
+                dashLength = 8.dp,
+                gapLength = 4.dp
+            )
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .background(
+                        color = borderColor.copy(alpha = 0.3f),
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            color = borderColor,
+                            shape = androidx.compose.foundation.shape.CircleShape
+                        )
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (isEmpty) "Arraste alimentos aqui" else "Soltar aqui",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isHighlighted) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Extension function to draw a dashed border around a composable.
+ */
+fun Modifier.dashedBorder(
+    color: androidx.compose.ui.graphics.Color,
+    shape: androidx.compose.ui.graphics.Shape,
+    strokeWidth: androidx.compose.ui.unit.Dp,
+    dashLength: androidx.compose.ui.unit.Dp,
+    gapLength: androidx.compose.ui.unit.Dp
+): Modifier = this.then(
+    Modifier.drawWithContent {
+        drawContent()
+        val strokeWidthPx = strokeWidth.toPx()
+        val dashLengthPx = dashLength.toPx()
+        val gapLengthPx = gapLength.toPx()
+
+        when (val outline = shape.createOutline(size, layoutDirection, this)) {
+            is androidx.compose.ui.graphics.Outline.Rectangle -> {
+                drawRoundRect(
+                    color = color,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = strokeWidthPx,
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            floatArrayOf(dashLengthPx, gapLengthPx),
+                            0f
+                        )
+                    )
+                )
+            }
+
+            is androidx.compose.ui.graphics.Outline.Rounded -> {
+                drawRoundRect(
+                    color = color,
+                    cornerRadius = outline.roundRect.topLeftCornerRadius,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = strokeWidthPx,
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            floatArrayOf(dashLengthPx, gapLengthPx),
+                            0f
+                        )
+                    )
+                )
+            }
+
+            else -> {}
+        }
+    }
+)
