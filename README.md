@@ -67,7 +67,7 @@ O projeto utiliza o que há de mais moderno no desenvolvimento Android, como:
 | **Banco de Dados**         | [Room](https://developer.android.com/training/data-storage/room) (SQLite) com FTS4   |
 | **IA - OCR**               | [ML Kit](https://developers.google.com/ml-kit) (Text Recognition)                    |
 | **IA - LLM**               | [Vertex AI (Firebase)](https://firebase.google.com/docs/vertex-ai)                   |
-| **Injeção de Dependência** | Factory Pattern                                                                      |
+| **Injeção de Dependência** | [Dagger Hilt](https://dagger.dev/hilt/)                                              |
 
 ---
 
