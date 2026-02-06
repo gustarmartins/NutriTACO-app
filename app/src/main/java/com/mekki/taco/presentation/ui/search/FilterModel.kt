@@ -1,7 +1,14 @@
 package com.mekki.taco.presentation.ui.search
 
 import android.os.Parcelable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Waves
+import androidx.compose.material.icons.outlined.Balance
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.mekki.taco.utils.NutrientesPorPorcao
 import kotlinx.parcelize.Parcelize
 
@@ -9,6 +16,7 @@ data class NutrientDisplayInfo(
     val label: String,
     val unit: String,
     val color: Color,
+    val icon: ImageVector = Icons.Outlined.Balance,
     val getValue: (NutrientesPorPorcao) -> Double?
 )
 
@@ -26,71 +34,88 @@ fun FoodSortOption.getNutrientDisplayInfo(): NutrientDisplayInfo? {
 
     return when (this) {
         FoodSortOption.FIBER -> NutrientDisplayInfo(
-            label = "Fibra", unit = "g", color = Color(0xFF8BC34A)
+            label = "Fibra", unit = "g", color = Color(0xFF8BC34A),
+            icon = Icons.Default.Spa
         ) { it.fibraAlimentar }
 
         FoodSortOption.CHOLESTEROL -> NutrientDisplayInfo(
-            label = "Colesterol", unit = "mg", color = Color(0xFFE57373)
+            label = "Colesterol", unit = "mg", color = Color(0xFFE57373),
+            icon = Icons.Default.Favorite
         ) { it.colesterol }
 
         FoodSortOption.SODIUM -> NutrientDisplayInfo(
-            label = "Sódio", unit = "mg", color = Color(0xFF26A69A)
+            label = "Sódio", unit = "mg", color = Color(0xFF26A69A),
+            icon = Icons.Default.Waves
         ) { it.sodio }
 
         FoodSortOption.POTASSIUM -> NutrientDisplayInfo(
-            label = "Potássio", unit = "mg", color = Color(0xFF42A5F5)
+            label = "Potássio", unit = "mg", color = Color(0xFF42A5F5),
+            icon = Icons.Outlined.Balance
         ) { it.potassio }
 
         FoodSortOption.CALCIUM -> NutrientDisplayInfo(
-            label = "Cálcio", unit = "mg", color = Color(0xFFECEFF1)
+            label = "Cálcio", unit = "mg", color = Color(0xFFECEFF1),
+            icon = Icons.Outlined.Balance
         ) { it.calcio }
 
         FoodSortOption.MAGNESIUM -> NutrientDisplayInfo(
-            label = "Magnésio", unit = "mg", color = Color(0xFF78909C)
+            label = "Magnésio", unit = "mg", color = Color(0xFF78909C),
+            icon = Icons.Outlined.Balance
         ) { it.magnesio }
 
         FoodSortOption.PHOSPHORUS -> NutrientDisplayInfo(
-            label = "Fósforo", unit = "mg", color = Color(0xFFFFB74D)
+            label = "Fósforo", unit = "mg", color = Color(0xFFFFB74D),
+            icon = Icons.Outlined.Balance
         ) { it.fosforo }
 
         FoodSortOption.IRON -> NutrientDisplayInfo(
-            label = "Ferro", unit = "mg", color = Color(0xFFBF360C)
+            label = "Ferro", unit = "mg", color = Color(0xFFBF360C),
+            icon = Icons.Outlined.Balance
         ) { it.ferro }
 
         FoodSortOption.ZINC -> NutrientDisplayInfo(
-            label = "Zinco", unit = "mg", color = Color(0xFF7E57C2)
+            label = "Zinco", unit = "mg", color = Color(0xFF7E57C2),
+            icon = Icons.Outlined.Balance
         ) { it.zinco }
 
         FoodSortOption.COPPER -> NutrientDisplayInfo(
-            label = "Cobre", unit = "mg", color = Color(0xFFD4A574)
+            label = "Cobre", unit = "mg", color = Color(0xFFD4A574),
+            icon = Icons.Outlined.Balance
         ) { it.cobre }
 
         FoodSortOption.MANGANESE -> NutrientDisplayInfo(
-            label = "Manganês", unit = "mg", color = Color(0xFF9E9E9E)
+            label = "Manganês", unit = "mg", color = Color(0xFF9E9E9E),
+            icon = Icons.Outlined.Balance
         ) { it.manganes }
 
         FoodSortOption.VITAMIN_C -> NutrientDisplayInfo(
-            label = "C", unit = "mg", color = Color(0xFFFFA726)
+            label = "C", unit = "mg", color = Color(0xFFFFA726),
+            icon = Icons.Default.Science
         ) { it.vitaminaC }
 
         FoodSortOption.RETINOL -> NutrientDisplayInfo(
-            label = "A", unit = "mcg", color = Color(0xFFAB47BC)
+            label = "A", unit = "mcg", color = Color(0xFFAB47BC),
+            icon = Icons.Default.Science
         ) { it.retinol }
 
         FoodSortOption.THIAMINE -> NutrientDisplayInfo(
-            label = "B1", unit = "mg", color = Color(0xFF66BB6A)
+            label = "B1", unit = "mg", color = Color(0xFF66BB6A),
+            icon = Icons.Default.Science
         ) { it.tiamina }
 
         FoodSortOption.RIBOFLAVIN -> NutrientDisplayInfo(
-            label = "B2", unit = "mg", color = Color(0xFF29B6F6)
+            label = "B2", unit = "mg", color = Color(0xFF29B6F6),
+            icon = Icons.Default.Science
         ) { it.riboflavina }
 
         FoodSortOption.PYRIDOXINE -> NutrientDisplayInfo(
-            label = "B6", unit = "mg", color = Color(0xFFEC407A)
+            label = "B6", unit = "mg", color = Color(0xFFEC407A),
+            icon = Icons.Default.Science
         ) { it.piridoxina }
 
         FoodSortOption.NIACIN -> NutrientDisplayInfo(
-            label = "B3", unit = "mg", color = Color(0xFF5C6BC0)
+            label = "B3", unit = "mg", color = Color(0xFF5C6BC0),
+            icon = Icons.Default.Science
         ) { it.niacina }
 
         else -> null

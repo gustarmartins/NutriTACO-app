@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -29,7 +30,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -37,9 +41,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -51,6 +57,15 @@ fun PortionControlInput(
 ) {
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
+
+    var textFieldValue by remember(portion) {
+        mutableStateOf(
+            TextFieldValue(
+                text = portion,
+                selection = TextRange(portion.length)
+            )
+        )
+    }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -90,41 +105,45 @@ fun PortionControlInput(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                BasicTextField(
-                    value = portion,
-                    onValueChange = { newValue ->
-                        if (newValue.length <= 4 && newValue.all { it.isDigit() || it == '.' }) {
-                            onPortionChange(newValue)
+            BasicTextField(
+                value = textFieldValue,
+                onValueChange = { newValue ->
+                    if (newValue.text.length <= 6 && newValue.text.all { it.isDigit() || it == '.' }) {
+                        textFieldValue = newValue
+                        onPortionChange(newValue.text)
+                    }
+                },
+                modifier = Modifier
+                    .focusRequester(focusRequester),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                maxLines = 1,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier.width(IntrinsicSize.Max),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Box(modifier = Modifier.weight(1f, fill = false)) {
+                            innerTextField()
                         }
-                    },
-                    modifier = Modifier
-                        .width(45.dp)
-                        .focusRequester(focusRequester),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.End
-                    ),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                    singleLine = true,
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary)
-                )
-
-                Text(
-                    text = "g",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 2.dp)
-                )
-            }
+                        Text(
+                            text = " g",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
         }
 
         IconButton(
