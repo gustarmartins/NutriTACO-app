@@ -106,6 +106,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -162,6 +163,7 @@ fun DiaryScreen(
 
     val selectedLogIds by viewModel.selectedLogIds.collectAsState()
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+    val dismissRevision by viewModel.dismissRevision.collectAsState()
 
     val viewMode by viewModel.viewMode.collectAsState()
     val weeklySummary by viewModel.weeklySummary.collectAsState()
@@ -230,6 +232,7 @@ fun DiaryScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val canUndo by viewModel.canUndo.collectAsState()
     val scope = rememberCoroutineScope()
+    var pendingDeleteCount by remember { mutableIntStateOf(0) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -241,11 +244,18 @@ fun DiaryScreen(
         viewModel.snackbarMessages.collect { message ->
             val isDeletionMessage = message.contains("removido")
             scope.launch {
+                val displayMessage = if (isDeletionMessage) {
+                    pendingDeleteCount++
+                    if (pendingDeleteCount > 1) "($pendingDeleteCount) $message" else message
+                } else {
+                    message
+                }
                 val result = snackbarHostState.showSnackbar(
-                    message = message,
+                    message = displayMessage,
                     actionLabel = if (isDeletionMessage && canUndo) "DESFAZER" else null,
                     duration = SnackbarDuration.Short
                 )
+                if (isDeletionMessage) pendingDeleteCount--
                 if (result == SnackbarResult.ActionPerformed) {
                     viewModel.undo()
                 }
@@ -591,7 +601,7 @@ fun DiaryScreen(
                                 }
                                 items(
                                     items = section.logs,
-                                    key = { "${it.log.id}_${it.log.isConsumed}" }
+                                    key = { "${it.log.id}_${it.log.isConsumed}_$dismissRevision" }
                                 ) { item ->
                                     val isConsumed = item.log.isConsumed
                                     val dismissState = rememberSwipeToDismissBoxState(

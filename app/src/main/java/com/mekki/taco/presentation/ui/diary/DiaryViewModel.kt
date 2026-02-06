@@ -114,6 +114,9 @@ class DiaryViewModel @Inject constructor(
     val canUndo = undoManager.canUndo
     val canRedo = undoManager.canRedo
 
+    private val _dismissRevision = MutableStateFlow(0)
+    val dismissRevision = _dismissRevision.asStateFlow()
+
     private val _snackbarMessages = Channel<String>(Channel.BUFFERED)
     val snackbarMessages = _snackbarMessages.receiveAsFlow()
 
@@ -668,6 +671,11 @@ class DiaryViewModel @Inject constructor(
         viewModelScope.launch {
             performUndo(action)
             undoManager.confirmUndo(action)
+            if (action is UndoableAction.DeleteDailyLog ||
+                action is UndoableAction.DeleteMultipleDailyLogs
+            ) {
+                _dismissRevision.value++
+            }
             _snackbarMessages.send("Desfeito: ${action.description}")
         }
     }
