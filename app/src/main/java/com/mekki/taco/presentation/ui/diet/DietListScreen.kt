@@ -133,7 +133,7 @@ fun DietListScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    DisposableEffect(Unit) {
         onFabChange {
             FloatingActionButton(onClick = onNavigateToCreateDiet) {
                 Icon(Icons.Filled.Add, contentDescription = "Criar Nova Dieta")
@@ -146,9 +146,6 @@ fun DietListScreen(
                 Text("Importar", fontWeight = FontWeight.Medium)
             }
         }
-    }
-
-    DisposableEffect(Unit) {
         onDispose {
             onFabChange(null)
             onActionsChange(null)

@@ -122,15 +122,15 @@ fun AppNavigation(
             )
         ) { backStackEntry ->
             val importUri = backStackEntry.arguments?.getString("importUri")
+            val alreadyImported = backStackEntry.savedStateHandle.get<Boolean>("import_processed") == true
 
-            LaunchedEffect(Unit) {
-                onTitleChange("Dietas")
-            }
+            onTitleChange("Dietas")
 
-            LaunchedEffect(importUri) {
-                importUri?.let { encodedUri ->
-                    val uri = android.net.Uri.parse(java.net.URLDecoder.decode(encodedUri, "UTF-8"))
+            LaunchedEffect(importUri, alreadyImported) {
+                if (importUri != null && !alreadyImported) {
+                    val uri = android.net.Uri.parse(java.net.URLDecoder.decode(importUri, "UTF-8"))
                     dietListViewModel.importDiet(uri)
+                    backStackEntry.savedStateHandle["import_processed"] = true
                 }
             }
 
@@ -333,11 +333,13 @@ fun AppNavigation(
             )
         ) { backStackEntry ->
             val importUri = backStackEntry.arguments?.getString("importUri")
+            val alreadyImported = backStackEntry.savedStateHandle.get<Boolean>("import_processed") == true
 
-            LaunchedEffect(importUri) {
-                importUri?.let { encodedUri ->
-                    val uri = android.net.Uri.parse(java.net.URLDecoder.decode(encodedUri, "UTF-8"))
+            LaunchedEffect(importUri, alreadyImported) {
+                if (importUri != null && !alreadyImported) {
+                    val uri = android.net.Uri.parse(java.net.URLDecoder.decode(importUri, "UTF-8"))
                     settingsViewModel.onImportDataFromIntent(uri)
+                    backStackEntry.savedStateHandle["import_processed"] = true
                 }
             }
 
