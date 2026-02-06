@@ -44,17 +44,17 @@ class DietSharingManager @Inject constructor(
         try {
             Log.d(TAG, "Starting export for diet $dietId")
 
-            // 1. Load diet with all items
             val dietWithItems = db.dietDao().getDietWithItemsById(dietId).first()
                 ?: return@withContext ExportResult.Error("Dieta não encontrada")
 
-            // 2. Collect all foods used in this diet
             val foodIds = dietWithItems.items.map { it.food.id }.distinct()
             val foods = foodIds.mapNotNull { id ->
                 db.foodDao().getFoodByIdSync(id)
             }
 
-            // 3. Separate custom foods (to be included) from official foods
+            // Only custom foods are embedded — official sources will exist on every device
+            // If it does not, we might evaluate whether we want future beta / stable versions
+            // To have backwards compatibility with diet sharing (I don't see why it should during beta)
             val customFoods = foods.filter { it.isCustom }
             val officialFoods = foods.filter { !it.isCustom }
 
@@ -63,7 +63,6 @@ class DietSharingManager @Inject constructor(
                 "Diet has ${foods.size} foods: ${customFoods.size} custom, ${officialFoods.size} official"
             )
 
-            // 4. Build shared diet entries
             val entries = dietWithItems.items.map { item ->
                 SharedDietEntry(
                     foodRef = FoodReference.fromFood(item.food),
@@ -73,7 +72,6 @@ class DietSharingManager @Inject constructor(
                 )
             }
 
-            // 5. Build the SharedDiet object
             val sharedDiet = SharedDiet(
                 diet = SharedDietInfo(
                     name = dietWithItems.diet.name,
@@ -84,7 +82,6 @@ class DietSharingManager @Inject constructor(
                 customFoods = customFoods.map { SharedFood.fromFood(it) }
             )
 
-            // 6. Serialize to JSON
             val json = gson.toJson(sharedDiet)
             val fileName =
                 "${sanitizeFileName(dietWithItems.diet.name)}.${SharedDiet.FILE_EXTENSION}"
@@ -121,6 +118,8 @@ class DietSharingManager @Inject constructor(
     }
 
     // ==================== IMPORT ====================
+    
+    private val MAX_FILE_SIZE = 5 * 1024 * 1024L
 
     /**
      * @param uri File URI (from SAF or content provider)
@@ -135,39 +134,40 @@ class DietSharingManager @Inject constructor(
         try {
             Log.d(TAG, "Starting import from $uri")
 
-            // 1. Read and parse JSON
-            val json = readJsonFromUri(uri)
-                ?: return@withContext ImportResult.Error("Não foi possível ler o arquivo")
+            // Size-checked + streamed parse (never loads raw string into memory)
+            val sharedDiet = parseSecurely(uri)
+                ?: return@withContext ImportResult.Error("Falha ao ler o arquivo ou arquivo inválido")
 
-            val sharedDiet = parseSharedDiet(json)
-                ?: return@withContext ImportResult.Error("Formato de arquivo inválido")
+            // External file = untrusted input
+            try {
+                validateDietIntegrity(sharedDiet)
+            } catch (e: Exception) {
+                Log.e(TAG, "Validation failed", e)
+                return@withContext ImportResult.Error("Arquivo corrompido ou inseguro: ${e.message}")
+            }
 
             Log.d(
                 TAG,
                 "Parsed diet: ${sharedDiet.diet.name} with ${sharedDiet.entries.size} entries"
             )
 
-            // 2. Import in a transaction
             var importedDiet: Diet? = null
             var itemsImported = 0
             var customFoodsImported = 0
             var customFoodsSkipped = 0
 
             db.withTransaction {
-                // 2a. Import custom foods first
+                // Custom foods must be imported before diet items so we can resolve their IDs
                 val uuidToLocalId = mutableMapOf<String, Int>()
 
                 for (sharedFood in sharedDiet.customFoods) {
                     val existingFood = db.foodDao().getFoodByUuid(sharedFood.uuid)
 
                     if (existingFood != null) {
-                        // Food already exists locally
-                        // (Highly unlikely in most cases, but possible if the user tries to import their own previously exported diet)
                         when (conflictResolution) {
                             ConflictResolution.KEEP_LOCAL -> {
                                 uuidToLocalId[sharedFood.uuid] = existingFood.id
                                 customFoodsSkipped++
-                                Log.d(TAG, "Keeping local food: ${existingFood.name}")
                             }
 
                             ConflictResolution.REPLACE_WITH_INCOMING -> {
@@ -175,11 +175,10 @@ class DietSharingManager @Inject constructor(
                                 db.foodDao().updateFood(updatedFood)
                                 uuidToLocalId[sharedFood.uuid] = existingFood.id
                                 customFoodsImported++
-                                Log.d(TAG, "Replaced food: ${sharedFood.name}")
                             }
 
                             ConflictResolution.KEEP_BOTH -> {
-                                // Insert as new with different UUID
+                                // New UUID so both copies can coexist without collisions
                                 val newUuid = UUID.randomUUID().toString()
                                 val newFood = sharedFood.toFood().copy(
                                     uuid = newUuid,
@@ -189,7 +188,6 @@ class DietSharingManager @Inject constructor(
                                 val newId = db.foodDao().insertFood(newFood).toInt()
                                 uuidToLocalId[sharedFood.uuid] = newId
                                 customFoodsImported++
-                                Log.d(TAG, "Created duplicate: ${newFood.name}")
                             }
 
                             ConflictResolution.ASK_USER -> {
@@ -202,7 +200,6 @@ class DietSharingManager @Inject constructor(
                         val newId = db.foodDao().insertFood(newFood).toInt()
                         uuidToLocalId[sharedFood.uuid] = newId
                         customFoodsImported++
-                        Log.d(TAG, "Imported new food: ${sharedFood.name} -> ID $newId")
                     }
                 }
                 val officialTacoIds = sharedDiet.entries
@@ -213,7 +210,7 @@ class DietSharingManager @Inject constructor(
                 val officialFoods = db.foodDao().getFoodsByTacoIds(officialTacoIds)
                 val tacoIdToLocalId = officialFoods.associate { it.tacoID to it.id }
 
-                // 2b. Creates the diet
+                // Imported diets are never main — user decides which one to set
                 val dietToInsert = Diet(
                     id = 0,
                     name = newDietName ?: generateUniqueDietName(sharedDiet.diet.name),
@@ -224,9 +221,6 @@ class DietSharingManager @Inject constructor(
                 val newDietId = db.dietDao().insertOrReplaceDiet(dietToInsert).toInt()
                 importedDiet = dietToInsert.copy(id = newDietId)
 
-                Log.d(TAG, "Created diet: ${importedDiet?.name} with ID $newDietId")
-
-                // 2c. Create diet items
                 val dietItems = sharedDiet.entries.mapNotNull { entry ->
                     val localFoodId = resolveFoodId(entry.foodRef, uuidToLocalId, tacoIdToLocalId)
 
@@ -240,7 +234,6 @@ class DietSharingManager @Inject constructor(
                             consumptionTime = entry.consumptionTime
                         )
                     } else {
-                        Log.w(TAG, "Could not resolve food for entry: ${entry.foodRef}")
                         null
                     }
                 }
@@ -249,8 +242,6 @@ class DietSharingManager @Inject constructor(
                     db.dietItemDao().insertDietItems(dietItems)
                     itemsImported = dietItems.size
                 }
-
-                Log.d(TAG, "Imported $itemsImported diet items")
             }
 
             ImportResult.Success(
@@ -268,26 +259,54 @@ class DietSharingManager @Inject constructor(
 
     // ==================== HELPERS ====================
 
-    private fun readJsonFromUri(uri: Uri): String? {
+    private fun parseSecurely(uri: Uri): SharedDiet? {
+        // Size check throws (not caught here) so the caller gets the specific error message
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+            if (pfd.statSize > MAX_FILE_SIZE) {
+                throw Exception("Arquivo muito grande (Lim: 5MB)")
+            }
+        }
+        // Parse errors return null — the caller shows a generic "invalid file" message
         return try {
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 InputStreamReader(inputStream, Charsets.UTF_8).use { reader ->
-                    reader.readText()
+                    gson.fromJson(reader, SharedDiet::class.java)
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to read file", e)
+            Log.e(TAG, "Secure parse failed", e)
             null
         }
     }
 
-    private fun parseSharedDiet(json: String): SharedDiet? {
-        return try {
-            gson.fromJson(json, SharedDiet::class.java)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse JSON", e)
-            null
+    private fun validateDietIntegrity(sharedDiet: SharedDiet) {
+        if (sharedDiet.diet.name.length > 100) throw Exception("Nome da dieta muito longo")
+
+        if (sharedDiet.entries.size > 500) throw Exception("Muitos itens na dieta (Max: 500)")
+        if (sharedDiet.customFoods.size > 200) throw Exception("Muitos alimentos customizados (Max: 200)")
+
+        sharedDiet.entries.forEach { entry ->
+            if (entry.quantityGrams < 0 || entry.quantityGrams > 5000) 
+                 throw Exception("Quantidade inválida para item")
+            if ((entry.mealType?.length ?: 0) > 50) throw Exception("Tipo de refeição inválido")
+            if ((entry.consumptionTime?.length ?: 0) > 20) throw Exception("Horário inválido")
         }
+
+        sharedDiet.customFoods.forEach { food ->
+            if (food.name.length > 200) throw Exception("Nome de alimento muito longo: ${food.name.take(30)}")
+            if (food.category.length > 100) throw Exception("Categoria muito longa")
+            if (food.uuid.length > 60) throw Exception("UUID inválido")
+            validateNutrientValue(food.energiaKcal, "energiaKcal", 20000.0)
+            validateNutrientValue(food.proteina, "proteína", 1000.0)
+            validateNutrientValue(food.carboidratos, "carboidratos", 1000.0)
+            validateNutrientValue(food.colesterol, "colesterol", 5000.0)
+        }
+    }
+
+    private fun validateNutrientValue(value: Double?, name: String, max: Double) {
+        if (value == null) return
+        if (value.isNaN() || value.isInfinite()) throw Exception("Valor numérico inválido em $name")
+        if (value < 0 || value > max) throw Exception("Valor fora do intervalo para $name")
     }
 
     private fun resolveFoodId(
@@ -352,13 +371,15 @@ class DietSharingManager @Inject constructor(
 
     fun detectFileType(uri: Uri): NutriTacoFileType {
         return try {
-            // Check file extension first as a hint
             val path = uri.path ?: uri.lastPathSegment ?: ""
             if (path.endsWith(".dieta", ignoreCase = true)) {
                 return NutriTacoFileType.DIET
             }
 
-            val json = readJsonFromUri(uri) ?: return NutriTacoFileType.UNKNOWN
+            // No extension match — peek at JSON keys to figure out the format
+            val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                InputStreamReader(inputStream, Charsets.UTF_8).use { it.readText() }
+            } ?: return NutriTacoFileType.UNKNOWN
 
             when {
                 json.contains("\"diet\"") && json.contains("\"entries\"") -> NutriTacoFileType.DIET

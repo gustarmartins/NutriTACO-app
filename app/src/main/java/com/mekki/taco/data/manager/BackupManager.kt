@@ -38,7 +38,7 @@ data class BackupData(
     val waterLogs: List<DailyWaterLog>
 )
 
-// Backup versions of entities using tacoID instead of internal ID for stability
+// Internal IDs change across installs/devices, tacoID is stable across backups
 data class DietItemBackup(
     val dietId: Int,
     val foodTacoId: String,
@@ -75,7 +75,6 @@ class BackupManager @Inject constructor(
         try {
             Log.d(TAG, "Starting export...")
 
-            // Fetch all data
             val profile = userProfileRepository.userProfileFlow.firstOrNull()
             val customFoods = db.foodDao().getAllCustomFoods()
             val allFoods = db.foodDao().getAllFoods().first()
@@ -84,10 +83,9 @@ class BackupManager @Inject constructor(
             val rawLogs = db.dailyLogDao().getAllLogs()
             val waterLogs = db.dailyWaterLogDao().getAllWaterLogs()
 
-            // Build Maps for ID resolution
+            // We store tacoID in the backup because internal IDs won't match on restore
             val foodIdToTacoId = allFoods.associate { it.id to it.tacoID }
 
-            // transform Data
             val dietItemsBackup = rawDietItems.mapNotNull { item ->
                 val tacoId = foodIdToTacoId[item.foodId]
                 if (tacoId != null) {
@@ -131,7 +129,6 @@ class BackupManager @Inject constructor(
                 waterLogs = waterLogs
             )
 
-            // 4. Write to file
             val json = gson.toJson(backup)
 
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
@@ -148,21 +145,25 @@ class BackupManager @Inject constructor(
         }
     }
 
+    private val MAX_BACKUP_SIZE = 50 * 1024 * 1024L
+
     suspend fun importData(uri: Uri, merge: Boolean = false): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
                 Log.d(TAG, "Starting import... Merge=$merge")
 
-                // 1. Read JSON
-                val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    InputStreamReader(inputStream).use { reader ->
-                        reader.readText()
-                    }
-                } ?: throw Exception("Could not open input stream for URI: $uri")
+                // Size-checked + streamed parse (never loads raw string into memory)
+                val backup = parseSecurely(uri)
+                    ?: throw Exception("Falha ao ler o backup ou arquivo inválido")
 
-                val backup = gson.fromJson(json, BackupData::class.java)
+                // External file = untrusted input, reject anything suspicious before touching DB
+                try {
+                    validateBackupIntegrity(backup)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Validation failed", e)
+                    return@withContext Result.failure(Exception("Arquivo de backup corrompido ou inseguro: ${e.message}"))
+                }
 
-                // 2. Transactional Restore
                 db.withTransaction {
                     if (!merge) {
                         // WIPES USER DATA
@@ -174,17 +175,14 @@ class BackupManager @Inject constructor(
                         db.foodDao().deleteCustomFoods()
                     }
 
-                    // Restore Custom Foods & Build Map (TacoID -> New ID)
                     Log.d(TAG, "Restoring custom foods...")
                     val customFoodMapping = mutableMapOf<String, Int>()
 
                     backup.customFoods.forEach { food ->
-                        // 1. Heal missing UUIDs from older backups
+                        // Older backups didn't have uuid field, try to recover it from tacoID
                         var targetUuid = food.uuid
                         if (targetUuid == null && food.tacoID.startsWith("CUSTOM-")) {
-                            // Extract UUID from tacoID if possible (CUSTOM-uuid-string...)
                             targetUuid = food.tacoID.removePrefix("CUSTOM-")
-                            // Validate it's a UUID, otherwise keep null to trigger generation
                             if (targetUuid.length < 32) targetUuid = null
                         }
 
@@ -194,23 +192,16 @@ class BackupManager @Inject constructor(
 
                         val foodWithUuid = food.copy(uuid = targetUuid)
 
-                        // 2. Check if we already have this food by UUID to prevent duplication
                         val existingByUuid = db.foodDao().getFoodByUuid(targetUuid)
 
                         if (existingByUuid != null) {
-                            Log.d(TAG, "Skipping duplicate custom food (UUID match): ${food.name}")
                             customFoodMapping[food.tacoID] = existingByUuid.id
                         } else {
-                            // 3. Check for tacoID collisions (same ID, different UUID)
                             val existingByTacoId = db.foodDao().getFoodByTacoIDSuspend(food.tacoID)
 
                             val finalFoodToInsert = if (existingByTacoId != null) {
-                                // Collision detected. Rename tacoID but keep our resolved UUID
+                                // Same tacoID but different UUID = different food, rename to avoid collision
                                 val newTacoID = "CUSTOM-$targetUuid"
-                                Log.d(
-                                    TAG,
-                                    "TacoID collision for ${food.name}. Renaming ${food.tacoID} -> $newTacoID"
-                                )
                                 foodWithUuid.copy(tacoID = newTacoID, id = 0, isCustom = true)
                             } else {
                                 foodWithUuid.copy(id = 0, isCustom = true)
@@ -221,17 +212,16 @@ class BackupManager @Inject constructor(
                         }
                     }
 
-                    // Refresh Food Map (All foods now in DB)
-                    // We need this to resolve tacoID -> ID for both custom and official foods
+                    // Rebuild after custom food inserts so we can resolve both custom + official tacoIDs
                     val allFoods = db.foodDao().getAllFoods().first()
                     val standardFoodMap = allFoods.associate { it.tacoID to it.id }
 
-                    // We want to look up in custom mapping first (resolves collisions), then standard map
+                    // customFoodMapping overrides standardFoodMap for renamed tacoIDs
                     val tacoIdToNewId = standardFoodMap + customFoodMapping
 
-                    // Restore Diets
                     Log.d(TAG, "Restoring diets...")
                     val oldDietIdToNewId = mutableMapOf<Int, Int>()
+                    // Only one diet can be main — don't override the user's existing main on merge
                     val hasExistingMainDiet = if (merge) {
                         db.dietDao().getAllDietsList().any { it.isMain }
                     } else false
@@ -246,7 +236,6 @@ class BackupManager @Inject constructor(
                         oldDietIdToNewId[oldId] = newId
                     }
 
-                    // Restore Diet Items
                     Log.d(TAG, "Restoring diet items...")
                     val newDietItems = backup.dietItems.mapNotNull { item ->
                         val newDietId = oldDietIdToNewId[item.dietId]
@@ -262,10 +251,6 @@ class BackupManager @Inject constructor(
                                 consumptionTime = item.consumptionTime
                             )
                         } else {
-                            Log.w(
-                                TAG,
-                                "Skipping DietItem. DietFound=${newDietId != null}, FoodFound=${newFoodId != null} (TacoID: ${item.foodTacoId})"
-                            )
                             null
                         }
                     }
@@ -273,33 +258,24 @@ class BackupManager @Inject constructor(
                         db.dietItemDao().insertDietItems(newDietItems)
                     }
 
-                    // Restore Logs
                     Log.d(TAG, "Restoring daily logs...")
                     val newLogs = backup.dailyLogs.mapNotNull { log ->
                         val newFoodId = tacoIdToNewId[log.foodTacoId]
-                        if (newFoodId != null) {
+                        newFoodId?.let {
                             DailyLog(
                                 id = 0,
-                                foodId = newFoodId,
+                                foodId = it,
                                 date = log.date,
                                 quantityGrams = log.quantityGrams,
                                 mealType = log.mealType,
                                 isConsumed = log.isConsumed,
                                 originalQuantityGrams = log.originalQuantityGrams
                             )
-                        } else {
-                            Log.w(TAG, "Skipping DailyLog. Food not found: ${log.foodTacoId}")
-                            null
                         }
-                    }
-                    if (newLogs.isNotEmpty()) {
-                        db.dailyLogDao().insertAll(newLogs)
-                    }
+                    }.let { if (it.isNotEmpty()) db.dailyLogDao().insertAll(it) }
 
-                    // Restore Water
                     Log.d(TAG, "Restoring water logs...")
                     if (merge) {
-                        // In merge mode, we don't overwrite existing days.
                         val existingWaterDates =
                             db.dailyWaterLogDao().getAllWaterLogs().map { it.date }.toSet()
                         backup.waterLogs.forEach { log ->
@@ -314,11 +290,10 @@ class BackupManager @Inject constructor(
                     }
                 }
 
-                // Restore Profile (outside transaction)
+                // Profile is saved via DataStore, not Room — can't be inside the transaction
                 if (!merge && backup.userProfile != null) {
                     userProfileRepository.saveProfile(backup.userProfile)
                 } else if (merge) {
-                    // In merge, we ignore profile import to preserve user data.
                     Log.d(TAG, "Merge mode: Skipping UserProfile import.")
                 }
 
@@ -329,6 +304,71 @@ class BackupManager @Inject constructor(
                 Result.failure(e)
             }
         }
+
+    private fun parseSecurely(uri: Uri): BackupData? {
+        // Size check throws (not caught here) so the caller gets the specific error message
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+            if (pfd.statSize > MAX_BACKUP_SIZE) {
+                throw Exception("Arquivo de backup muito grande (Lim: 50MB)")
+            }
+        }
+        // Parse errors return null — the caller shows a generic "invalid file" message
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                InputStreamReader(inputStream, Charsets.UTF_8).use { reader ->
+                    gson.fromJson(reader, BackupData::class.java)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Secure parse failed", e)
+            null
+        }
+    }
+
+    private fun validateBackupIntegrity(backup: BackupData) {
+        if (backup.dailyLogs.size > 50000) throw Exception("Excesso de registros diários no backup (>50k)")
+        if (backup.diets.size > 500) throw Exception("Excesso de dietas no backup (>500)")
+        if (backup.dietItems.size > 10000) throw Exception("Excesso de itens de dieta no backup (>10k)")
+        if (backup.customFoods.size > 2000) throw Exception("Excesso de alimentos customizados (>2k)")
+        if (backup.waterLogs.size > 50000) throw Exception("Excesso de registros de água (>50k)")
+
+        backup.diets.forEach { diet ->
+            if (diet.name.length > 100) throw Exception("Nome de dieta muito longo")
+        }
+
+        backup.dailyLogs.forEach { log ->
+            if (log.quantityGrams < 0 || log.quantityGrams > 50000)
+                throw Exception("Quantidade inválida em registro diário")
+            if (log.mealType.length > 50) throw Exception("Tipo de refeição inválido")
+            if (log.date.length > 20) throw Exception("Data inválida em registro")
+            if (log.foodTacoId.length > 100) throw Exception("Referência de alimento inválida")
+        }
+
+        backup.dietItems.forEach { item ->
+            if (item.quantityGrams < 0 || item.quantityGrams > 50000)
+                throw Exception("Quantidade inválida em item de dieta")
+            if (item.foodTacoId.length > 100) throw Exception("Referência de alimento inválida")
+            if ((item.mealType?.length ?: 0) > 50) throw Exception("Tipo de refeição inválido")
+            if ((item.consumptionTime?.length ?: 0) > 20) throw Exception("Horário inválido")
+        }
+
+        backup.customFoods.forEach { food ->
+            if (food.name.length > 200) throw Exception("Nome de alimento muito longo: ${food.name.take(30)}")
+            if (food.category.length > 100) throw Exception("Categoria muito longa")
+            if ((food.uuid?.length ?: 0) > 60) throw Exception("UUID inválido")
+            if (food.tacoID.length > 100) throw Exception("TacoID inválido")
+            validateNutrientValue(food.energiaKcal, "energiaKcal", 20000.0)
+            validateNutrientValue(food.proteina, "proteína", 1000.0)
+            validateNutrientValue(food.carboidratos, "carboidratos", 1000.0)
+            validateNutrientValue(food.colesterol, "colesterol", 5000.0)
+        }
+    }
+
+    private fun validateNutrientValue(value: Double?, name: String, max: Double) {
+        if (value == null) return
+        if (value.isNaN() || value.isInfinite()) throw Exception("Valor numérico inválido em $name")
+        if (value < 0 || value > max) throw Exception("Valor fora do intervalo para $name")
+    }
 
     suspend fun createRevertPoint(): File? = withContext(Dispatchers.IO) {
         try {
@@ -482,7 +522,7 @@ class BackupManager @Inject constructor(
     }
 
     private fun cleanOldRevertPoints() {
-        val existing = getRevertPoints()
+        val existing = getRevertPoints() // already sorted newest-first
         existing.drop(2).forEach { revertPoint ->
             revertPoint.file.delete()
             Log.d(TAG, "Deleted old revert point: ${revertPoint.file.name}")
