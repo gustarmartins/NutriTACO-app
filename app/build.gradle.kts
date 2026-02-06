@@ -82,9 +82,6 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.runtime)
-    implementation(libs.androidx.compose.ui.text)
-    implementation(libs.androidx.compose.foundation.layout)
-    implementation(libs.androidx.compose.material3)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.kotlin)

@@ -26,7 +26,6 @@ datastore = "1.2.0"
 # UI utilities
 reorderable = "3.0.0"
 ksp = "2.3.2"
-uiText = "1.10.2"
 
 # AI features
 camerax = "1.5.3"
@@ -42,9 +41,6 @@ gms-google-services = "4.4.4"
 gson = "2.13.2"
 
 desugar_jdk_libs = "2.1.5"
-foundationLayout = "1.10.2"
-material3 = "1.4.0"
-# media3Transformer = "1.9.1"
 
 # Hilt
 hilt = "2.59"
@@ -70,6 +66,7 @@ coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-
 
 # Compose BOM
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "compose-bom" }
+compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
@@ -96,7 +93,6 @@ datastore-preferences = { group = "androidx.datastore", name = "datastore-prefer
 
 # 3rd party
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
-androidx-compose-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "uiText" }
 
 # CameraX
 camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
@@ -123,8 +119,6 @@ coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-co
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
-androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
-androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 
 # Hilt
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
@@ -134,10 +128,12 @@ androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navig
 # Glance (Widgets)
 glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 
+
 [bundles]
 compose-core = [
     "compose-material3",
     "compose-ui",
+    "compose-foundation",
     "compose-ui-tooling-preview",
     "compose-material-icons-core",
     "compose-material-icons-extended",
