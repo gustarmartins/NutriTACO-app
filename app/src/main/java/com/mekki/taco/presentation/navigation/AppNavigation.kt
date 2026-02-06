@@ -305,11 +305,21 @@ fun AppNavigation(
             )
         }
 
-        composable(FOOD_DATABASE_ROUTE) {
+        composable(
+            route = "$FOOD_DATABASE_ROUTE?autoFocus={autoFocus}",
+            arguments = listOf(
+                navArgument("autoFocus") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
             onFabChange(null)
+            val autoFocus = backStackEntry.arguments?.getBoolean("autoFocus") ?: false
             val viewModel: FoodDatabaseViewModel = hiltViewModel()
             FoodDatabaseScreen(
                 viewModel = viewModel,
+                autoFocusSearch = autoFocus,
                 onNavigateBack = { navController.popBackStack() },
                 onFoodClick = { foodId, portion ->
                     val portionArg = if (portion != null) "?initialPortion=$portion" else ""

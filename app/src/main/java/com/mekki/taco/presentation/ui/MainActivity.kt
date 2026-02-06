@@ -1,5 +1,6 @@
 package com.mekki.taco.presentation.ui
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -50,9 +51,7 @@ import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.theme.NutriTACOTheme
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -61,7 +60,7 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var dietSharingManager: DietSharingManager
 
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var widgetSearchTrigger by mutableStateOf(0)
 
     companion object {
         private const val TAG = "MainActivity_TACO"
@@ -69,6 +68,14 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_OPEN_FOOD_DETAIL = "extra_open_food_detail"
         const val EXTRA_IMPORT_FILE_URI = "extra_import_file_uri"
         const val EXTRA_IMPORT_FILE_TYPE = "extra_import_file_type"
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_SEARCH, false)) {
+            intent.removeExtra(EXTRA_OPEN_SEARCH)
+            widgetSearchTrigger++
+        }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -125,16 +132,22 @@ class MainActivity : ComponentActivity() {
                     when {
                         openFoodId > 0 -> {
                             navController.navigate("food_detail/$openFoodId") {
-                                popUpTo("home") { saveState = true }
                                 launchSingleTop = true
                             }
                         }
 
                         openSearch -> {
-                            navController.navigate("food_database") {
-                                popUpTo("home") { saveState = true }
+                            navController.navigate("food_database?autoFocus=true") {
                                 launchSingleTop = true
                             }
+                        }
+                    }
+                }
+
+                androidx.compose.runtime.LaunchedEffect(widgetSearchTrigger) {
+                    if (widgetSearchTrigger > 0) {
+                        navController.navigate("food_database?autoFocus=true") {
+                            launchSingleTop = true
                         }
                     }
                 }
@@ -191,7 +204,7 @@ class MainActivity : ComponentActivity() {
                     currentRoute?.startsWith("diet_detail") == true -> false
                     currentRoute == "home" -> false
                     currentRoute == "diary" -> false
-                    currentRoute == FOOD_DATABASE_ROUTE -> false
+                    currentRoute?.startsWith(FOOD_DATABASE_ROUTE) == true -> false
                     else -> true
                 }
 
@@ -199,7 +212,7 @@ class MainActivity : ComponentActivity() {
                     currentRoute == "home" -> true
                     currentRoute?.startsWith("diet_list") == true -> true
                     currentRoute == "diary" -> true
-                    currentRoute == FOOD_DATABASE_ROUTE -> true
+                    currentRoute?.startsWith(FOOD_DATABASE_ROUTE) == true -> true
                     else -> false
                 }
                 var isBottomBarVisible by remember { mutableStateOf(true) }

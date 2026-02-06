@@ -24,6 +24,8 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
@@ -53,42 +55,55 @@ class FoodSearchWidget : GlanceAppWidget() {
                     Box(
                         modifier = GlanceModifier
                             .fillMaxSize()
-                            .background(GlanceTheme.colors.surfaceVariant)
-                            .cornerRadius(28.dp)
                             .clickable(actionRunCallback<OpenSearchAction>()),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            provider = ImageProvider(R.drawable.ic_search_widget),
-                            contentDescription = "Buscar alimentos",
-                            modifier = GlanceModifier.size(28.dp)
-                        )
+                        Box(
+                            modifier = GlanceModifier
+                                .size(36.dp)
+                                .background(GlanceTheme.colors.surfaceVariant)
+                                .cornerRadius(18.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                provider = ImageProvider(R.drawable.ic_search_widget),
+                                contentDescription = "Buscar alimentos",
+                                modifier = GlanceModifier.size(20.dp)
+                            )
+                        }
                     }
                 } else {
-                    Row(
+                    Box(
                         modifier = GlanceModifier
                             .fillMaxSize()
-                            .background(GlanceTheme.colors.surfaceVariant)
-                            .cornerRadius(28.dp)
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
                             .clickable(actionRunCallback<OpenSearchAction>()),
-                        verticalAlignment = Alignment.CenterVertically
+                        contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            provider = ImageProvider(R.drawable.ic_search_widget),
-                            contentDescription = null,
-                            modifier = GlanceModifier.size(24.dp)
-                        )
+                        Row(
+                            modifier = GlanceModifier
+                                .fillMaxWidth()
+                                .height(36.dp)
+                                .background(GlanceTheme.colors.surfaceVariant)
+                                .cornerRadius(18.dp)
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                provider = ImageProvider(R.drawable.ic_search_widget),
+                                contentDescription = null,
+                                modifier = GlanceModifier.size(20.dp)
+                            )
 
-                        Spacer(modifier = GlanceModifier.width(12.dp))
+                            Spacer(modifier = GlanceModifier.width(12.dp))
 
-                        Text(
-                            text = "Buscar alimentos...",
-                            style = TextStyle(
-                                color = GlanceTheme.colors.onSurfaceVariant
-                            ),
-                            modifier = GlanceModifier.defaultWeight()
-                        )
+                            Text(
+                                text = "Buscar alimentos...",
+                                style = TextStyle(
+                                    color = GlanceTheme.colors.onSurfaceVariant
+                                ),
+                                modifier = GlanceModifier.defaultWeight()
+                            )
+                        }
                     }
                 }
             }
@@ -103,7 +118,7 @@ class OpenSearchAction : ActionCallback {
         parameters: ActionParameters
     ) {
         val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(MainActivity.EXTRA_OPEN_SEARCH, true)
         }
         context.startActivity(intent)

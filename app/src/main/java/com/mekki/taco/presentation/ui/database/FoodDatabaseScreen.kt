@@ -135,6 +135,7 @@ private enum class ScrollFabTarget {
 @Composable
 fun FoodDatabaseScreen(
     viewModel: FoodDatabaseViewModel,
+    autoFocusSearch: Boolean = false,
     onNavigateBack: () -> Unit,
     onFoodClick: (Int, Double?) -> Unit,
     onAddFood: () -> Unit,
@@ -247,6 +248,8 @@ fun FoodDatabaseScreen(
     val isSearchExpanded = isSearchActive || uiState.searchQuery.isNotEmpty()
     val showSearchIcon = !(isSearchExpanded && showPortionControl)
 
+    var pendingFocusRequest by remember { mutableStateOf(false) }
+
     BackHandler(
         enabled = isSearchActive || showPortionControl || showFilterSheet
     ) {
@@ -256,14 +259,21 @@ fun FoodDatabaseScreen(
                 focusManager.clearFocus()
                 isSearchActive = false
             }
-
             showPortionControl -> showPortionControl = false
         }
     }
 
-    LaunchedEffect(isSearchActive) {
-        if (isSearchActive) {
+    LaunchedEffect(autoFocusSearch) {
+        if (autoFocusSearch) {
+            isSearchActive = true
+            pendingFocusRequest = true
+        }
+    }
+
+    LaunchedEffect(pendingFocusRequest) {
+        if (pendingFocusRequest) {
             searchFocusRequester.requestFocus()
+            pendingFocusRequest = false
         }
     }
 
@@ -297,7 +307,8 @@ fun FoodDatabaseScreen(
                             viewModel.onSearchQueryChange("")
                             isSearchActive = false
                             focusManager.clearFocus()
-                        }
+                        },
+                        selectAllOnFocus = autoFocusSearch
                     )
                 },
                 actions = {
@@ -313,6 +324,7 @@ fun FoodDatabaseScreen(
                                     isSearchActive = false
                                 } else {
                                     isSearchActive = true
+                                    pendingFocusRequest = true
                                 }
                             }
                         ) {
@@ -523,7 +535,8 @@ private fun TopBarContent(
     onPortionChange: (Float) -> Unit,
     searchFocusRequester: FocusRequester,
     onSearchDone: () -> Unit,
-    onClearSearch: () -> Unit
+    onClearSearch: () -> Unit,
+    selectAllOnFocus: Boolean = false
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -560,6 +573,7 @@ private fun TopBarContent(
                 onClear = onClearSearch,
                 focusRequester = searchFocusRequester,
                 onDone = onSearchDone,
+                selectAll = selectAllOnFocus,
                 modifier = if (showPortionControl) {
                     Modifier.fillMaxWidth()
                 } else {
@@ -590,8 +604,25 @@ private fun CompactSearchInput(
     onClear: () -> Unit,
     focusRequester: FocusRequester,
     onDone: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectAll: Boolean = false
 ) {
+    var pendingSelectAll by remember { mutableStateOf(selectAll && query.isNotEmpty()) }
+    var textFieldValue by remember {
+        mutableStateOf(TextFieldValue(text = query, selection = TextRange(query.length)))
+    }
+
+    if (textFieldValue.text != query) {
+        textFieldValue = textFieldValue.copy(text = query, selection = TextRange(query.length))
+    }
+
+    LaunchedEffect(pendingSelectAll) {
+        if (pendingSelectAll && textFieldValue.text.isNotEmpty()) {
+            textFieldValue = textFieldValue.copy(selection = TextRange(0, textFieldValue.text.length))
+            pendingSelectAll = false
+        }
+    }
+
     Row(
         modifier = modifier
             .height(36.dp)
@@ -608,8 +639,11 @@ private fun CompactSearchInput(
         )
 
         BasicTextField(
-            value = query,
-            onValueChange = onQueryChange,
+            value = textFieldValue,
+            onValueChange = { newValue ->
+                textFieldValue = newValue
+                onQueryChange(newValue.text)
+            },
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 8.dp)
