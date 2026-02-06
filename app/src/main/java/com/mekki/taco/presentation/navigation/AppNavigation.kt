@@ -49,7 +49,8 @@ fun AppNavigation(
     onFabChange: (@Composable (() -> Unit)?) -> Unit,
     onActionsChange: (@Composable (() -> Unit)?) -> Unit,
     onTitleChange: (String) -> Unit,
-    onBottomBarVisibilityChange: (Boolean) -> Unit = {}
+    onBottomBarVisibilityChange: (Boolean) -> Unit = {},
+    isWidgetOverlay: Boolean = false
 ) {
     val homeViewModel: HomeViewModel = hiltViewModel()
     val profileViewModel: ProfileViewModel = hiltViewModel()
@@ -271,7 +272,8 @@ fun AppNavigation(
                         navController.popBackStack()
                     }
                 } else null,
-                targetDietName = dietName
+                targetDietName = dietName,
+                restrictDelete = isWidgetOverlay
             )
         }
 

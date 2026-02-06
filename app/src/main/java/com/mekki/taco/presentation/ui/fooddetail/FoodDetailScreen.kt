@@ -96,9 +96,10 @@ fun FoodDetailScreen(
     onDelete: (() -> Unit) -> Unit = {},
     onEditFieldChange: (String, String) -> Unit = { _, _ -> },
     onNavigateToNewFood: (Int) -> Unit = {},
-    onAddToDiet: (Int, Double, String, String) -> Unit = { _, _, _, _ -> }, // dietId, qty, meal, time
+    onAddToDiet: (Int, Double, String, String) -> Unit = { _, _, _, _ -> },
     onFastAdd: ((String) -> Unit)? = null,
-    targetDietName: String? = null
+    targetDietName: String? = null,
+    restrictDelete: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
     var showMenu by remember { mutableStateOf(false) }
@@ -223,25 +224,27 @@ fun FoodDetailScreen(
                                             onEditToggle()
                                         }
                                     )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                "Deletar",
-                                                color = MaterialTheme.colorScheme.error
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Default.Delete,
-                                                null,
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
-                                        },
-                                        onClick = {
-                                            showMenu = false
-                                            showDeleteConfirm = true
-                                        }
-                                    )
+                                    if (!restrictDelete) {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    "Deletar",
+                                                    color = MaterialTheme.colorScheme.error
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Default.Delete,
+                                                    null,
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            },
+                                            onClick = {
+                                                showMenu = false
+                                                showDeleteConfirm = true
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }

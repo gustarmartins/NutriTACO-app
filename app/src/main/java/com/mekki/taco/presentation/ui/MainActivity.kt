@@ -45,6 +45,7 @@ import com.mekki.taco.data.sharing.NutriTacoFileType
 import com.mekki.taco.presentation.navigation.AppNavigation
 import com.mekki.taco.presentation.navigation.BottomNavItem
 import com.mekki.taco.presentation.navigation.FOOD_DATABASE_ROUTE
+import com.mekki.taco.presentation.navigation.FOOD_DETAIL_ROUTE
 import com.mekki.taco.presentation.navigation.HOME_ROUTE
 import com.mekki.taco.presentation.navigation.SETTINGS_ROUTE
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
@@ -144,8 +145,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                var isWidgetOverlay by remember { mutableStateOf(false) }
+
                 androidx.compose.runtime.LaunchedEffect(widgetSearchTrigger) {
                     if (widgetSearchTrigger > 0) {
+                        val current = navController.currentBackStackEntry?.destination?.route
+                        isWidgetOverlay = current != null &&
+                                current != HOME_ROUTE &&
+                                !current.startsWith("diet_list") &&
+                                current != "diary" &&
+                                !current.startsWith(FOOD_DATABASE_ROUTE)
                         navController.navigate("food_database?autoFocus=true") {
                             launchSingleTop = true
                         }
@@ -209,6 +218,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val shouldShowBottomBar = when {
+                    isWidgetOverlay -> false
                     currentRoute == "home" -> true
                     currentRoute?.startsWith("diet_list") == true -> true
                     currentRoute == "diary" -> true
@@ -231,6 +241,12 @@ class MainActivity : ComponentActivity() {
                     }
                     if (route != "diet_detail/{dietId}") {
                         screenTitle = defaultTitle
+                    }
+                    if (isWidgetOverlay &&
+                        route?.startsWith(FOOD_DATABASE_ROUTE) != true &&
+                        route?.startsWith(FOOD_DETAIL_ROUTE) != true
+                    ) {
+                        isWidgetOverlay = false
                     }
                     isBottomBarVisible = true
                     onDispose {}
@@ -315,7 +331,8 @@ class MainActivity : ComponentActivity() {
                         onFabChange = { newFab -> fab = newFab },
                         onActionsChange = { newActions -> extraActions = newActions ?: {} },
                         onTitleChange = { newTitle -> screenTitle = newTitle },
-                        onBottomBarVisibilityChange = { isBottomBarVisible = it }
+                        onBottomBarVisibilityChange = { isBottomBarVisible = it },
+                        isWidgetOverlay = isWidgetOverlay
                     )
                 }
 
