@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,7 +47,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
@@ -61,11 +61,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -83,6 +82,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -109,14 +109,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.data.model.DietItemWithFood
 import com.mekki.taco.presentation.ui.components.FilterBottomSheet
+import com.mekki.taco.presentation.ui.components.rememberEffectiveScale
 import com.mekki.taco.presentation.ui.profile.ProfileSheetContent
 import com.mekki.taco.presentation.ui.profile.ProfileViewModel
 import com.mekki.taco.presentation.ui.search.FoodFilterState
-import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
 import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
 import kotlinx.coroutines.flow.launchIn
@@ -160,7 +159,7 @@ fun HomeScreen(
     var prevShowAllResults by remember { mutableStateOf(state.showAllResults) }
     var pendingScrollToId by remember { mutableStateOf<Int?>(null) }
     var hasMeasured by remember { mutableStateOf(false) }
-    var measuredItemY by remember { mutableStateOf(0) }
+    var measuredItemY by remember { mutableIntStateOf(0) }
 
     // 250ms delay ensures it works on most devices
     LaunchedEffect(state.showAllResults) {
@@ -720,7 +719,11 @@ fun HomeTopBarWithSearch(
                             onClick = onAdvancedFiltersClear,
                             label = { Text("+${filterState.activeAdvancedFilterCount} filtros") },
                             leadingIcon = {
-                                Icon(Icons.Default.FilterList, null, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.FilterList,
+                                    null,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             },
                             trailingIcon = {
                                 Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
@@ -748,6 +751,10 @@ fun DailyProgressHeroCard(
     progress: DailyProgress,
     onClick: () -> Unit
 ) {
+    val effectiveScale = rememberEffectiveScale(baselineDensityDp = 2.75f)
+    // Compact when density+fontScale combination makes things too large
+    val isCompact = effectiveScale > 1.2f
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -757,17 +764,18 @@ fun DailyProgressHeroCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(if (isCompact) 16.dp else 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = "Progresso Do Dia",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(if (isCompact) 16.dp else 24.dp))
 
             Box(contentAlignment = Alignment.Center) {
                 val consumedRatio =
@@ -775,8 +783,12 @@ fun DailyProgressHeroCard(
                 val primaryColor = MaterialTheme.colorScheme.primary
                 val trackColor = MaterialTheme.colorScheme.outlineVariant
 
-                Canvas(modifier = Modifier.size(200.dp, 100.dp)) {
-                    // Background Arc
+                // Responsive canvas: fraction of width + aspect ratio
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth(if (isCompact) 0.5f else 0.6f)
+                        .aspectRatio(2f)
+                ) {
                     drawArc(
                         color = trackColor.copy(alpha = 0.3f),
                         startAngle = 180f,
@@ -787,7 +799,7 @@ fun DailyProgressHeroCard(
                     )
                     // Progress Arc
                     drawArc(
-                        color = primaryColor, // Green
+                        color = primaryColor,
                         startAngle = 180f,
                         sweepAngle = 180f * consumedRatio,
                         useCenter = false,
@@ -800,29 +812,39 @@ fun DailyProgressHeroCard(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.offset(y = 20.dp)
                 ) {
-                    val remaining = (progress.targetKcal - progress.consumedKcal).coerceAtLeast(0.0)
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
                             text = progress.consumedKcal.toInt().toString(),
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.ExtraBold
+                            // Downsize the headline at high effective scales
+                            style = if (isCompact)
+                                MaterialTheme.typography.headlineSmall
+                            else
+                                MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1
                         )
                         Text(
                             text = " / ${progress.targetKcal.toInt()} kcal",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            modifier = Modifier.padding(bottom = if (isCompact) 2.dp else 4.dp),
+                            maxLines = 1
                         )
                     }
-                    Text(
-                        text = "Consumido • Restam ${remaining.toInt()} kcal",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (progress.consumedKcal > 0) {
+                        val remaining = (progress.targetKcal - progress.consumedKcal)
+                            .coerceAtLeast(0.0)
+                        Text(
+                            text = "Restam ${remaining.toInt()} kcal",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(if (isCompact) 20.dp else 32.dp))
 
             // Macros
             Row(
@@ -830,26 +852,29 @@ fun DailyProgressHeroCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 MacroProgressItem(
-                    label = "Proteínas",
+                    label = if (isCompact) "Prot." else "Proteínas",
                     value = progress.consumedProtein,
                     target = progress.targetProtein,
                     color = COLOR_PROTEIN,
+                    isCompact = isCompact,
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 16.dp))
                 MacroProgressItem(
-                    label = "Carboidratos",
+                    label = if (isCompact) "Carbs" else "Carboidratos",
                     value = progress.consumedCarbs,
                     target = progress.targetCarbs,
                     color = COLOR_CARBS,
+                    isCompact = isCompact,
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 16.dp))
                 MacroProgressItem(
-                    label = "Gorduras",
+                    label = if (isCompact) "Gord." else "Gorduras",
                     value = progress.consumedFat,
                     target = progress.targetFat,
                     color = COLOR_FAT,
+                    isCompact = isCompact,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -863,6 +888,7 @@ fun MacroProgressItem(
     value: Double,
     target: Double,
     color: Color,
+    isCompact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -874,19 +900,20 @@ fun MacroProgressItem(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
         Text(
             text = "${value.toInt()}g / ${target.toInt()}g",
             style = MaterialTheme.typography.labelSmall,
             color = Color.Gray,
-            fontSize = 10.sp,
             maxLines = 1,
-            overflow = TextOverflow.Visible
+            overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(if (isCompact) 4.dp else 6.dp))
         LinearProgressIndicator(
             progress = { (value / target).coerceIn(0.0, 1.0).toFloat() },
             modifier = Modifier
@@ -907,6 +934,10 @@ fun MealsAndWaterRow(
     onLogNextMeal: () -> Unit,
     onEditNextMeal: () -> Unit
 ) {
+    val effectiveScale = rememberEffectiveScale(baselineDensityDp = 2.75f)
+    val isCompact = effectiveScale > 1.2f
+    val cardHeight = if (isCompact) 160.dp else 140.dp
+
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         Text(
             text = "Refeições e Água",
@@ -923,7 +954,7 @@ fun MealsAndWaterRow(
             Card(
                 modifier = Modifier
                     .weight(1f)
-                    .height(140.dp),
+                    .height(cardHeight),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -1005,7 +1036,7 @@ fun MealsAndWaterRow(
             Card(
                 modifier = Modifier
                     .weight(1f)
-                    .height(140.dp),
+                    .height(cardHeight),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,

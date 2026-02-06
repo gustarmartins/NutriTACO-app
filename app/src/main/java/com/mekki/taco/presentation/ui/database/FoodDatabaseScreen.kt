@@ -14,6 +14,9 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -93,9 +96,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -105,6 +110,7 @@ import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.presentation.ui.components.FilterBottomSheet
 import com.mekki.taco.presentation.ui.search.FoodSortOption
 import com.mekki.taco.presentation.ui.search.FoodSource
+import com.mekki.taco.presentation.ui.search.getNutrientDisplayInfo
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -642,6 +648,7 @@ private fun CompactSearchInput(
     }
 }
 
+// TODO: with new scale helper, we should eventually remove this in favor of it
 @Composable
 private fun CompactPortionControl(
     portion: String,
@@ -649,6 +656,15 @@ private fun CompactPortionControl(
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+
+    var textFieldValue by remember(portion) {
+        mutableStateOf(
+            TextFieldValue(
+                text = portion,
+                selection = TextRange(portion.length)
+            )
+        )
+    }
 
     Row(
         modifier = Modifier
@@ -676,34 +692,44 @@ private fun CompactPortionControl(
         }
 
         BasicTextField(
-            value = portion,
+            value = textFieldValue,
             onValueChange = { newValue ->
-                if (newValue.length <= 4 && newValue.all { it.isDigit() }) {
-                    onPortionChange(newValue)
+                if (newValue.text.length <= 4 && newValue.text.all { it.isDigit() }) {
+                    textFieldValue = newValue
+                    onPortionChange(newValue.text)
                 }
             },
             modifier = Modifier
-                .width(32.dp)
+                .width(IntrinsicSize.Min)
                 .focusRequester(focusRequester),
             textStyle = MaterialTheme.typography.labelMedium.copy(
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             ),
-            singleLine = true,
+            maxLines = 1,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary)
-        )
-
-        Text(
-            text = "g",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            decorationBox = { innerTextField ->
+                Row(
+                    modifier = Modifier.width(IntrinsicSize.Max),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.weight(1f, fill = false)) {
+                        innerTextField()
+                    }
+                    Text(
+                        text = "g",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
+            }
         )
 
         IconButton(
@@ -876,6 +902,7 @@ private fun FilterChipsRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FoodDatabaseItem(
     food: Food,
@@ -971,9 +998,10 @@ fun FoodDatabaseItem(
 
             Spacer(Modifier.height(6.dp))
 
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 NutrientLabel(
                     icon = Icons.Default.Bolt,
@@ -1004,6 +1032,19 @@ fun FoodDatabaseItem(
                     isHighlighted = sortOption == FoodSortOption.FAT,
                     df = df
                 )
+
+                val extraNutrient = sortOption.getNutrientDisplayInfo()
+                if (extraNutrient != null) {
+                    val extraValue = getNutrientValue(food, sortOption)?.times(portionMultiplier)
+                    NutrientLabel(
+                        icon = extraNutrient.icon,
+                        value = extraValue,
+                        color = extraNutrient.color,
+                        isHighlighted = true,
+                        df = df,
+                        unit = extraNutrient.unit
+                    )
+                }
             }
         }
     }
@@ -1032,7 +1073,9 @@ private fun NutrientLabel(
             text = if (value == null) "-" else "${df.format(value)}$unit",
             style = if (isHighlighted) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
             fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
-            color = color
+            color = color,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }

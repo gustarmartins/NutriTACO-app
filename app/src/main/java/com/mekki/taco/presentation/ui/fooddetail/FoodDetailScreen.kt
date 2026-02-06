@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.Diet
 import com.mekki.taco.presentation.ui.components.AddToDietDialog
+import com.mekki.taco.presentation.ui.components.CompactMacroGrid
 import com.mekki.taco.presentation.ui.components.DiscardChangesDialog
 import com.mekki.taco.presentation.ui.components.DynamicMacroGrid
 import com.mekki.taco.presentation.ui.components.MicronutrientsPanel
@@ -74,6 +75,7 @@ import com.mekki.taco.presentation.ui.components.NutrientWarningBadges
 import com.mekki.taco.presentation.ui.components.PortionControlInput
 import com.mekki.taco.presentation.ui.components.SecondaryStatsGrid
 import com.mekki.taco.presentation.ui.components.VerticalNutrientCard
+import com.mekki.taco.presentation.ui.components.rememberEffectiveScale
 import com.mekki.taco.utils.NutrientWarnings
 import kotlinx.coroutines.launch
 
@@ -329,24 +331,39 @@ fun FoodDetailScreen(
                             }
 
                             item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    VerticalNutrientCard(
-                                        label = "Calorias",
-                                        value = alimento.energiaKcal,
-                                        unit = "kcal",
-                                        color = Color(0xFFA83C3C),
-                                        icon = Icons.Default.Bolt,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    DynamicMacroGrid(
+                                val effectiveScale = rememberEffectiveScale()
+                                // Switch to compact 2×2 grid when things get too large
+                                // At 540 dpi + fontScale 1.0 it breaks, so we trigger at effectiveScale = 1.227
+                                // based on 440 dpi + fontScale 1.0 (common on most devices)
+                                val isCompact = effectiveScale > 1.2f
+
+                                if (isCompact) {
+                                    CompactMacroGrid(
+                                        energiaKcal = alimento.energiaKcal,
                                         proteinas = alimento.proteina,
                                         carboidratos = alimento.carboidratos,
-                                        lipidios = alimento.lipidios?.total,
-                                        modifier = Modifier.weight(3f)
+                                        lipidios = alimento.lipidios?.total
                                     )
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        VerticalNutrientCard(
+                                            label = "Calorias",
+                                            value = alimento.energiaKcal,
+                                            unit = "kcal",
+                                            color = Color(0xFFA83C3C),
+                                            icon = Icons.Default.Bolt,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        DynamicMacroGrid(
+                                            proteinas = alimento.proteina,
+                                            carboidratos = alimento.carboidratos,
+                                            lipidios = alimento.lipidios?.total,
+                                            modifier = Modifier.weight(3f)
+                                        )
+                                    }
                                 }
                             }
 

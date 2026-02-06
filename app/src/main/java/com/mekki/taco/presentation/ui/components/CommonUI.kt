@@ -57,6 +57,9 @@ fun PortionControlInput(
 ) {
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
+    val effectiveScale = rememberEffectiveScale()
+    // in case the space is tight we attempt to shrink that chip
+    val inputWidth = if (effectiveScale > 1.15f) 140.dp else 160.dp
 
     var textFieldValue by remember(portion) {
         mutableStateOf(

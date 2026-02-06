@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Grain
@@ -31,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.mekki.taco.data.db.entity.Food
 import com.mekki.taco.presentation.ui.theme.LocalNutrientColors
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DynamicMacroGrid(
     proteinas: Double?,
@@ -58,21 +59,97 @@ fun DynamicMacroGrid(
         val icon: ImageVector
     )
 
+    // Abbreviate labels when space is tight
+    val effectiveScale = rememberEffectiveScale()
+    val isCompact = effectiveScale > 1.15f
+
     val items = listOf(
-        MacroItem("Proteínas", p, nutrientColors.protein, Icons.Default.FitnessCenter),
+        MacroItem(
+            if (isCompact) "Prot." else "Proteínas",
+            p, nutrientColors.protein, Icons.Default.FitnessCenter
+        ),
         MacroItem("Carbs", c, nutrientColors.carbs, Icons.Default.Grain),
-        MacroItem("Gorduras", f, nutrientColors.fat, Icons.Default.WaterDrop)
+        MacroItem(
+            if (isCompact) "Gord." else "Gorduras",
+            f, nutrientColors.fat, Icons.Default.WaterDrop
+        )
     ).sortedByDescending { it.value }
 
-    Row(
+    FlowRow(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(if (isCompact) 8.dp else 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items.forEach { item ->
             VerticalNutrientCard(
                 label = item.label,
                 value = item.value,
                 unit = "g",
+                color = item.color,
+                icon = item.icon,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun CompactMacroGrid(
+    energiaKcal: Double?,
+    proteinas: Double?,
+    carboidratos: Double?,
+    lipidios: Double?,
+    modifier: Modifier = Modifier
+) {
+    val nutrientColors = LocalNutrientColors.current
+    val effectiveScale = rememberEffectiveScale()
+    val isVeryCompact = effectiveScale > 1.35f
+
+    data class NutrientItem(
+        val label: String,
+        val value: Double,
+        val unit: String,
+        val color: Color,
+        val icon: ImageVector
+    )
+
+    val macros = listOf(
+        NutrientItem(
+            if (isVeryCompact) "Prot." else "Proteínas",
+            proteinas ?: 0.0,
+            "g",
+            nutrientColors.protein,
+            Icons.Default.FitnessCenter
+        ),
+        NutrientItem("Carbs", carboidratos ?: 0.0, "g", nutrientColors.carbs, Icons.Default.Grain),
+        NutrientItem(
+            if (isVeryCompact) "Gord." else "Gorduras",
+            lipidios ?: 0.0, "g", nutrientColors.fat, Icons.Default.WaterDrop
+        )
+    ).sortedByDescending { it.value }
+
+    val allItems = listOf(
+        NutrientItem(
+            if (isVeryCompact) "Kcal" else "Calorias",
+            energiaKcal ?: 0.0,
+            if (isVeryCompact) "" else "kcal",
+            Color(0xFFA83C3C),
+            Icons.Default.Bolt
+        )
+    ) + macros
+
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(if (isVeryCompact) 8.dp else 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        maxItemsInEachRow = 2
+    ) {
+        allItems.forEach { item ->
+            VerticalNutrientCard(
+                label = item.label,
+                value = item.value,
+                unit = item.unit,
                 color = item.color,
                 icon = item.icon,
                 modifier = Modifier.weight(1f)
@@ -126,37 +203,77 @@ fun EditableMacroGrid(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SecondaryStatsGrid(fibra: Double?, colesterol: Double?, sodio: Double?) {
     val nutrientColors = LocalNutrientColors.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        VerticalNutrientCard(
-            label = "Fibra",
-            value = fibra,
-            unit = "g",
-            color = nutrientColors.fiber,
-            icon = Icons.Default.Spa,
-            modifier = Modifier.weight(1f)
-        )
-        VerticalNutrientCard(
-            label = "Colesterol",
-            value = colesterol,
-            unit = "mg",
-            color = nutrientColors.cholesterol,
-            icon = Icons.Default.Favorite,
-            modifier = Modifier.weight(1f)
-        )
-        VerticalNutrientCard(
-            label = "Sódio",
-            value = sodio,
-            unit = "mg",
-            color = nutrientColors.sodium,
-            icon = Icons.Default.Waves,
-            modifier = Modifier.weight(1f)
-        )
+    val effectiveScale = rememberEffectiveScale()
+    // Only go vertical at a higher threshold so it stays horizontal longer
+    val isCompact = effectiveScale > 1.15f
+
+    if (isCompact) {
+        // 2+1 layout via FlowRow
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 2
+        ) {
+            VerticalNutrientCard(
+                label = "Fibra",
+                value = fibra,
+                unit = "g",
+                color = nutrientColors.fiber,
+                icon = Icons.Default.Spa,
+                modifier = Modifier.weight(1f)
+            )
+            VerticalNutrientCard(
+                label = "Colest.",
+                value = colesterol,
+                unit = "mg",
+                color = nutrientColors.cholesterol,
+                icon = Icons.Default.Favorite,
+                modifier = Modifier.weight(1f)
+            )
+            VerticalNutrientCard(
+                label = "Sódio",
+                value = sodio,
+                unit = "mg",
+                color = nutrientColors.sodium,
+                icon = Icons.Default.Waves,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            VerticalNutrientCard(
+                label = "Fibra",
+                value = fibra,
+                unit = "g",
+                color = nutrientColors.fiber,
+                icon = Icons.Default.Spa,
+                modifier = Modifier.weight(1f)
+            )
+            VerticalNutrientCard(
+                label = "Colesterol",
+                value = colesterol,
+                unit = "mg",
+                color = nutrientColors.cholesterol,
+                icon = Icons.Default.Favorite,
+                modifier = Modifier.weight(1f)
+            )
+            VerticalNutrientCard(
+                label = "Sódio",
+                value = sodio,
+                unit = "mg",
+                color = nutrientColors.sodium,
+                icon = Icons.Default.Waves,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -213,6 +330,11 @@ fun VerticalNutrientCard(
     icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
+    val effectiveScale = rememberEffectiveScale()
+    val isCompact = effectiveScale > 1.2f
+    val iconSize = if (isCompact) 24.dp else 32.dp
+    val vertPadding = if (isCompact) 12.dp else 16.dp
+
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
@@ -224,29 +346,38 @@ fun VerticalNutrientCard(
     ) {
         Column(
             modifier = Modifier
-                .padding(vertical = 16.dp, horizontal = 4.dp)
+                .padding(vertical = vertPadding, horizontal = 4.dp)
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(if (isCompact) 4.dp else 8.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = color,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(iconSize)
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = if (value == null) "-" else "%.1f %s".format(value, unit)
-                    .replace(".0 ", " "),
-                style = MaterialTheme.typography.titleMedium,
+                text = if (value == null) "-" else {
+                    val num = "%.1f".format(value)
+                    val trimmed = if (num.endsWith(".0")) num.dropLast(2) else num
+                    if (unit.isEmpty()) trimmed else "$trimmed $unit"
+                },
+                style = if (isCompact)
+                    MaterialTheme.typography.titleSmall
+                else
+                    MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = color,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
@@ -392,7 +523,7 @@ fun EditableMicronutrientsPanel(
                 "Niacina (B3)" to ("niacina" to fields["niacina"].orEmpty()),
                 "Piridoxina (B6)" to ("piridoxina" to fields["piridoxina"].orEmpty())
             ),
-            unit = "mg/mcg", // simplified
+            unit = "mg/mcg",
             onFieldChange = onFieldChange
         )
     }
@@ -519,22 +650,16 @@ fun PanelRow(label: String, value: Double?, unit: String, isCompact: Boolean = f
     }
 }
 
-/**
- * Creates a responsive grid that displays nutrient items in two columns on standard screens,
- * but automatically wraps to a single column when the font scale is high or space is limited.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ResponsiveNutrientGrid(items: List<Triple<String, Double?, String>>) {
-    val configuration = LocalConfiguration.current
-    val fontScale = configuration.fontScale
+    val effectiveScale = rememberEffectiveScale()
 
-    // Calculate a minimum width that scales with font size to prevent text overlapping.
-    // Base 150dp allows 2 columns on most phones; scaling up eventually forces a wrap.
-    val minItemWidth = 150.dp * fontScale
+    // Scale minimum width with effectiveScale instead of raw fontScale
+    // At baseline (1.0) → 150dp, at 1.2 → 180dp, forces single column earlier
+    val minItemWidth = (150 * effectiveScale).dp
 
-    // Items are considered 'compact' (allowing multiline) when font is significantly scaled.
-    val isTextLarge = fontScale > 1.1f
+    val isTextLarge = effectiveScale > 1.1f
 
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
