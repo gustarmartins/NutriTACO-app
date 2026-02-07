@@ -165,7 +165,8 @@ class FoodSearchManager(
             .flatMapLatest { (term, filters) ->
                 val hasCategories = filters.selectedCategories.isNotEmpty()
                 val hasAdvanced = filters.hasAdvancedFilters
-                val hasAnyFilter = hasCategories || hasAdvanced
+                val hasSourceFilter = filters.source != FoodSource.ALL
+                val hasAnyFilter = hasCategories || hasAdvanced || hasSourceFilter
 
                 if (term.length < 2 && !hasAnyFilter) {
                     _isLoading.value = false
