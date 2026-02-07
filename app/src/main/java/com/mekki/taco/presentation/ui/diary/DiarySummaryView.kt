@@ -33,9 +33,13 @@ import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Waves
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +64,20 @@ import com.mekki.taco.presentation.ui.theme.LocalNutrientColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.ceil
+
+private const val WEEKLY_COVERAGE_RATIO = 0.43  // ~3 of 7 days
+private const val MONTHLY_COVERAGE_RATIO = 0.25 // ~8 of 30 days
+
+fun hasSufficientData(daysLogged: Int, totalDaysInPeriod: Int): Boolean {
+    if (daysLogged <= 0) return false
+    return daysLogged >= minDaysForPeriod(totalDaysInPeriod)
+}
+
+fun minDaysForPeriod(totalDaysInPeriod: Int): Int {
+    val ratio = if (totalDaysInPeriod <= 7) WEEKLY_COVERAGE_RATIO else MONTHLY_COVERAGE_RATIO
+    return ceil(totalDaysInPeriod * ratio).toInt()
+}
 
 @Composable
 fun DiarySummaryView(
@@ -248,6 +266,66 @@ fun AnimatedTransitionCard(visible: Boolean, delay: Int, content: @Composable ()
         ) { 40 }
     ) {
         content()
+    }
+}
+
+@Composable
+fun PeriodEmptyState(
+    isMonthlyMode: Boolean,
+    daysLogged: Int = 0,
+    minDaysRequired: Int = 0,
+    onNavigateToDaily: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = if (isMonthlyMode) Icons.Outlined.CalendarMonth
+            else Icons.Outlined.DateRange,
+            contentDescription = null,
+            modifier = Modifier.size(72.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+
+        Text(
+            text = if (daysLogged == 0) {
+                if (isMonthlyMode) "Nenhum registro neste mês"
+                else "Nenhum registro nesta semana"
+            } else {
+                "Dados insuficientes"
+            },
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Text(
+            text = if (daysLogged == 0) {
+                "Adicione alimentos ou importe uma dieta\nno diário para começar."
+            } else {
+                "Registre pelo menos $minDaysRequired dias para gerar\num resumo preciso ($daysLogged registrados até agora)."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        FilledTonalButton(
+            onClick = onNavigateToDaily,
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        ) {
+            Text("Ir para o diário")
+        }
     }
 }
 
@@ -598,39 +676,7 @@ private fun DietInsightsCard(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            val minDaysRequired = if (isMonthlyMode) 5 else 2
-            val hasEnoughData = summary.daysLogged >= minDaysRequired
-
-            if (!hasEnoughData) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CalendarToday,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(40.dp)
-                    )
-                    Text(
-                        text = "Registre suas refeições para ver insights precisos",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (summary.daysLogged > 0) {
-                        Text(
-                            text = "${summary.daysLogged} de $minDaysRequired dias mínimos registrados",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            } else {
-                if (isIncomplete) {
+            if (isIncomplete) {
                     val loggedDates = summary.dailyCalories.map { it.date }.toSet()
                     val today = LocalDate.now()
                     val periodStart =
@@ -816,7 +862,6 @@ private fun DietInsightsCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
         }
     }
 }

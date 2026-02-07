@@ -509,37 +509,62 @@ fun DiaryScreen(
 
             when (viewMode) {
                 DiaryViewMode.WEEKLY -> {
-                    GoalModeSelector(
-                        selectedMode = goalMode,
-                        onModeSelected = { viewModel.setGoalMode(it) }
-                    )
-                    DiarySummaryView(
-                        summary = weeklySummary,
-                        isMonthlyMode = false,
-                        goalMode = goalMode,
-                        onDayClick = { date ->
-                            previousViewMode = DiaryViewMode.WEEKLY
-                            viewModel.setDate(date)
-                            viewModel.setViewMode(DiaryViewMode.DAILY)
-                        }
-                    )
+                    if (!hasSufficientData(weeklySummary.daysLogged, 7)) {
+                        PeriodEmptyState(
+                            isMonthlyMode = false,
+                            daysLogged = weeklySummary.daysLogged,
+                            minDaysRequired = minDaysForPeriod(7),
+                            onNavigateToDaily = {
+                                previousViewMode = DiaryViewMode.WEEKLY
+                                viewModel.setViewMode(DiaryViewMode.DAILY)
+                            }
+                        )
+                    } else {
+                        GoalModeSelector(
+                            selectedMode = goalMode,
+                            onModeSelected = { viewModel.setGoalMode(it) }
+                        )
+                        DiarySummaryView(
+                            summary = weeklySummary,
+                            isMonthlyMode = false,
+                            goalMode = goalMode,
+                            onDayClick = { date ->
+                                previousViewMode = DiaryViewMode.WEEKLY
+                                viewModel.setDate(date)
+                                viewModel.setViewMode(DiaryViewMode.DAILY)
+                            }
+                        )
+                    }
                 }
 
                 DiaryViewMode.MONTHLY -> {
-                    GoalModeSelector(
-                        selectedMode = goalMode,
-                        onModeSelected = { viewModel.setGoalMode(it) }
-                    )
-                    DiarySummaryView(
-                        summary = monthlySummary,
-                        isMonthlyMode = true,
-                        goalMode = goalMode,
-                        onDayClick = { date ->
-                            previousViewMode = DiaryViewMode.MONTHLY
-                            viewModel.setDate(date)
-                            viewModel.setViewMode(DiaryViewMode.DAILY)
-                        }
-                    )
+                    val monthDays = monthStart.lengthOfMonth()
+                    if (!hasSufficientData(monthlySummary.daysLogged, monthDays)) {
+                        PeriodEmptyState(
+                            isMonthlyMode = true,
+                            daysLogged = monthlySummary.daysLogged,
+                            minDaysRequired = minDaysForPeriod(monthDays),
+                            onNavigateToDaily = {
+                                previousViewMode = DiaryViewMode.MONTHLY
+                                viewModel.setViewMode(DiaryViewMode.DAILY)
+                            }
+                        )
+                    } else {
+                        GoalModeSelector(
+                            selectedMode = goalMode,
+                            onModeSelected = { viewModel.setGoalMode(it) }
+                        )
+                        DiarySummaryView(
+                            summary = monthlySummary,
+                            isMonthlyMode = true,
+                            goalMode = goalMode,
+                            onDayClick = { date ->
+                                previousViewMode = DiaryViewMode.MONTHLY
+                                viewModel.setDate(date)
+                                viewModel.setViewMode(DiaryViewMode.DAILY)
+                            }
+                        )
+                    }
                 }
 
                 DiaryViewMode.DAILY -> {
