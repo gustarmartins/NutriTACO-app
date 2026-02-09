@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
     lateinit var dietSharingManager: DietSharingManager
 
     private var widgetSearchTrigger by mutableStateOf(0)
+    private var widgetFoodDetailTrigger by mutableStateOf(0)
+    private var pendingFoodDetailId by mutableStateOf(-1)
 
     companion object {
         private const val TAG = "MainActivity_TACO"
@@ -76,6 +78,12 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_OPEN_SEARCH, false)) {
             intent.removeExtra(EXTRA_OPEN_SEARCH)
             widgetSearchTrigger++
+        }
+        val foodId = intent.getIntExtra(EXTRA_OPEN_FOOD_DETAIL, -1)
+        if (foodId > 0) {
+            intent.removeExtra(EXTRA_OPEN_FOOD_DETAIL)
+            pendingFoodDetailId = foodId
+            widgetFoodDetailTrigger++
         }
     }
 
@@ -121,6 +129,16 @@ class MainActivity : ComponentActivity() {
                                 (intent?.getIntExtra(EXTRA_OPEN_FOOD_DETAIL, -1) ?: -1) > 0
                         )
 
+                var isWidgetOverlay by remember { mutableStateOf(false) }
+
+                fun shouldEnableOverlay(route: String?): Boolean {
+                    return route != null &&
+                            route != HOME_ROUTE &&
+                            !route.startsWith("diet_list") &&
+                            route != "diary" &&
+                            !route.startsWith(FOOD_DATABASE_ROUTE)
+                }
+
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     if (!isFromWidget) return@LaunchedEffect
 
@@ -130,14 +148,18 @@ class MainActivity : ComponentActivity() {
                     intent?.removeExtra(EXTRA_OPEN_SEARCH)
                     intent?.removeExtra(EXTRA_OPEN_FOOD_DETAIL)
 
+                    val current = navController.currentBackStackEntry?.destination?.route
+
                     when {
                         openFoodId > 0 -> {
+                            isWidgetOverlay = shouldEnableOverlay(current)
                             navController.navigate("food_detail/$openFoodId") {
                                 launchSingleTop = true
                             }
                         }
 
                         openSearch -> {
+                            isWidgetOverlay = shouldEnableOverlay(current)
                             navController.navigate("food_database?autoFocus=true") {
                                 launchSingleTop = true
                             }
@@ -145,17 +167,23 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                var isWidgetOverlay by remember { mutableStateOf(false) }
-
                 androidx.compose.runtime.LaunchedEffect(widgetSearchTrigger) {
                     if (widgetSearchTrigger > 0) {
                         val current = navController.currentBackStackEntry?.destination?.route
-                        isWidgetOverlay = current != null &&
-                                current != HOME_ROUTE &&
-                                !current.startsWith("diet_list") &&
-                                current != "diary" &&
-                                !current.startsWith(FOOD_DATABASE_ROUTE)
+                        isWidgetOverlay = shouldEnableOverlay(current)
                         navController.navigate("food_database?autoFocus=true") {
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
+                androidx.compose.runtime.LaunchedEffect(widgetFoodDetailTrigger) {
+                    if (widgetFoodDetailTrigger > 0 && pendingFoodDetailId > 0) {
+                        val current = navController.currentBackStackEntry?.destination?.route
+                        isWidgetOverlay = shouldEnableOverlay(current)
+                        val id = pendingFoodDetailId
+                        pendingFoodDetailId = -1
+                        navController.navigate("food_detail/$id") {
                             launchSingleTop = true
                         }
                     }
