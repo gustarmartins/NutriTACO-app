@@ -2,6 +2,7 @@ package com.mekki.taco.widget
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.GlanceId
@@ -37,8 +38,8 @@ import com.mekki.taco.presentation.ui.MainActivity
 class FoodSearchWidget : GlanceAppWidget() {
 
     companion object {
-        private val SMALL_SIZE = DpSize(60.dp, 40.dp)
-        private val MEDIUM_SIZE = DpSize(180.dp, 40.dp)
+        private val SMALL_SIZE = DpSize(60.dp, 60.dp)
+        private val MEDIUM_SIZE = DpSize(180.dp, 56.dp)
     }
 
     override val sizeMode = SizeMode.Responsive(
@@ -52,60 +53,86 @@ class FoodSearchWidget : GlanceAppWidget() {
 
             GlanceTheme {
                 if (isCompact) {
-                    Box(
-                        modifier = GlanceModifier
-                            .fillMaxSize()
-                            .clickable(actionRunCallback<OpenSearchAction>()),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = GlanceModifier
-                                .size(36.dp)
-                                .background(GlanceTheme.colors.surfaceVariant)
-                                .cornerRadius(18.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                provider = ImageProvider(R.drawable.ic_search_widget),
-                                contentDescription = "Buscar alimentos",
-                                modifier = GlanceModifier.size(20.dp)
-                            )
-                        }
-                    }
+                    CompactLayout()
                 } else {
-                    Box(
-                        modifier = GlanceModifier
-                            .fillMaxSize()
-                            .clickable(actionRunCallback<OpenSearchAction>()),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            modifier = GlanceModifier
-                                .fillMaxWidth()
-                                .height(36.dp)
-                                .background(GlanceTheme.colors.surfaceVariant)
-                                .cornerRadius(18.dp)
-                                .padding(horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Image(
-                                provider = ImageProvider(R.drawable.ic_search_widget),
-                                contentDescription = null,
-                                modifier = GlanceModifier.size(20.dp)
-                            )
-
-                            Spacer(modifier = GlanceModifier.width(12.dp))
-
-                            Text(
-                                text = "Buscar alimentos...",
-                                style = TextStyle(
-                                    color = GlanceTheme.colors.onSurfaceVariant
-                                ),
-                                modifier = GlanceModifier.defaultWeight()
-                            )
-                        }
-                    }
+                    ExpandedLayout()
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactLayout() {
+    Box(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .clickable(actionRunCallback<OpenSearchAction>()),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = GlanceModifier
+                .size(48.dp)
+                .background(ImageProvider(R.drawable.widget_compact_background))
+                .cornerRadius(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_search_widget_white),
+                contentDescription = "Buscar alimentos",
+                modifier = GlanceModifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpandedLayout() {
+    Box(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .clickable(actionRunCallback<OpenSearchAction>()),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .background(GlanceTheme.colors.surfaceVariant)
+                .cornerRadius(24.dp)
+                .padding(start = 16.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_search_widget),
+                contentDescription = null,
+                modifier = GlanceModifier.size(20.dp)
+            )
+
+            Spacer(modifier = GlanceModifier.width(12.dp))
+
+            Text(
+                text = "Buscar alimentos...",
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant
+                ),
+                modifier = GlanceModifier.defaultWeight()
+            )
+
+            Spacer(modifier = GlanceModifier.width(8.dp))
+
+            Box(
+                modifier = GlanceModifier
+                    .size(36.dp)
+                    .background(ImageProvider(R.drawable.widget_app_icon_background))
+                    .cornerRadius(18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    provider = ImageProvider(R.mipmap.ic_launcher_foreground),
+                    contentDescription = null,
+                    modifier = GlanceModifier.size(36.dp)
+                )
             }
         }
     }
